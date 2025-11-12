@@ -1,10 +1,49 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import AdminShell from '../components/AdminShell'
 import { api } from '../lib/mockApi'
 
 // Utility
 const uid = () => Math.random().toString(36).slice(2)
+const renameKey = (map, from, to, fallbackValue) => {
+  if (from === to) return map
+  const { [from]: value = fallbackValue, ...rest } = map
+  return { ...rest, [to]: value ?? fallbackValue }
+}
+const deleteKey = (map, key) => {
+  if (!Object.prototype.hasOwnProperty.call(map, key)) return map
+  const { [key]: _omit, ...rest } = map
+  return rest
+}
+const buildSubjectForm = (category = '') => ({
+  academicYearId: '',
+  groupCode: '',
+  courseCode: '',
+  semester: '',
+  category,
+  subjectCode: '',
+  subjectName: '',
+  remark: ''
+})
+const normalizeFeeTypes = (data) => {
+  if (Array.isArray(data)) {
+    return data
+      .map(item => ({
+        id: item?.id || uid(),
+        name: (item?.name || '').toString(),
+        amount: item?.amount === 0 || item?.amount ? String(item.amount) : ''
+      }))
+      .filter(item => item.name.trim())
+  }
+  if (data && typeof data === 'object') {
+    return Object.entries(data).map(([name, amount]) => ({
+      id: uid(),
+      name,
+      amount: amount === 0 || amount ? String(amount) : ''
+    }))
+  }
+  return []
+}
 
 export default function Setup() {
   // Route-driven tab from sidebar
@@ -76,25 +115,128 @@ export default function Setup() {
   }
 
   // Sub-categories and Languages
-  const [categories, setCategories] = useState(['Language', 'Skill', 'Core', 'Allied', 'MAD'])
+  const [categories, setCategories] = useState([])
   const [categoryName, setCategoryName] = useState('')
   const [editingCategory, setEditingCategory] = useState('')
-  const [catItems, setCatItems] = useState({ Language: [], Skill: [], Core: [], Allied: [], MAD: [] })
+  const [catItems, setCatItems] = useState({})
   const [catCounts, setCatCounts] = useState({})
   const [tempCatInputs, setTempCatInputs] = useState({})
   const [viewCat, setViewCat] = useState('')
-  const [feeTypes, setFeeTypes] = useState({ Academic:0, Exam:0, Library:0, Bus:0, Lab:0 })
-  useEffect(()=>{ (async()=>{ try { const ft = await api.getFeeTypes?.(); if(ft) setFeeTypes(ft) } catch {} })() }, [])
+  const [isEditingView, setIsEditingView] = useState(false)
+  const openViewCat = (cat) => {
+    setViewCat(cat)
+    setIsEditingView(false)
+  }
+  const closeViewCat = () => {
+    setViewCat('')
+    setIsEditingView(false)
+  }
+  const handleSubjectAmountChange = (cat, rawValue) => {
+    setCatCounts(prev => ({ ...prev, [cat]: rawValue }))
+    const count = Math.max(0, Number(rawValue) || 0)
+    setTempCatInputs(prev => {
+      const tempExisting = prev[cat] || []
+      const next = Array.from({ length: count }, (_, idx) => tempExisting[idx] ?? '')
+      return { ...prev, [cat]: next }
+    })
+  }
+  const handleTempSubjectChange = (cat, idx, value) => {
+    setTempCatInputs(prev => {
+      const arr = [...(prev[cat] || [])]
+      arr[idx] = value
+      return { ...prev, [cat]: arr }
+    })
+  }
+  const clearCategoryInputs = (cat) => {
+    setTempCatInputs(prev => ({ ...prev, [cat]: [] }))
+    setCatCounts(prev => ({ ...prev, [cat]: '' }))
+  }
+  const commitCategorySubjects = (cat) => {
+    const names = (tempCatInputs[cat] || []).map(n => n.trim()).filter(Boolean)
+    if (!names.length) return
+    const newItems = names.map(name => ({ id: uid(), name }))
+    setCatItems(prev => ({ ...prev, [cat]: [...(prev[cat] || []), ...newItems] }))
+    clearCategoryInputs(cat)
+  }
+  const [feeTypes, setFeeTypes] = useState([])
+  const [newFee, setNewFee] = useState({ name: '', amount: '' })
+  useEffect(()=>{ (async()=>{ try {
+    const ft = await api.getFeeTypes?.()
+    if (ft) {
+      const normalized = normalizeFeeTypes(ft)
+      setFeeTypes(normalized)
+    }
+  } catch {} })() }, [])
+  const updateFeeType = (id, field, value) => {
+    setFeeTypes(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item))
+  }
+  const addFeeType = () => {
+    const trimmed = newFee.name.trim()
+    if (!trimmed) return
+    if (feeTypes.some(ft => ft.name.trim().toLowerCase() === trimmed.toLowerCase())) return
+    setFeeTypes(prev => [...prev, { id: uid(), name: trimmed, amount: newFee.amount || '' }])
+    setNewFee({ name: '', amount: '' })
+  }
+  const deleteFeeType = (id) => {
+    setFeeTypes(prev => prev.filter(item => item.id !== id))
+  }
+  const saveFeeTypes = async () => {
+    const payload = feeTypes
+      .map(item => ({ id: item.id, name: item.name.trim(), amount: Number(item.amount || 0) }))
+      .filter(item => item.name)
+    try { await api.setFeeTypes?.(payload) } catch {}
+    setFeeTypes(payload.map(item => ({ ...item, amount: String(item.amount) })))
+  }
   const saveCategory = () => {
-    if (!categoryName) return
+    const trimmed = categoryName.trim()
+    if (!trimmed) return
+    const duplicate = categories.some(c => c.toLowerCase() === trimmed.toLowerCase() && c !== editingCategory)
+    if (duplicate) return
     if (editingCategory) {
-      setCategories(categories.map(c => c === editingCategory ? categoryName : c))
-    } else if (!categories.includes(categoryName)) {
-      setCategories([...categories, categoryName])
+      setCategories(categories.map(c => c === editingCategory ? trimmed : c))
+      setCatItems(prev => renameKey(prev, editingCategory, trimmed, []))
+      setCatCounts(prev => renameKey(prev, editingCategory, trimmed, ''))
+      setTempCatInputs(prev => renameKey(prev, editingCategory, trimmed, []))
+      setSubjects(prev => prev.map(s => s.category === editingCategory ? { ...s, category: trimmed } : s))
+    if (viewCat === editingCategory) setViewCat(trimmed)
+      if (subjectForm.category === editingCategory) {
+        setSubjectForm(prev => ({ ...prev, category: trimmed }))
+      }
+    } else {
+      setCategories([...categories, trimmed])
+      setCatItems(prev => ({ ...prev, [trimmed]: [] }))
+      setCatCounts(prev => ({ ...prev, [trimmed]: '' }))
+      setTempCatInputs(prev => ({ ...prev, [trimmed]: [] }))
     }
     setCategoryName(''); setEditingCategory('')
   }
-  const deleteCategory = (name) => setCategories(categories.filter(c => c !== name))
+  const deleteCategory = (name) => {
+    const remaining = categories.filter(c => c !== name)
+    if (remaining.length === categories.length) return
+    setCategories(remaining)
+    setCatItems(prev => deleteKey(prev, name))
+    setCatCounts(prev => deleteKey(prev, name))
+    setTempCatInputs(prev => deleteKey(prev, name))
+    setSubjects(prev => {
+      const fallback = remaining[0] || ''
+      return prev.reduce((acc, item) => {
+        if (item.category !== name) {
+          acc.push(item)
+          return acc
+        }
+        if (fallback) acc.push({ ...item, category: fallback })
+        return acc
+      }, [])
+    })
+    if (subjectForm.category === name) {
+      setSubjectForm(prev => ({ ...prev, category: remaining[0] || '' }))
+    }
+    if (viewCat === name) closeViewCat()
+    if (editingCategory === name) {
+      setCategoryName('')
+      setEditingCategory('')
+    }
+  }
 
   // Languages (special under Language category)
   const [languages, setLanguages] = useState([]) // [{id, name}]
@@ -115,16 +257,17 @@ export default function Setup() {
 
   // Subjects
   const [subjects, setSubjects] = useState([])
-  const [subjectForm, setSubjectForm] = useState({
-    academicYearId: '',
-    groupCode: '',
-    courseCode: '',
-    semester: '',
-    category: 'Language',
-    subjectCode: '',
-    subjectName: '',
-    remark: ''
-  })
+  const [subjectForm, setSubjectForm] = useState(() => buildSubjectForm(''))
+
+  useEffect(() => {
+    setSubjectForm(prev => {
+      if (!categories.length) {
+        return prev.category ? { ...prev, category: '' } : prev
+      }
+      if (categories.includes(prev.category)) return prev
+      return { ...prev, category: categories[0] }
+    })
+  }, [categories])
   const [editingSubjectId, setEditingSubjectId] = useState('')
 
   const coursesForGroup = courses.filter(c => c.groupCode === subjectForm.groupCode)
@@ -144,7 +287,7 @@ export default function Setup() {
     } else {
       setSubjects([...subjects, { id: uid(), academicYearId, groupCode, courseCode, semester: Number(semester), category, subjectCode, subjectName, remark }])
     }
-    setSubjectForm({ academicYearId: '', groupCode: '', courseCode: '', semester: '', category: 'Language', subjectCode: '', subjectName: '', remark: '' })
+    setSubjectForm(buildSubjectForm(categories[0] || ''))
     setEditingSubjectId('')
   }
   const editSubject = (rec) => { setSubjectForm({ ...rec, semester: rec.semester.toString() }); setEditingSubjectId(rec.id) }
@@ -226,43 +369,94 @@ export default function Setup() {
           {/* Subject Sub-categories (Count -> Inputs -> OK) */}
           <section className="card card-soft p-3 mb-3">
             <h5 className="section-title">Sub-categories</h5>
-            {categories.map(cat => (
-              <div key={cat} className="mb-3 p-2 border rounded bg-white">
-                <div className="row g-2 align-items-end">
-                  <div className="col-md-3"><div className="fw-600">{cat}</div></div>
-                  <div className="col-md-3"><input type="number" min="0" className="form-control" placeholder="# items" value={catCounts[cat]||''} onChange={e=>{ const n=e.target.value; setCatCounts(prev=>({ ...prev, [cat]: n })); }} /></div>
-                  <div className="col-md-2"><button className="btn btn-outline-brand w-100" onClick={()=>{ const n=Math.max(0, Number(catCounts[cat]||0)); setTempCatInputs(prev=>({ ...prev, [cat]: Array.from({length:n},(_,i)=> (tempCatInputs[cat]?.[i]||'')) })); }}>Generate</button></div>
-                </div>
-                {(tempCatInputs[cat]||[]).length>0 && (
-                  <div className="row g-2 mt-2">
-                    {(tempCatInputs[cat]||[]).map((val,idx)=> (
-                      <div key={idx} className="col-md-3"><input className="form-control" placeholder={`${cat} #${idx+1}`} value={val} onChange={e=>{ const arr=[...(tempCatInputs[cat]||[])]; arr[idx]=e.target.value; setTempCatInputs(prev=>({ ...prev, [cat]: arr })); }} /></div>
-                    ))}
-                    <div className="col-md-2 d-flex align-items-end"><button className="btn btn-brand" onClick={()=>{
-                      const items=(tempCatInputs[cat]||[]).filter(Boolean).map(name=>({ id: uid(), name }))
-                      setCatItems(prev=>({ ...prev, [cat]: items }))
-                      setTempCatInputs(prev=>({ ...prev, [cat]: [] }))
-                    }}>OK</button></div>
-                    
-                  </div>
-                  
-                )}
-                
+            <div className="row g-2 align-items-end mb-3">
+              <div className="col-md-4">
+                <label className="form-label text-muted fw-600">{editingCategory? 'Edit Sub-category':'Add a Sub-category'}</label>
+                <input className="form-control" placeholder="e.g., English" value={categoryName} onChange={e=>setCategoryName(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'){ e.preventDefault(); saveCategory() } }} />
               </div>
-            ))}
+              <div className="col-md-2">
+                <button type="button" className="btn btn-brand w-100" onClick={saveCategory}>{editingCategory? 'Update':'Add'}</button>
+              </div>
+              {editingCategory && (
+                <div className="col-md-2">
+                  <button type="button" className="btn btn-outline-secondary w-100" onClick={()=>{ setCategoryName(''); setEditingCategory('') }}>Cancel</button>
+                </div>
+              )}
+            </div>
+
+            {categories.length===0 && <div className="alert alert-info mb-0">Add a sub-category to begin creating subjects.</div>}
+            {categories.map(cat => {
+              const generatedInputs = tempCatInputs[cat] || []
+              const subjectCount = (catItems[cat]||[]).length
+              const existingSubjects = catItems[cat] || []
+              const existingCount = existingSubjects.length
+              const showSubjectInput = subjectCount===0 || editingCategory === cat
+              return (
+                <div key={cat} className="subcat-card mb-3 p-3 border rounded bg-white">
+                  <div className="row g-2 align-items-end">
+                    <div className="col-md-4">
+                      <div className="fw-600">{cat}</div>
+                      <div className="text-muted">{subjectCount} subject{subjectCount===1?'':'s'} configured</div>
+                    </div>
+                    {showSubjectInput && (
+                      <div className="col-md-3">
+                        <label className="form-label text-muted fw-600 mb-1">How many subjects to add?</label>
+                        <input type="number" min="0" className="form-control" placeholder="e.g., 2" value={catCounts[cat] ?? ''} onChange={e=>handleSubjectAmountChange(cat, e.target.value)} />
+                      </div>
+                    )}
+                  </div>
+                  {showSubjectInput && subjectCount>0 && (
+                    <div className="row g-2 mt-2">
+                      <div className="col-12 text-muted fw-600 small">Existing subjects</div>
+                      {existingSubjects.map(item => (
+                        <div key={item.id} className="col-md-3">
+                          <input
+                            className="form-control"
+                            value={item.name}
+                            onChange={e=>setCatItems(prev=>({
+                              ...prev,
+                              [cat]: prev[cat].map(x=> x.id===item.id ? { ...x, name: e.target.value } : x)
+                            }))}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {showSubjectInput && generatedInputs.length>0 && (
+                    <div className="row g-2 mt-2">
+                      {generatedInputs.map((val,idx)=> (
+                        <div key={idx} className="col-md-3"><input className="form-control" placeholder={`Subject ${existingCount + idx + 1}`} value={val} onChange={e=>handleTempSubjectChange(cat, idx, e.target.value)} /></div>
+                      ))}
+                      <div className="col-12 text-end">
+                        <button type="button" className="btn btn-brand me-2" onClick={()=>commitCategorySubjects(cat)}>Add Subjects</button>
+                        <button type="button" className="btn btn-outline-secondary" onClick={()=>clearCategoryInputs(cat)}>Clear</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
 
             {/* Summary table */}
             <div className="table-responsive mt-3">
               <table className="table mb-0">
-                <thead><tr><th>Category</th><th>Count</th><th>View</th></tr></thead>
+                <thead><tr><th>Sub-category</th><th>Subjects</th><th className="text-end">Actions</th></tr></thead>
                 <tbody>
-                  {categories.map(cat => (
-                    <tr key={cat}>
-                      <td>{cat}</td>
-                      <td>{(catItems[cat]||[]).length}</td>
-                      <td><button className="btn btn-outline-brand btn-sm" onClick={()=>setViewCat(cat)}>View</button></td>
-                    </tr>
-                  ))}
+                  {categories.length===0 ? (
+                    <tr><td colSpan="3" className="text-center text-muted">No sub-categories yet.</td></tr>
+                  ) : (
+                    categories.map(cat => (
+                      <tr key={cat}>
+                        <td>{cat}</td>
+                        <td>{(catItems[cat]||[]).length}</td>
+                        <td className="text-end">
+                          <button type="button" className="btn btn-outline-brand btn-sm me-2 btn-hover-lift" onClick={()=>openViewCat(cat)}>View</button>
+                          <button type="button" className="btn btn-outline-primary btn-sm me-2 btn-hover-lift" onClick={()=>{ setCategoryName(cat); setEditingCategory(cat) }}>Edit</button>
+                          <button type="button" className="btn btn-outline-danger btn-sm btn-hover-lift" onClick={()=>deleteCategory(cat)}>Delete</button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -270,37 +464,54 @@ export default function Setup() {
             {/* Drawer to view items */}
             {viewCat && (
               <div className="drawer-open">
-                <div className="drawer-backdrop" onClick={()=>setViewCat('')}></div>
+                <div className="drawer-backdrop" onClick={closeViewCat}></div>
                 <div className="drawer-panel" role="dialog" aria-modal="true">
                   <div className="drawer-header">
-                    <div className="fw-600">{viewCat} Items</div>
-                    <button className="btn btn-sm btn-outline-secondary" onClick={()=>setViewCat('')}><i className="bi bi-x"></i></button>
+                    <div className="fw-600">Subjects in {viewCat}</div>
+                    <button type="button" className="btn btn-sm btn-outline-secondary" onClick={closeViewCat}><i className="bi bi-x"></i></button>
                   </div>
                   <div className="drawer-body">
+                    <div className="d-flex justify-content-between align-items-center mb-3">
+                      <div>
+                        <div className="fw-600">{(catItems[viewCat]||[]).length} subject{(catItems[viewCat]||[]).length === 1 ? '' : 's'}</div>
+                        <div className="text-muted small">Manage the subject list for {viewCat}</div>
+                      </div>
+                      {(catItems[viewCat]||[]).length>0 && (
+                        <button type="button" className="btn btn-sm btn-brand btn-hover-lift" onClick={()=>setIsEditingView(prev=>!prev)}>
+                          {isEditingView ? 'Done Editing' : 'Edit Subjects'}
+                        </button>
+                      )}
+                    </div>
                     {(catItems[viewCat]||[]).length===0 ? (
-                      <div className="text-muted">No items.</div>
+                      <div className="text-muted">No subjects added yet.</div>
                     ) : (
                       <ul className="list-unstyled">
-                        {catItems[viewCat].map(it => (
+                        {catItems[viewCat].map((it, idx) => (
                           <li key={it.id} className="py-1">
-                            <div className="d-flex align-items-center gap-2">
-                              <input className="form-control" value={it.name} onChange={e=>setCatItems(prev=>({
-                                ...prev,
-                                [viewCat]: prev[viewCat].map(x=> x.id===it.id ? { ...x, name: e.target.value } : x)
-                              }))} />
-                              <button className="btn btn-sm btn-outline-primary" onClick={()=>{/* updated in-place */}}>Update</button>
-                              <button className="btn btn-sm btn-outline-danger" onClick={()=>setCatItems(prev=>({
-                                ...prev,
-                                [viewCat]: prev[viewCat].filter(x=> x.id!==it.id)
-                              }))}>Delete</button>
-                            </div>
+                            {isEditingView ? (
+                              <div className="d-flex align-items-center gap-2">
+                                <input className="form-control" value={it.name} onChange={e=>setCatItems(prev=>({
+                                  ...prev,
+                                  [viewCat]: prev[viewCat].map(x=> x.id===it.id ? { ...x, name: e.target.value } : x)
+                                }))} />
+                                <button type="button" className="btn btn-sm btn-outline-danger" onClick={()=>setCatItems(prev=>({
+                                  ...prev,
+                                  [viewCat]: prev[viewCat].filter(x=> x.id!==it.id)
+                                }))}>Delete</button>
+                              </div>
+                            ) : (
+                              <div className="drawer-list-row d-flex justify-content-between align-items-center border rounded px-3 py-2 bg-light">
+                                <span className="fw-500">{it.name}</span>
+                                <span className="text-muted small">{idx+1}</span>
+                              </div>
+                            )}
                           </li>
                         ))}
                       </ul>
                     )}
                   </div>
                   <div className="drawer-footer d-flex justify-content-end">
-                    <button className="btn btn-outline-secondary" onClick={()=>setViewCat('')}>Close</button>
+                    <button type="button" className="btn btn-outline-secondary" onClick={closeViewCat}>Close</button>
                   </div>
                 </div>
               </div>
@@ -308,24 +519,41 @@ export default function Setup() {
           </section>
           <section className="card card-soft p-3 mb-3">
             <h5 className="section-title">Fee Categories</h5>
-            <div className="row g-2 align-items-end">
-              {Object.entries(feeTypes).map(([k,v])=> (
-                <div className="col-md-4" key={k}>
-                  <label className="form-label">{k} Fee</label>
-                  <div className="d-flex gap-2">
-                    <input type="number" className="form-control" value={v} onChange={e=>setFeeTypes({...feeTypes, [k]: Number(e.target.value||0)})} />
-                    {!( ['Academic','Exam','Library','Bus','Lab'].includes(k) ) && (
-                      <button className="btn btn-outline-danger" onClick={()=>{ const n={...feeTypes}; delete n[k]; setFeeTypes(n) }}>Delete</button>
-                    )}
+            {feeTypes.length === 0 && (
+              <div className="alert alert-info">No fee categories yet. Add one below to get started.</div>
+            )}
+            {feeTypes.length > 0 && (
+              <div className="row g-3 align-items-stretch">
+                {feeTypes.map(item => (
+                  <div className="col-md-6 col-lg-4" key={item.id}>
+                    <div className="border rounded p-3 h-100">
+                      <label className="form-label text-muted fw-600">Fee name</label>
+                      <input className="form-control mb-2" value={item.name} onChange={e=>updateFeeType(item.id, 'name', e.target.value)} />
+                      <label className="form-label text-muted fw-600 mb-1">Amount</label>
+                      <div className="d-flex gap-2">
+                        <input type="number" className="form-control" value={item.amount} onChange={e=>updateFeeType(item.id, 'amount', e.target.value)} />
+                        <button type="button" className="btn btn-outline-danger" onClick={()=>deleteFeeType(item.id)}>Delete</button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-            <div className="row g-2 align-items-end mt-2">
-              <div className="col-md-4"><input id="newFeeName" className="form-control" placeholder="New fee name (e.g., Sports)" /></div>
-              <div className="col-md-3"><input id="newFeeAmt" type="number" className="form-control" placeholder="Amount" /></div>
-              <div className="col-md-3"><button className="btn btn-outline-brand" onClick={()=>{ const name=document.getElementById('newFeeName').value.trim(); const amt=Number(document.getElementById('newFeeAmt').value||0); if(!name) return; setFeeTypes(prev=> ({...prev, [name]: amt})); document.getElementById('newFeeName').value=''; document.getElementById('newFeeAmt').value='' }}>Add Fee</button></div>
-              <div className="col-md-2 text-end"><button className="btn btn-brand" onClick={()=>api.setFeeTypes?.(feeTypes)}>Save All</button></div>
+                ))}
+              </div>
+            )}
+            <div className="row g-2 align-items-end mt-3">
+              <div className="col-md-5 col-lg-4">
+                <label className="form-label text-muted fw-600">Fee name</label>
+                <input className="form-control" placeholder="e.g., Sports" value={newFee.name} onChange={e=>setNewFee({...newFee, name: e.target.value})} />
+              </div>
+              <div className="col-md-3 col-lg-3">
+                <label className="form-label text-muted fw-600">Amount</label>
+                <input type="number" className="form-control" placeholder="0" value={newFee.amount} onChange={e=>setNewFee({...newFee, amount: e.target.value})} />
+              </div>
+              <div className="col-md-2 col-lg-2">
+                <button type="button" className="btn btn-outline-brand w-100 mt-4" onClick={addFeeType}>Add Fee</button>
+              </div>
+              <div className="col-md-2 col-lg-3 text-end">
+                <button type="button" className="btn btn-brand mt-4" disabled={!feeTypes.length} onClick={saveFeeTypes}>Save All</button>
+              </div>
             </div>
           </section>
         </>
@@ -352,7 +580,7 @@ export default function Setup() {
               <div className="col-md-4"><input className="form-control" placeholder="Subject Name" value={subjectForm.subjectName} onChange={e=>setSubjectForm({...subjectForm, subjectName:e.target.value})} /></div>
               <div className="col-md-2"><input className="form-control" placeholder="Short Message (remark)" value={subjectForm.remark} onChange={e=>setSubjectForm({...subjectForm, remark:e.target.value})} /></div>
             </div>
-            <div className="mt-2 text-end"><button className="btn btn-accent" onClick={saveSubject}>{editingSubjectId? 'Update Subject':'Add Subject'}</button>{editingSubjectId && <button className="btn btn-outline-secondary ms-2" onClick={()=>{setEditingSubjectId(''); setSubjectForm({ academicYearId:'', groupCode:'', courseCode:'', semester:'', category:'Language', subjectCode:'', subjectName:'', remark:'' })}}>Cancel</button>}</div>
+            <div className="mt-2 text-end"><button className="btn btn-accent" onClick={saveSubject}>{editingSubjectId? 'Update Subject':'Add Subject'}</button>{editingSubjectId && <button className="btn btn-outline-secondary ms-2" onClick={()=>{setEditingSubjectId(''); setSubjectForm(buildSubjectForm(categories[0] || ''))}}>Cancel</button>}</div>
             {subjects.length>0 && (
               <div className="table-responsive mt-3">
                 <table className="table mb-0">
