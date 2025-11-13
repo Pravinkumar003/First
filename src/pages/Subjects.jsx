@@ -148,9 +148,9 @@ export default function SubjectsSection({
           <table className="table mb-0">
             <thead><tr><th>Year</th><th>Group</th><th>Course</th><th>Sem</th><th>Category</th><th>Subject Name</th><th>Fee</th><th>Amount</th><th>Actions</th></tr></thead>
             <tbody>
-              {subjects.map(s => (
+             {subjects.map(s => (
                 <tr key={s.id}>
-                  <td>{academicYears.find(y => y.id === s.academicYearId)?.name}</td>
+                  <td>{getDisplayYear(s)}</td>
                   <td>{s.groupCode}</td>
                   <td>{s.courseCode}</td>
                   <td>{s.semester}</td>
@@ -174,10 +174,12 @@ export default function SubjectsSection({
           <div className="row g-3">
             {categories.map(cat => {
               const items = subjects.filter(s =>
-                (!subjectForm.academicYearId || s.academicYearId === subjectForm.academicYearId) &&
+                (!subjectForm.academicYearId ||
+                  s.academicYearId === subjectForm.academicYearId ||
+                  (!!selectedYearName && s.academicYearName === selectedYearName)) &&
                 (!subjectForm.groupCode || s.groupCode === subjectForm.groupCode) &&
                 (!subjectForm.courseCode || s.courseCode === subjectForm.courseCode) &&
-                (!subjectForm.semester || s.semester === Number(subjectForm.semester)) &&
+                (!subjectForm.semester || Number(s.semester) === Number(subjectForm.semester)) &&
                 s.category === cat
               )
               if (items.length === 0) return null

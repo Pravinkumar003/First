@@ -19,6 +19,18 @@ const deleteKey = (map, key) => {
   const { [key]: _omit, ...rest } = map
   return rest
 }
+const randomId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  // fallback UUID v4 generator
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0
+    const v = c === 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
+  })
+}
+
 const buildSubjectForm = (category = '') => ({
   academicYearId: '',
   groupCode: '',
@@ -36,7 +48,7 @@ const itemsToNames = (items = []) => (items || [])
 const subjectsToItems = (subjects = []) => {
   if (!Array.isArray(subjects)) return []
   return subjects
-    .map((name, idx) => ({ id: `${idx}-${uid()}`, name }))
+    .map(name => ({ id: randomId(), name }))
     .filter(item => item.name)
 }
 const TAB_CONFIG = [
@@ -59,11 +71,11 @@ const normalizeFeeCategories = (data) => {
     return stripPlaceholders(
       data
       .map(cat => ({
-        id: cat?.id || uid(),
+        id: cat?.id || randomId(),
         name: (cat?.name || '').toString(),
         fees: (cat?.fees || cat?.items || [])
           .map(fee => ({
-            id: fee?.id || uid(),
+            id: fee?.id || randomId(),
             name: (fee?.name || '').toString(),
             amount: fee?.amount === 0 || fee?.amount ? String(fee.amount) : ''
           }))
@@ -78,10 +90,10 @@ const normalizeFeeCategories = (data) => {
       const feeName = (item?.name || '').toString()
       if (!feeName.trim()) return null
       return {
-        id: item?.id || uid(),
+        id: item?.id || randomId(),
         name: feeName,
         fees: [{
-          id: uid(),
+          id: randomId(),
           name: `${feeName} Fee`,
           amount: item?.amount === 0 || item?.amount ? String(item.amount) : ''
         }]
@@ -295,7 +307,7 @@ export default function Setup() {
   const commitCategorySubjects = (cat) => {
     const names = (tempCatInputs[cat] || []).map(n => n.trim()).filter(Boolean)
     if (!names.length) return
-    const newItems = names.map(name => ({ id: uid(), name }))
+    const newItems = names.map(name => ({ id: randomId(), name }))
     updateCategoryItems(cat, prevList => [...prevList, ...newItems])
     clearCategoryInputs(cat)
   }
@@ -313,12 +325,13 @@ export default function Setup() {
   useEffect(() => {
     (async () => {
       try {
-        const [yrs, grps, crs, ft, subcats] = await Promise.all([
+        const [yrs, grps, crs, ft, subcats, subs] = await Promise.all([
           api.listAcademicYears?.() || [],
           api.listGroups?.() || [],
           api.listCourses?.() || [],
           api.getFeeTypes?.() || [],
-          api.listSubCategories?.() || []
+          api.listSubCategories?.() || [],
+          api.listSubjects?.() || []
         ])
         if (yrs.length) setAcademicYears(yrs)
         if (grps.length) setGroups(grps)
@@ -358,7 +371,7 @@ export default function Setup() {
     if (editingFeeCategoryId) {
       next = feeCategories.map(cat => cat.id === editingFeeCategoryId ? { ...cat, name: trimmed } : cat)
     } else {
-      next = [...feeCategories, { id: uid(), name: trimmed, fees: [] }]
+      next = [...feeCategories, { id: randomId(), name: trimmed, fees: [] }]
     }
     setFeeCategories(next)
     await persistFeeCategoryList(next)
@@ -531,7 +544,7 @@ export default function Setup() {
     if (!hasSelection && !typedName) return
     const names = hasSelection ? selectedNames : [typedName]
     const entries = names.map((name, idx) => ({
-      id: editingSubjectId && idx === 0 ? editingSubjectId : uid(),
+      id: editingSubjectId && idx === 0 ? editingSubjectId : randomId(),
       academicYearId,
       groupCode,
       courseCode,
@@ -556,10 +569,20 @@ export default function Setup() {
       feeAmount: ''
     }))
   }
-  const submitPendingSubjects = () => {
+  const submitPendingSubjects = async () => {
     if (!pendingSubjects.length) return
-    setSubjects(prev => [...prev, ...pendingSubjects])
-    setPendingSubjects([])
+    const payload = pendingSubjects.map(item => ({
+      ...item,
+      academicYearName: item.academicYearName || resolveYearName(item.academicYearId)
+    }))
+    try {
+      const saved = await api.addSubjects?.(payload)
+      const normalized = (Array.isArray(saved) && saved.length ? saved : payload).map(rec => normalizeSubjectRecord(rec))
+      setSubjects(prev => [...prev, ...normalized])
+      setPendingSubjects([])
+    } catch (error) {
+      console.error('Failed to save subjects', error)
+    }
   }
   const editPendingSubject = (rec) => {
     setPendingSubjects(prev => prev.filter(s => s.id !== rec.id))
@@ -575,8 +598,8 @@ export default function Setup() {
     })
     setEditingSubjectId(rec.id)
   }
-  const editSubject = (rec) => {
-    setSubjects(prev => prev.filter(s => s.id !== rec.id))
+  const editSubject = async (rec) => {
+
     editPendingSubject(rec)
   }
   const deletePendingSubject = (id) => {
@@ -586,7 +609,10 @@ export default function Setup() {
       setEditingSubjectId('')
     }
   }
-  const deleteSubject = (id) => setSubjects(subjects.filter(s => s.id !== id))
+  const deleteSubject = async (id) => {
+    setSubjects(prev => prev.filter(s => s.id !== id))
+    try { await api.deleteSubject?.(id) } catch (error) { console.error('Failed to delete subject', error) }
+  }
   const cancelSubjectEdit = () => {
     setEditingSubjectId('')
     setSubjectForm(buildSubjectForm(categories[0] || ''))
