@@ -1,4 +1,4 @@
-import { supabase } from '../../supabaseClient'
+import { supabase } from '../../supabaseClient.js'
 
 const TABLES = {
   applications: 'applications',
@@ -6,6 +6,7 @@ const TABLES = {
   groups: 'groups',
   courses: 'courses',
   subCategories: 'subject_category',
+  subjects: 'subjects',
   batches: 'batches',
   students: 'students',
   exams: 'exams',
@@ -121,6 +122,55 @@ const toSubCategoryRow = ({ name, subjects }) => ({
   category_count: Array.isArray(subjects) ? subjects.length : 0,
   subjects_name: JSON.stringify(Array.isArray(subjects) ? subjects : [])
 })
+
+const mapSubject = (row = {}) => {
+  const semesterValue = row.semester_number ?? row.semester ?? ''
+  const feeAmountValue = row.amount ?? row.fee_amount
+  const subjectCode = row.subject_code || row.subjectName || row.subject_name || ''
+  const subjectName = row.subject_name || row.subjectName || subjectCode
+  return {
+    id: row.subject_id ?? row.id,
+    subjectId: row.subject_id ?? row.id ?? '',
+    academicYearId: row.academic_year_id || row.academicYearId || '',
+    academicYearName: row.academic_year_name || row.academic_year || row.academicYearName || '',
+    groupCode: row.group_code || row.groupCode || '',
+    courseCode: row.course_code || row.courseCode || row.course_name || '',
+    courseName: row.course_name || row.courseName || row.course_code || '',
+    semester: semesterValue === '' || semesterValue === undefined || semesterValue === null ? '' : Number(semesterValue),
+    categoryId: row.category_id ?? row.categoryId ?? '',
+    category: row.category || row.category_name || row.subject_category?.category_name || '',
+    subjectCode,
+    subjectName,
+    feeCategory: row.fee_category || row.feeCategory || row.fees_category || '',
+    feeAmount: feeAmountValue === undefined || feeAmountValue === null || feeAmountValue === '' ? '' : Number(feeAmountValue)
+  }
+}
+
+const toSubjectRow = (subject = {}) => {
+  const semesterRaw = subject.semester ?? subject.semester_number ?? subject.semesterNumber ?? null
+  const semesterValue = semesterRaw === '' || semesterRaw === undefined || semesterRaw === null
+    ? null
+    : Number(semesterRaw)
+  const feeAmountValue = subject.amount ?? subject.feeAmount ?? subject.fee_amount
+  const normalizedFee = feeAmountValue === '' || feeAmountValue === undefined || feeAmountValue === null
+    ? null
+    : Number(feeAmountValue)
+  const subjectId = subject.subject_id || subject.subjectId || subject.id
+  const row = {
+    academic_year: subject.academic_year || subject.academicYearName || subject.academicYear || null,
+    course_name: subject.course_name || subject.courseName || subject.courseCode || null,
+    semester_number: semesterValue,
+    category_id: subject.category_id ?? subject.categoryId ?? null,
+    subject_code: subject.subject_code || subject.subjectCode || subject.subject_name || subject.subjectName || null,
+    subject_name: subject.subject_name || subject.subjectName || subject.subject_code || subject.subjectCode || null,
+    fees_category: subject.fees_category || subject.feeCategory || null,
+    amount: normalizedFee
+  }
+  if (subjectId) {
+    row.subject_id = subjectId
+  }
+  return row
+}
 
 const mapApplication = (row = {}) => ({
   id: row.id,
@@ -500,6 +550,37 @@ export const api = {
     await runQuery(
       supabase.from(TABLES.subCategories).delete().eq('category_id', id),
       'Unable to delete sub-category'
+    )
+  },
+
+  listSubjects: async () => {
+    const rows = await runQuery(
+      supabase.from(TABLES.subjects)
+        .select('subject_id, academic_year, course_name, semester_number, category_id, subject_code, subject_name, fees_category, amount, subject_category:subject_category(category_name)')
+        .order('academic_year', { ascending: false })
+        .order('course_name')
+        .order('semester_number'),
+      'Unable to fetch subjects'
+    )
+    return rows.map(mapSubject)
+  },
+
+  addSubjects: async (subjects = []) => {
+    if (!Array.isArray(subjects) || !subjects.length) return []
+    const rows = await runQuery(
+      supabase.from(TABLES.subjects)
+        .upsert(subjects.map(toSubjectRow), { onConflict: 'subject_id' })
+        .select('subject_id, academic_year, course_name, semester_number, category_id, subject_code, subject_name, fees_category, amount, subject_category:subject_category(category_name)'),
+      'Unable to save subjects'
+    )
+    return rows.map(mapSubject)
+  },
+
+  deleteSubject: async (id) => {
+    if (!id) return
+    await runQuery(
+      supabase.from(TABLES.subjects).delete().eq('subject_id', id),
+      'Unable to delete subject'
     )
   },
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import AdminShell from '../components/AdminShell'
 import { api } from '../lib/mockApi'
@@ -33,14 +33,18 @@ const randomId = () => {
 
 const buildSubjectForm = (category = '') => ({
   academicYearId: '',
+  academicYearName: '',
   groupCode: '',
   courseCode: '',
+  courseName: '',
   semester: '',
   category,
+  categoryId: '',
   subjectName: '',
   subjectSelections: [],
   feeCategory: '',
-  feeAmount: ''
+  feeAmount: '',
+  subjectId: ''
 })
 const itemsToNames = (items = []) => (items || [])
   .map(item => (item?.name || '').trim())
@@ -50,6 +54,66 @@ const subjectsToItems = (subjects = []) => {
   return subjects
     .map(name => ({ id: randomId(), name }))
     .filter(item => item.name)
+}
+const buildCourseLookup = (courses = []) => {
+  return courses.reduce((acc, course) => {
+    if (!course) return acc
+    const courseCode = course.courseCode || course.code || course.course_code || ''
+    const courseName = course.courseName || course.name || course.course_name || courseCode
+    const groupCode = course.groupCode || course.group_code || course.group_name || ''
+    const entry = { courseCode, courseName, groupCode }
+    if (courseName) acc[courseName] = entry
+    if (courseCode) acc[courseCode] = entry
+    return acc
+  }, {})
+}
+const buildYearNameLookup = (years = []) => {
+  return years.reduce((acc, year) => {
+    if (year?.name && year?.id !== undefined) acc[year.name] = year.id
+    return acc
+  }, {})
+}
+const invertMap = (mapObj = {}) => {
+  return Object.entries(mapObj).reduce((acc, [key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      acc[value] = key
+    }
+    return acc
+  }, {})
+}
+const normalizeSubjectRecord = (subject = {}, context = {}) => {
+  const {
+    courseLookup = {},
+    categoryNameById = {},
+    yearNameToId = {}
+  } = context
+  const semesterValue = subject.semester ?? subject.semester_number ?? subject.semesterNo ?? subject.semesterNumber
+  const feeAmountValue = subject.amount ?? subject.feeAmount ?? subject.fee_amount
+  const subjectCode = subject.subjectCode || subject.subject_code || subject.subjectName || subject.subject_name || ''
+  const subjectName = subject.subjectName || subject.subject_name || subjectCode
+  const courseKey = subject.courseName || subject.course_name || subject.courseCode || subject.course_code || ''
+  const courseMeta = courseLookup[courseKey] || {}
+  const academicYearName = subject.academicYearName || subject.academic_year_name || subject.academic_year || ''
+  const academicYearId = subject.academicYearId || subject.academic_year_id || yearNameToId[academicYearName] || ''
+  const categoryId = subject.category_id ?? subject.categoryId ?? ''
+  const categoryName = subject.category || subject.category_name || categoryNameById[categoryId] || ''
+  const supabaseId = subject.subject_id || subject.subjectId || subject.id || ''
+  return {
+    id: supabaseId || subject.id || randomId(),
+    subjectId: supabaseId || '',
+    academicYearId,
+    academicYearName,
+    groupCode: subject.groupCode || subject.group_code || courseMeta.groupCode || '',
+    courseCode: subject.courseCode || subject.course_code || courseMeta.courseCode || courseKey,
+    courseName: courseMeta.courseName || courseKey,
+    semester: semesterValue === undefined || semesterValue === null || semesterValue === '' ? '' : Number(semesterValue),
+    categoryId,
+    category: categoryName,
+    subjectCode,
+    subjectName,
+    feeCategory: subject.feeCategory || subject.fee_category || subject.fees_category || '',
+    feeAmount: feeAmountValue === undefined || feeAmountValue === null || feeAmountValue === '' ? '' : Number(feeAmountValue)
+  }
 }
 const TAB_CONFIG = [
   { key: 'years', label: 'Academic Years', tagline: 'Define academic timelines and activation status.' },
@@ -112,6 +176,12 @@ export default function Setup() {
   const [yearForm, setYearForm] = useState({ name: '', active: true })
   const [academicYears, setAcademicYears] = useState([])
   const [editingYearId, setEditingYearId] = useState('')
+  const yearNameToId = useMemo(() => buildYearNameLookup(academicYears), [academicYears])
+  const resolveYearName = (yearId) => {
+    if (!yearId) return ''
+    const match = academicYears.find(y => String(y.id) === String(yearId))
+    return match?.name || ''
+  }
   const addYear = async () => {
     if (!yearForm.name.trim()) return
     try {
@@ -191,6 +261,7 @@ export default function Setup() {
 
   // Courses
   const [courses, setCourses] = useState([])
+  const courseLookup = useMemo(() => buildCourseLookup(courses), [courses])
   const [courseForm, setCourseForm] = useState({ id: '', groupCode: '', courseCode: '', courseName: '', semesters: 6 })
   const [editingCourseId, setEditingCourseId] = useState('')
 
@@ -250,6 +321,7 @@ export default function Setup() {
   // Sub-categories and Languages
   const [categories, setCategories] = useState([])
   const [categoryIdMap, setCategoryIdMap] = useState({})
+  const categoryNameById = useMemo(() => invertMap(categoryIdMap), [categoryIdMap])
   const [categoryName, setCategoryName] = useState('')
   const [editingCategory, setEditingCategory] = useState('')
   const [catItems, setCatItems] = useState({})
@@ -340,6 +412,7 @@ export default function Setup() {
           const normalized = normalizeFeeCategories(ft)
           setFeeCategories(normalized)
         }
+        const catNameByIdInit = {}
         if (subcats.length) {
           const names = []
           const itemsMap = {}
@@ -348,6 +421,7 @@ export default function Setup() {
             names.push(cat.name)
             idMap[cat.name] = cat.id
             itemsMap[cat.name] = subjectsToItems(cat.subjects)
+            if (cat.id) catNameByIdInit[cat.id] = cat.name
           })
           setCategories(names)
           setCatItems(itemsMap)
@@ -356,6 +430,16 @@ export default function Setup() {
           setCategories([])
           setCatItems({})
           setCategoryIdMap({})
+        }
+        const initialSubjectContext = {
+          courseLookup: buildCourseLookup(crs),
+          categoryNameById: catNameByIdInit,
+          yearNameToId: buildYearNameLookup(yrs)
+        }
+        if (subs?.length) {
+          setSubjects(subs.map(rec => normalizeSubjectRecord(rec, initialSubjectContext)))
+        } else {
+          setSubjects([])
         }
       } catch (error) {
         console.error('Failed to load setup data', error)
@@ -513,6 +597,11 @@ export default function Setup() {
   const deleteLanguage = (id) => setLanguages(languages.filter(l => l.id !== id))
 
   // Subjects
+  const subjectContext = useMemo(() => ({
+    courseLookup,
+    categoryNameById,
+    yearNameToId
+  }), [courseLookup, categoryNameById, yearNameToId])
   const [subjects, setSubjects] = useState([])
   const [pendingSubjects, setPendingSubjects] = useState([])
   const [subjectForm, setSubjectForm] = useState(() => buildSubjectForm(''))
@@ -543,13 +632,21 @@ export default function Setup() {
     if (!academicYearId || !groupCode || !courseCode || !semester || !category) return
     if (!hasSelection && !typedName) return
     const names = hasSelection ? selectedNames : [typedName]
+    const academicYearName = resolveYearName(academicYearId)
+    const categoryId = categoryIdMap[category] || ''
+    const courseMeta = courses.find(c => c.courseCode === courseCode || c.code === courseCode)
+    const courseName = courseMeta?.courseName || courseCode
     const entries = names.map((name, idx) => ({
       id: editingSubjectId && idx === 0 ? editingSubjectId : randomId(),
+      subjectId: editingSubjectId && idx === 0 ? editingSubjectId : '',
       academicYearId,
+      academicYearName,
       groupCode,
       courseCode,
+      courseName,
       semester: Number(semester),
       category,
+      categoryId,
       subjectCode: name,
       subjectName: name,
       feeCategory,
@@ -571,14 +668,39 @@ export default function Setup() {
   }
   const submitPendingSubjects = async () => {
     if (!pendingSubjects.length) return
-    const payload = pendingSubjects.map(item => ({
-      ...item,
-      academicYearName: item.academicYearName || resolveYearName(item.academicYearId)
-    }))
+    const payload = pendingSubjects.map(item => {
+      const academicYearName = item.academicYearName || resolveYearName(item.academicYearId)
+      const courseMeta = courseLookup[item.courseCode] || courseLookup[item.courseName] || {}
+      const categoryId = item.categoryId || categoryIdMap[item.category] || null
+      const subjectCodeValue = item.subjectCode || item.subjectName || ''
+      const subjectNameValue = item.subjectName || subjectCodeValue
+      const amountValue = item.feeAmount === '' || item.feeAmount === undefined || item.feeAmount === null
+        ? null
+        : Number(item.feeAmount)
+      const courseCodeValue = courseMeta.courseCode || item.courseCode || item.courseName || null
+      const row = {
+        academic_year: academicYearName || null,
+        course_name: courseCodeValue,
+        semester_number: item.semester ? Number(item.semester) : null,
+        category_id: categoryId,
+        subject_code: subjectCodeValue,
+        subject_name: subjectNameValue,
+        fees_category: item.feeCategory || null,
+        amount: amountValue
+      }
+      if (item.subjectId) {
+        row.subject_id = item.subjectId
+      }
+      return row
+    })
     try {
       const saved = await api.addSubjects?.(payload)
-      const normalized = (Array.isArray(saved) && saved.length ? saved : payload).map(rec => normalizeSubjectRecord(rec))
-      setSubjects(prev => [...prev, ...normalized])
+      const normalized = (Array.isArray(saved) && saved.length ? saved : payload).map(rec => normalizeSubjectRecord(rec, subjectContext))
+      setSubjects(prev => {
+        const incomingIds = new Set(normalized.map(item => item.id))
+        const remaining = prev.filter(item => !incomingIds.has(item.id))
+        return [...remaining, ...normalized]
+      })
       setPendingSubjects([])
     } catch (error) {
       console.error('Failed to save subjects', error)
@@ -590,13 +712,13 @@ export default function Setup() {
     const isPreset = options.some(item => item.name === rec.subjectName)
     setSubjectForm({
       ...rec,
-      semester: rec.semester.toString(),
+      semester: rec.semester === undefined || rec.semester === null ? '' : rec.semester.toString(),
       feeCategory: rec.feeCategory || '',
       feeAmount: rec.feeAmount?.toString() || '',
       subjectName: isPreset ? '' : rec.subjectName,
       subjectSelections: isPreset ? [rec.subjectName] : []
     })
-    setEditingSubjectId(rec.id)
+    setEditingSubjectId(rec.subjectId || rec.id)
   }
   const editSubject = async (rec) => {
 

@@ -19,13 +19,33 @@ export default function SubjectsSection({
   deleteSubject,
   onCancelSubjectEdit
 }) {
+  const yearNameById = academicYears.reduce((acc, year) => {
+    if (year?.id !== undefined) acc[year.id] = year.name
+    return acc
+  }, {})
+  const selectedYearName = yearNameById[subjectForm.academicYearId] || ''
+  const getDisplayYear = (subject) => subject.academicYearName || yearNameById[subject.academicYearId] || subject.academicYearId || '-'
+  const getSemesterLabel = (subject) => {
+    const raw = subject?.semester ?? subject?.semester_number ?? subject?.semesterNumber ?? ''
+    if (raw === undefined || raw === null || raw === '') return '-'
+    const numeric = Number(raw)
+    return Number.isNaN(numeric) ? raw : numeric
+  }
   return (
     <section className="setup-section mb-4">
       <h5 className="section-title">Subjects</h5>
       <div className="row g-3">
         <div className="col-12 col-sm-6 col-xl-3">
           <label className="form-label fw-bold mb-1">Academic Year</label>
-          <select className="form-select" value={subjectForm.academicYearId} onChange={e => setSubjectForm({ ...subjectForm, academicYearId: e.target.value })}>
+          <select
+            className="form-select"
+            value={subjectForm.academicYearId}
+            onChange={e => {
+              const value = e.target.value
+              const selected = academicYears.find(y => String(y.id) === String(value))
+              setSubjectForm({ ...subjectForm, academicYearId: value, academicYearName: selected?.name || '' })
+            }}
+          >
             <option value="">Select Year</option>
             {academicYears.map(y => <option key={y.id} value={y.id}>{y.name}</option>)}
           </select>
@@ -39,7 +59,20 @@ export default function SubjectsSection({
         </div>
         <div className="col-12 col-sm-6 col-xl-3">
           <label className="form-label fw-bold mb-1">Course</label>
-          <select className="form-select" value={subjectForm.courseCode} onChange={e => setSubjectForm({ ...subjectForm, courseCode: e.target.value, semester: '' })}>
+          <select
+            className="form-select"
+            value={subjectForm.courseCode}
+            onChange={e => {
+              const value = e.target.value
+              const selected = coursesForGroup.find(c => c.courseCode === value)
+              setSubjectForm({
+                ...subjectForm,
+                courseCode: value,
+                courseName: selected?.courseName || value,
+                semester: ''
+              })
+            }}
+          >
             <option value="">Select Course</option>
             {coursesForGroup.map(c => <option key={c.id} value={c.courseCode}>{c.courseCode} - {c.courseName}</option>)}
           </select>
@@ -124,10 +157,10 @@ export default function SubjectsSection({
               <tbody>
                 {pendingSubjects.map(item => (
                   <tr key={item.id}>
-                    <td>{academicYears.find(y => y.id === item.academicYearId)?.name}</td>
+                    <td>{getDisplayYear(item)}</td>
                     <td>{item.groupCode}</td>
                     <td>{item.courseCode}</td>
-                    <td>{item.semester}</td>
+                    <td>{getSemesterLabel(item)}</td>
                     <td>{item.category}</td>
                     <td>{item.subjectName}</td>
                     <td>{item.feeCategory || '-'}</td>
@@ -153,7 +186,7 @@ export default function SubjectsSection({
                   <td>{getDisplayYear(s)}</td>
                   <td>{s.groupCode}</td>
                   <td>{s.courseCode}</td>
-                  <td>{s.semester}</td>
+                  <td>{getSemesterLabel(s)}</td>
                   <td>{s.category}</td>
                   <td>{s.subjectName}</td>
                   <td>{s.feeCategory || '-'}</td>
@@ -191,7 +224,7 @@ export default function SubjectsSection({
                       {items.map(it => (
                         <li key={it.id} className="d-flex justify-content-between align-items-center py-1">
                           <span>{it.subjectName}</span>
-                          <span className="small text-muted">Sem {it.semester}</span>
+                          <span className="small text-muted">Sem {getSemesterLabel(it)}</span>
                         </li>
                       ))}
                     </ul>
