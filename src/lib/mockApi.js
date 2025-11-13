@@ -44,6 +44,6 @@ export const api = {
   // Fees
   listFees: async () => LS('fee_definitions')||[],
   addFee: async (f) => { const fs=LS('fee_definitions')||[]; fs.push({ id:id(), created_at:new Date().toISOString(), ...f }); LS('fee_definitions', fs) },
-  getFeeTypes: async () => LS('fee_types')||{ Academic:0, Exam:0, Library:0, Bus:0, Lab:0 },
+  getFeeTypes: async () => LS('fee_types')||[],
   setFeeTypes: async (m) => LS('fee_types', m),
 }

@@ -23,7 +23,8 @@ const buildSubjectForm = (category = '') => ({
   category,
   subjectCode: '',
   subjectName: '',
-  remark: ''
+  feeCategory: '',
+  feeAmount: ''
 })
 const TAB_CONFIG = [
   { key: 'years', label: 'Academic Years', tagline: 'Define academic timelines and activation status.' },
@@ -32,11 +33,18 @@ const TAB_CONFIG = [
   { key: 'subjects', label: 'Subjects', tagline: 'Control curriculum details semester by semester.' }
 ]
 
+const PLACEHOLDER_FEE_NAMES = new Set(['Academic','Exam','Library','Bus','Lab'])
+const stripPlaceholders = (list) => {
+  if (!list || !list.length) return list
+  const looksLikePlaceholder = list.every(cat => PLACEHOLDER_FEE_NAMES.has(cat.name) && (cat.fees?.length || 0) <= 1)
+  return looksLikePlaceholder ? [] : list
+}
 const normalizeFeeCategories = (data) => {
   if (!Array.isArray(data)) return []
   const hasNestedFees = data.some(item => Array.isArray(item?.fees) || Array.isArray(item?.items))
   if (hasNestedFees) {
-    return data
+    return stripPlaceholders(
+      data
       .map(cat => ({
         id: cat?.id || uid(),
         name: (cat?.name || '').toString(),
@@ -49,8 +57,10 @@ const normalizeFeeCategories = (data) => {
           .filter(fee => fee.name.trim())
       }))
       .filter(cat => cat.name.trim() || cat.fees.length)
+    )
   }
-  return data
+  return stripPlaceholders(
+    data
     .map(item => {
       const feeName = (item?.name || '').toString()
       if (!feeName.trim()) return null
@@ -65,6 +75,7 @@ const normalizeFeeCategories = (data) => {
       }
     })
     .filter(Boolean)
+  )
 }
 
 export default function Setup() {
@@ -407,17 +418,36 @@ export default function Setup() {
   })()
 
   const saveSubject = () => {
-    const { academicYearId, groupCode, courseCode, semester, category, subjectCode, subjectName, remark } = subjectForm
+    const { academicYearId, groupCode, courseCode, semester, category, subjectCode, subjectName, feeCategory, feeAmount } = subjectForm
     if (!academicYearId || !groupCode || !courseCode || !semester || !category || !subjectCode || !subjectName) return
+    const payload = {
+      academicYearId,
+      groupCode,
+      courseCode,
+      semester: Number(semester),
+      category,
+      subjectCode,
+      subjectName,
+      feeCategory,
+      feeAmount: feeAmount ? Number(feeAmount) : ''
+    }
     if (editingSubjectId) {
-      setSubjects(subjects.map(s => s.id === editingSubjectId ? { ...s, academicYearId, groupCode, courseCode, semester: Number(semester), category, subjectCode, subjectName, remark } : s))
+      setSubjects(subjects.map(s => s.id === editingSubjectId ? { ...s, ...payload } : s))
     } else {
-      setSubjects([...subjects, { id: uid(), academicYearId, groupCode, courseCode, semester: Number(semester), category, subjectCode, subjectName, remark }])
+      setSubjects([...subjects, { id: uid(), ...payload }])
     }
     setSubjectForm(buildSubjectForm(categories[0] || ''))
     setEditingSubjectId('')
   }
-  const editSubject = (rec) => { setSubjectForm({ ...rec, semester: rec.semester.toString() }); setEditingSubjectId(rec.id) }
+  const editSubject = (rec) => {
+    setSubjectForm({
+      ...rec,
+      semester: rec.semester.toString(),
+      feeCategory: rec.feeCategory || '',
+      feeAmount: rec.feeAmount?.toString() || ''
+    })
+    setEditingSubjectId(rec.id)
+  }
   const deleteSubject = (id) => setSubjects(subjects.filter(s => s.id !== id))
 
   const neutralCardStyle = {
@@ -605,12 +635,12 @@ export default function Setup() {
                         <div className="card-body d-flex flex-column">
                           <div className="d-flex justify-content-between align-items-start mb-2">
                             <div>
-                              <div className="text-uppercase text-muted small mb-1">Group Code</div>
-                              <div className="fs-5 fw-bold">{g.code || '-'}</div>
+                              <div className="text-uppercase text-muted small mb-1">Group Name</div>
+                              <div className="fs-5 fw-bold">{g.name || '-'}</div>
+                              <div className="text-muted small">{g.code || '-'}</div>
                             </div>
                             <span style={accentBadgeStyle}>{g.years || 0} yrs</span>
                           </div>
-                          <p className="mb-3 text-muted fw-semibold">{g.name}</p>
                           <div className="d-flex flex-wrap gap-4 mb-4 text-muted">
                             <div>
                               <div className="text-uppercase small">Duration</div>
@@ -938,7 +968,7 @@ export default function Setup() {
                   <div className="d-flex justify-content-between flex-wrap gap-2 mb-3">
                     <div>
                       <div className="fee-panel-title">{cat.name}</div>
-                      <div className="fee-panel-meta">Configured category</div>
+                      <div className="fee-panel-meta">{cat.fees?.length ? `${cat.fees.length} entry${cat.fees.length===1?'':'ies'}` : 'Category available'}</div>
                     </div>
                     <div className="d-flex gap-2">
                       <button type="button" className="btn btn-sm btn-outline-primary" onClick={()=>editFeeCategory(cat)}>Rename</button>
@@ -957,27 +987,78 @@ export default function Setup() {
           {/* Subjects */}
           <section className="setup-section mb-4">
             <h5 className="section-title">Subjects</h5>
-            <div className="row g-2 justify-content-center">
-              <div className="col-md-3"><select className="form-select" value={subjectForm.academicYearId} onChange={e=>setSubjectForm({...subjectForm, academicYearId:e.target.value})}><option value="">Academic Year</option>{academicYears.map(y=> <option key={y.id} value={y.id}>{y.name}</option>)}</select></div>
-              <div className="col-md-3"><select className="form-select" value={subjectForm.groupCode} onChange={e=>setSubjectForm({...subjectForm, groupCode:e.target.value, courseCode:'', semester:''})}><option value="">Group</option>{groups.map(g=> <option key={g.id} value={g.code}>{g.code}</option>)}</select></div>
-              <div className="col-md-3"><select className="form-select" value={subjectForm.courseCode} onChange={e=>setSubjectForm({...subjectForm, courseCode:e.target.value, semester:''})}><option value="">Course</option>{coursesForGroup.map(c=> <option key={c.id} value={c.courseCode}>{c.courseCode} - {c.courseName}</option>)}</select></div>
-              <div className="col-md-3">
-                <div className="d-flex flex-wrap gap-2">
-                  {semForCourse.map(s => (
-                    <button type="button" key={s.id} className={`btn ${subjectForm.semester==s.number? 'btn-brand':'btn-outline-brand'}`} onClick={()=>setSubjectForm({...subjectForm, semester:s.number})}>Semester {s.number}</button>
-                  ))}
-                </div>
+            <div className="row g-3">
+              <div className="col-12 col-sm-6 col-xl-3">
+                <label className="form-label fw-bold mb-1">Academic Year</label>
+                <select className="form-select" value={subjectForm.academicYearId} onChange={e=>setSubjectForm({...subjectForm, academicYearId:e.target.value})}>
+                  <option value="">Select Year</option>
+                  {academicYears.map(y=> <option key={y.id} value={y.id}>{y.name}</option>)}
+                </select>
               </div>
-              <div className="col-md-3"><select className="form-select" value={subjectForm.category} onChange={e=>setSubjectForm({...subjectForm, category:e.target.value})}>{categories.map(o=> <option key={o} value={o}>{o}</option>)}</select></div>
-              <div className="col-md-3"><input className="form-control" placeholder="Subject Code" value={subjectForm.subjectCode} onChange={e=>setSubjectForm({...subjectForm, subjectCode:e.target.value})} /></div>
-              <div className="col-md-4"><input className="form-control" placeholder="Subject Name" value={subjectForm.subjectName} onChange={e=>setSubjectForm({...subjectForm, subjectName:e.target.value})} /></div>
-              <div className="col-md-2"><input className="form-control" placeholder="Short Message (remark)" value={subjectForm.remark} onChange={e=>setSubjectForm({...subjectForm, remark:e.target.value})} /></div>
+              <div className="col-12 col-sm-6 col-xl-3">
+                <label className="form-label fw-bold mb-1">Group</label>
+                <select className="form-select" value={subjectForm.groupCode} onChange={e=>setSubjectForm({...subjectForm, groupCode:e.target.value, courseCode:'', semester:''})}>
+                  <option value="">Select Group</option>
+                  {groups.map(g=> <option key={g.id} value={g.code}>{g.code}</option>)}
+                </select>
+              </div>
+              <div className="col-12 col-sm-6 col-xl-3">
+                <label className="form-label fw-bold mb-1">Course</label>
+                <select className="form-select" value={subjectForm.courseCode} onChange={e=>setSubjectForm({...subjectForm, courseCode:e.target.value, semester:''})}>
+                  <option value="">Select Course</option>
+                  {coursesForGroup.map(c=> <option key={c.id} value={c.courseCode}>{c.courseCode} - {c.courseName}</option>)}
+                </select>
+              </div>
+              <div className="col-12 col-sm-6 col-xl-3">
+                <label className="form-label fw-bold mb-1">Semester</label>
+                <select className="form-select" value={subjectForm.semester} onChange={e=>setSubjectForm({...subjectForm, semester:e.target.value})}>
+                  <option value="">Select Semester</option>
+                  {semForCourse.map(s => (
+                    <option key={s.id} value={s.number}>Semester {s.number}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-12 col-md-6 col-xl-4">
+                <label className="form-label fw-bold mb-1">Sub-category</label>
+                <select className="form-select" value={subjectForm.category} onChange={e=>setSubjectForm({...subjectForm, category:e.target.value})}>
+                  <option value="">Select Sub-category</option>
+                  {categories.map(o=> <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div className="col-12 col-md-6 col-xl-4">
+                <label className="form-label fw-bold mb-1">Subject Name</label>
+                { (catItems[subjectForm.category] || []).length ? (
+                  <select className="form-select" value={subjectForm.subjectName} onChange={e=>setSubjectForm({...subjectForm, subjectName:e.target.value})}>
+                    <option value="">Select Subject</option>
+                    {catItems[subjectForm.category].map(item => (
+                      <option key={item.id} value={item.name}>{item.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input className="form-control" placeholder="Subject Name" value={subjectForm.subjectName} onChange={e=>setSubjectForm({...subjectForm, subjectName:e.target.value})} />
+                )}
+              </div>
+              <div className="col-12 col-md-6 col-xl-4">
+                <label className="form-label fw-bold mb-1">Fee Type</label>
+                <select className="form-select" value={subjectForm.feeCategory} onChange={e=>setSubjectForm({...subjectForm, feeCategory:e.target.value, feeAmount: '' })}>
+                  <option value="">Select Fee Type</option>
+                  {feeCategories.map(cat => (
+                    <option key={cat.id} value={cat.name}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
+              {subjectForm.feeCategory && (
+                <div className="col-12 col-md-6 col-xl-4">
+                  <label className="form-label fw-bold mb-1">Fee Amount</label>
+                  <input type="number" className="form-control" placeholder="Amount" value={subjectForm.feeAmount} onChange={e=>setSubjectForm({...subjectForm, feeAmount: e.target.value})} />
+                </div>
+              )}
             </div>
             <div className="mt-2 text-end"><button className="btn btn-accent" onClick={saveSubject}>{editingSubjectId? 'Update Subject':'Add Subject'}</button>{editingSubjectId && <button className="btn btn-outline-secondary ms-2" onClick={()=>{setEditingSubjectId(''); setSubjectForm(buildSubjectForm(categories[0] || ''))}}>Cancel</button>}</div>
             {subjects.length>0 && (
               <div className="table-responsive mt-3">
                 <table className="table mb-0">
-                  <thead><tr><th>Year</th><th>Group</th><th>Course</th><th>Sem</th><th>Category</th><th>Subject Code</th><th>Subject Name</th><th>Remark</th><th>Actions</th></tr></thead>
+                  <thead><tr><th>Year</th><th>Group</th><th>Course</th><th>Sem</th><th>Category</th><th>Subject Name</th><th>Subject Code</th><th>Fee</th><th>Amount</th><th>Actions</th></tr></thead>
                   <tbody>
                     {subjects.map(s=> (
                       <tr key={s.id}>
@@ -986,9 +1067,10 @@ export default function Setup() {
                         <td>{s.courseCode}</td>
                         <td>{s.semester}</td>
                         <td>{s.category}</td>
-                        <td>{s.subjectCode}</td>
                         <td>{s.subjectName}</td>
-                        <td>{s.remark}</td>
+                        <td>{s.subjectCode}</td>
+                        <td>{s.feeCategory || '-'}</td>
+                        <td>{s.feeAmount !== undefined && s.feeAmount !== '' ? s.feeAmount : '-'}</td>
                         <td>
                           <button className="btn btn-sm btn-outline-primary me-2" onClick={()=>editSubject(s)}>Edit</button>
                           <button className="btn btn-sm btn-outline-danger" onClick={()=>deleteSubject(s.id)}>Delete</button>
