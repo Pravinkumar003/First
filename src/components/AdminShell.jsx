@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { useAuth } from '../store/auth'
-import logo from '../pages/images.png'
+import logo from '../assets/media/images.png'
 const nav = [
   // { to: '/application', label: 'Application Form', icon: 'bi-file-earmark-arrow-down' },
   { to: '/admin/applications', label: 'Applications', icon: 'bi-inboxes' },

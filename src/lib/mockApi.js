@@ -1,4 +1,5 @@
 import { supabase } from '../../supabaseClient.js'
+import { trackPromise } from '../store/ui.js'
 
 const TABLES = {
   applications: 'applications',
@@ -19,7 +20,7 @@ const TABLES = {
 }
 
 const runQuery = async (query, label) => {
-  const { data, error } = await query
+  const { data, error } = await trackPromise(query)
   if (error) {
     console.error(label ?? 'Supabase query failed', error)
     throw new Error(label || error.message)
@@ -28,7 +29,7 @@ const runQuery = async (query, label) => {
 }
 
 const runMaybeSingle = async (query, label) => {
-  const { data, error } = await query
+  const { data, error } = await trackPromise(query)
   if (error && error.code !== 'PGRST116') {
     console.error(label ?? 'Supabase query failed', error)
     throw new Error(label || error.message)
