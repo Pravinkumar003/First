@@ -30,6 +30,15 @@ const buildSubjectForm = (category = '') => ({
   feeCategory: '',
   feeAmount: ''
 })
+const itemsToNames = (items = []) => (items || [])
+  .map(item => (item?.name || '').trim())
+  .filter(Boolean)
+const subjectsToItems = (subjects = []) => {
+  if (!Array.isArray(subjects)) return []
+  return subjects
+    .map((name, idx) => ({ id: `${idx}-${uid()}`, name }))
+    .filter(item => item.name)
+}
 const TAB_CONFIG = [
   { key: 'years', label: 'Academic Years', tagline: 'Define academic timelines and activation status.' },
   { key: 'groups', label: 'Groups & Courses', tagline: 'Manage programme structures and duration.' },
@@ -92,14 +101,22 @@ export default function Setup() {
   const [academicYears, setAcademicYears] = useState([])
   const [editingYearId, setEditingYearId] = useState('')
   const addYear = async () => {
-    if (!yearForm.name) return
-    if (editingYearId) {
-      setAcademicYears(prev => prev.map(y => y.id === editingYearId ? { ...y, name: yearForm.name, active: yearForm.active } : y))
-      setEditingYearId('')
-    } else {
-      const rec = { id: uid(), name: yearForm.name, active: yearForm.active }
-      setAcademicYears(prev => [...prev, rec])
-      try { await api.addAcademicYear({ name: yearForm.name, active: yearForm.active }) } catch {}
+    if (!yearForm.name.trim()) return
+    try {
+      if (editingYearId) {
+        const updated = await api.updateAcademicYear?.(editingYearId, { name: yearForm.name, active: yearForm.active })
+        if (updated) {
+          setAcademicYears(prev => prev.map(y => y.id === editingYearId ? updated : y))
+        }
+        setEditingYearId('')
+      } else {
+        const created = await api.addAcademicYear({ name: yearForm.name, active: yearForm.active })
+        if (created) {
+          setAcademicYears(prev => [...prev, created])
+        }
+      }
+    } catch (error) {
+      console.error('Failed to save academic year', error)
     }
     setYearForm({ name: '', active: true })
   }
@@ -107,8 +124,9 @@ export default function Setup() {
     setYearForm({ name: year.name, active: year.active })
     setEditingYearId(year.id)
   }
-  const deleteYear = (id) => {
+  const deleteYear = async (id) => {
     setAcademicYears(prev => prev.filter(y => y.id !== id))
+    try { await api.deleteAcademicYear?.(id) } catch (error) { console.error('Failed to delete academic year', error) }
     if (editingYearId === id) {
       setYearForm({ name: '', active: true })
       setEditingYearId('')
@@ -124,52 +142,40 @@ export default function Setup() {
   const [groupForm, setGroupForm] = useState({ id: '', code: '', name: '', years: 0, semesters: 0 })
   const [editingGroupId, setEditingGroupId] = useState('')
   const saveGroup = async () => {
-    if (!groupForm.code || !groupForm.name) return;
-    const code = groupForm.code.toUpperCase();
-    
+    if (!groupForm.code || !groupForm.name) return
+    const code = groupForm.code.toUpperCase()
+    const payload = {
+      code,
+      name: groupForm.name,
+      years: Number(groupForm.years) || 0,
+      semesters: Number(groupForm.semesters) || 0
+    }
     if (editingGroupId) {
-      const updatedGroups = groups.map(g => 
-        g.id === editingGroupId 
-          ? { ...g, code, name: groupForm.name, years: Number(groupForm.years)||0, semesters: Number(groupForm.semesters)||0 } 
-          : g
-      );
-      setGroups(updatedGroups);
-      try { 
-        await api.updateGroup?.(editingGroupId, { 
-          code, 
-          name: groupForm.name,
-          years: Number(groupForm.years)||0,
-          semesters: Number(groupForm.semesters)||0
-        }); 
+      try {
+        const updated = await api.updateGroup?.(editingGroupId, payload)
+        if (updated) {
+          setGroups(prev => prev.map(g => g.id === editingGroupId ? updated : g))
+        }
       } catch (error) {
-        console.error('Error updating group:', error);
+        console.error('Error updating group:', error)
       }
+      setEditingGroupId('')
     } else {
-      if (groups.some(g => g.code === code)) return;
-      const newGroup = { 
-        id: uid(), 
-        code, 
-        name: groupForm.name, 
-        years: Number(groupForm.years)||0, 
-        semesters: Number(groupForm.semesters)||0 
-      };
-      setGroups(prev => [...prev, newGroup]);
-      try { 
-        await api.addGroup({ 
-          code: newGroup.code, 
-          name: newGroup.name,
-          years: newGroup.years,
-          semesters: newGroup.semesters
-        }); 
+      if (groups.some(g => g.code === code)) return
+      try {
+        const created = await api.addGroup(payload)
+        if (created) setGroups(prev => [...prev, created])
       } catch (error) {
-        console.error('Error adding group:', error);
+        console.error('Error adding group:', error)
       }
     }
-    setGroupForm({ id: '', code: '', name: '', years: 0, semesters: 0 }); 
-    setEditingGroupId('');
+    setGroupForm({ id: '', code: '', name: '', years: 0, semesters: 0 })
   }
   const editGroup = (g) => { setGroupForm(g); setEditingGroupId(g.id) }
-  const deleteGroup = (id) => { setGroups(groups.filter(g => g.id !== id)) }
+  const deleteGroup = async (id) => {
+    setGroups(prev => prev.filter(g => g.id !== id))
+    try { await api.deleteGroup?.(id) } catch (error) { console.error('Error deleting group:', error) }
+  }
 
   // Courses
   const [courses, setCourses] = useState([])
@@ -178,66 +184,60 @@ export default function Setup() {
 
   // Semesters (auto-generated per course)
   const [semesters, setSemesters] = useState([]) // [{ id, courseCode, number }]
-  const ensureSemesters = (courseCode, count) => {
-    const rows = Array.from({ length: Number(count) }, (_, i) => ({ id: uid(), courseCode, number: i + 1 }))
-    setSemesters(prev => [...prev.filter(s => s.courseCode !== courseCode), ...rows])
-  }
+  useEffect(() => {
+    const generated = courses.flatMap(course => {
+      const code = course.courseCode || course.code
+      const count = Number(course.semesters || 0)
+      if (!code || !count) return []
+      return Array.from({ length: count }, (_, i) => ({ id: `${code}-${i + 1}`, courseCode: code, number: i + 1 }))
+    })
+    setSemesters(generated)
+  }, [courses])
   const saveCourse = async () => {
-    const { groupCode, courseCode, courseName, semesters: semCount } = courseForm;
-    if (!groupCode || !courseCode || !courseName || !semCount) return;
-    const code = courseCode.toUpperCase();
-    
+    const { groupCode, courseCode, courseName, semesters: semCount } = courseForm
+    if (!groupCode || !courseCode || !courseName || !semCount) return
+    const code = courseCode.toUpperCase()
+    const payload = {
+      code,
+      name: courseName,
+      group_code: groupCode,
+      semesters: Number(semCount) || 0
+    }
     if (editingCourseId) {
-      setCourses(courses.map(c => 
-        c.id === editingCourseId 
-          ? { ...c, groupCode, courseCode: code, courseName, semesters: Number(semCount) } 
-          : c
-      ));
-      ensureSemesters(code, Number(semCount));
-      try { 
-        await api.updateCourse?.(editingCourseId, { 
-          code, 
-          name: courseName, 
-          group_code: groupCode,
-          duration_years: Math.ceil(Number(semCount)/2)
-        }); 
+      try {
+        const updated = await api.updateCourse?.(editingCourseId, payload)
+        if (updated) {
+          setCourses(prev => prev.map(c => c.id === editingCourseId ? updated : c))
+        }
       } catch (error) {
-        console.error('Error updating course:', error);
+        console.error('Error updating course:', error)
       }
+      setEditingCourseId('')
     } else {
-      if (courses.some(c => c.courseCode === code)) return;
-      const newCourse = { 
-        id: uid(), 
-        groupCode, 
-        courseCode: code, 
-        courseName, 
-        semesters: Number(semCount) || 0 
-      };
-      setCourses(prev => [...prev, newCourse]);
-      ensureSemesters(code, Number(semCount));
-      try { 
-        await api.addCourse({ 
-          code: newCourse.courseCode, 
-          name: newCourse.courseName, 
-          group_code: groupCode,
-          duration_years: Math.ceil(Number(semCount)/2) 
-        }); 
+      if (courses.some(c => (c.courseCode || c.code) === code)) return
+      try {
+        const created = await api.addCourse(payload)
+        if (created) setCourses(prev => [...prev, created])
       } catch (error) {
-        console.error('Error adding course:', error);
+        console.error('Error adding course:', error)
       }
     }
-    setCourseForm({ id: '', groupCode: '', courseCode: '', courseName: '', semesters: 6 }); 
-    setEditingCourseId('');
+    setCourseForm({ id: '', groupCode: '', courseCode: '', courseName: '', semesters: 6 })
   }
   const editCourse = (c) => { setCourseForm(c); setEditingCourseId(c.id) }
-  const deleteCourse = (id) => {
+  const deleteCourse = async (id) => {
     const course = courses.find(c => c.id === id)
     setCourses(courses.filter(c => c.id !== id))
-    if (course) setSemesters(semesters.filter(s => s.courseCode !== course.courseCode))
+    if (course) {
+      const code = course.courseCode || course.code
+      setSemesters(semesters.filter(s => s.courseCode !== code))
+    }
+    try { await api.deleteCourse?.(id) } catch (error) { console.error('Error deleting course:', error) }
   }
 
   // Sub-categories and Languages
   const [categories, setCategories] = useState([])
+  const [categoryIdMap, setCategoryIdMap] = useState({})
   const [categoryName, setCategoryName] = useState('')
   const [editingCategory, setEditingCategory] = useState('')
   const [catItems, setCatItems] = useState({})
@@ -245,6 +245,25 @@ export default function Setup() {
   const [tempCatInputs, setTempCatInputs] = useState({})
   const [viewCat, setViewCat] = useState('')
   const [isEditingView, setIsEditingView] = useState(false)
+  const persistCategorySubjects = async (catName, items) => {
+    const id = categoryIdMap[catName]
+    if (!id) return
+    const subjects = itemsToNames(items)
+    try {
+      await api.updateSubCategory?.(id, { name: catName, subjects })
+    } catch (error) {
+      console.error(`Failed to save subjects for ${catName}`, error)
+    }
+  }
+  const updateCategoryItems = (catName, updater) => {
+    setCatItems(prev => {
+      const prevList = prev[catName] || []
+      const nextList = typeof updater === 'function' ? updater(prevList) : (Array.isArray(updater) ? updater : [])
+      const nextState = { ...prev, [catName]: nextList }
+      persistCategorySubjects(catName, nextList)
+      return nextState
+    })
+  }
   const openViewCat = (cat) => {
     setViewCat(cat)
     setIsEditingView(false)
@@ -277,30 +296,72 @@ export default function Setup() {
     const names = (tempCatInputs[cat] || []).map(n => n.trim()).filter(Boolean)
     if (!names.length) return
     const newItems = names.map(name => ({ id: uid(), name }))
-    setCatItems(prev => ({ ...prev, [cat]: [...(prev[cat] || []), ...newItems] }))
+    updateCategoryItems(cat, prevList => [...prevList, ...newItems])
     clearCategoryInputs(cat)
   }
   const [feeCategories, setFeeCategories] = useState([])
   const [feeCategoryName, setFeeCategoryName] = useState('')
   const [editingFeeCategoryId, setEditingFeeCategoryId] = useState('')
   const [feeDrafts, setFeeDrafts] = useState({})
-  useEffect(()=>{ (async()=>{ try {
-    const ft = await api.getFeeTypes?.()
-    if (ft) {
-      const normalized = normalizeFeeCategories(ft)
-      setFeeCategories(normalized)
+  const persistFeeCategoryList = async (list) => {
+    try {
+      await api.setFeeTypes?.(list)
+    } catch (error) {
+      console.error('Failed to save fee categories', error)
     }
-  } catch {} })() }, [])
-  const saveFeeCategory = () => {
+  }
+  useEffect(() => {
+    (async () => {
+      try {
+        const [yrs, grps, crs, ft, subcats] = await Promise.all([
+          api.listAcademicYears?.() || [],
+          api.listGroups?.() || [],
+          api.listCourses?.() || [],
+          api.getFeeTypes?.() || [],
+          api.listSubCategories?.() || []
+        ])
+        if (yrs.length) setAcademicYears(yrs)
+        if (grps.length) setGroups(grps)
+        if (crs.length) setCourses(crs)
+        if (ft) {
+          const normalized = normalizeFeeCategories(ft)
+          setFeeCategories(normalized)
+        }
+        if (subcats.length) {
+          const names = []
+          const itemsMap = {}
+          const idMap = {}
+          subcats.forEach(cat => {
+            names.push(cat.name)
+            idMap[cat.name] = cat.id
+            itemsMap[cat.name] = subjectsToItems(cat.subjects)
+          })
+          setCategories(names)
+          setCatItems(itemsMap)
+          setCategoryIdMap(idMap)
+        } else {
+          setCategories([])
+          setCatItems({})
+          setCategoryIdMap({})
+        }
+      } catch (error) {
+        console.error('Failed to load setup data', error)
+      }
+    })()
+  }, [])
+  const saveFeeCategory = async () => {
     const trimmed = feeCategoryName.trim()
     if (!trimmed) return
     const duplicate = feeCategories.some(cat => cat.name.trim().toLowerCase() === trimmed.toLowerCase() && cat.id !== editingFeeCategoryId)
     if (duplicate) return
+    let next = []
     if (editingFeeCategoryId) {
-      setFeeCategories(prev => prev.map(cat => cat.id === editingFeeCategoryId ? { ...cat, name: trimmed } : cat))
+      next = feeCategories.map(cat => cat.id === editingFeeCategoryId ? { ...cat, name: trimmed } : cat)
     } else {
-      setFeeCategories(prev => [...prev, { id: uid(), name: trimmed, fees: [] }])
+      next = [...feeCategories, { id: uid(), name: trimmed, fees: [] }]
     }
+    setFeeCategories(next)
+    await persistFeeCategoryList(next)
     setFeeCategoryName('')
     setEditingFeeCategoryId('')
   }
@@ -308,8 +369,10 @@ export default function Setup() {
     setFeeCategoryName(cat.name)
     setEditingFeeCategoryId(cat.id)
   }
-  const deleteFeeCategory = (id) => {
-    setFeeCategories(prev => prev.filter(cat => cat.id !== id))
+  const deleteFeeCategory = async (id) => {
+    const next = feeCategories.filter(cat => cat.id !== id)
+    setFeeCategories(next)
+    await persistFeeCategoryList(next)
     setFeeDrafts(prev => deleteKey(prev, id))
     if (editingFeeCategoryId === id) {
       setFeeCategoryName('')
@@ -330,10 +393,10 @@ export default function Setup() {
         fees: []
       }))
       .filter(cat => cat.name)
-    try { await api.setFeeTypes?.(payload) } catch {}
+    await persistFeeCategoryList(payload)
     setFeeCategories(payload)
   }
-  const saveCategory = () => {
+  const saveCategory = async () => {
     const trimmed = categoryName.trim()
     if (!trimmed) return
     const duplicate = categories.some(c => c.toLowerCase() === trimmed.toLowerCase() && c !== editingCategory)
@@ -348,21 +411,56 @@ export default function Setup() {
       if (subjectForm.category === editingCategory) {
         setSubjectForm(prev => ({ ...prev, category: trimmed }))
       }
+      const catId = categoryIdMap[editingCategory]
+      const currentItems = catItems[editingCategory] || []
+      if (catId) {
+        try {
+          await api.updateSubCategory?.(catId, { name: trimmed, subjects: itemsToNames(currentItems) })
+        } catch (error) {
+          console.error('Failed to rename sub-category', error)
+        }
+        setCategoryIdMap(prev => {
+          const next = { ...prev }
+          delete next[editingCategory]
+          return { ...next, [trimmed]: catId }
+        })
+      }
     } else {
-      setCategories([...categories, trimmed])
-      setCatItems(prev => ({ ...prev, [trimmed]: [] }))
-      setCatCounts(prev => ({ ...prev, [trimmed]: '' }))
-      setTempCatInputs(prev => ({ ...prev, [trimmed]: [] }))
+      try {
+        const created = await api.addSubCategory?.(trimmed)
+        const label = created?.name || trimmed
+        const id = created?.id
+        setCategories(prev => [...prev, label])
+        setCatItems(prev => ({ ...prev, [label]: subjectsToItems(created?.subjects || []) }))
+        setCatCounts(prev => ({ ...prev, [label]: '' }))
+        setTempCatInputs(prev => ({ ...prev, [label]: [] }))
+        if (id) {
+          setCategoryIdMap(prev => ({ ...prev, [label]: id }))
+        }
+      } catch (error) {
+        console.error('Failed to add sub-category', error)
+        return
+      }
     }
     setCategoryName(''); setEditingCategory('')
   }
-  const deleteCategory = (name) => {
+  const deleteCategory = async (name) => {
+    const id = categoryIdMap[name]
+    if (id) {
+      try {
+        await api.deleteSubCategory?.(id)
+      } catch (error) {
+        console.error('Failed to delete sub-category', error)
+        return
+      }
+    }
     const remaining = categories.filter(c => c !== name)
     if (remaining.length === categories.length) return
     setCategories(remaining)
     setCatItems(prev => deleteKey(prev, name))
     setCatCounts(prev => deleteKey(prev, name))
     setTempCatInputs(prev => deleteKey(prev, name))
+    setCategoryIdMap(prev => deleteKey(prev, name))
     setSubjects(prev => {
       const fallback = remaining[0] || ''
       return prev.reduce((acc, item) => {
@@ -417,14 +515,12 @@ export default function Setup() {
   }, [categories])
   const [editingSubjectId, setEditingSubjectId] = useState('')
 
-  const coursesForGroup = courses.filter(c => c.groupCode === subjectForm.groupCode)
-  const semForCourse = (() => {
-    const c = courses.find(x => x.courseCode === subjectForm.courseCode)
-    if (c && semesters.filter(s => s.courseCode === c.courseCode).length === 0) {
-      ensureSemesters(c.courseCode, c.semesters)
-    }
-    return semesters.filter(s => s.courseCode === subjectForm.courseCode)
-  })()
+  const coursesForGroup = courses.filter(c => {
+    const groupCode = c.groupCode || c.group_code
+    if (!subjectForm.groupCode) return false
+    return groupCode === subjectForm.groupCode
+  })
+  const semForCourse = semesters.filter(s => s.courseCode === subjectForm.courseCode)
 
   const saveSubject = () => {
     const { academicYearId, groupCode, courseCode, semester, category, subjectName, subjectSelections = [], feeCategory, feeAmount } = subjectForm
@@ -596,7 +692,7 @@ export default function Setup() {
           handleTempSubjectChange={handleTempSubjectChange}
           clearCategoryInputs={clearCategoryInputs}
           commitCategorySubjects={commitCategorySubjects}
-          setCatItems={setCatItems}
+          updateCategoryItems={updateCategoryItems}
           deleteCategory={deleteCategory}
           saveCategory={saveCategory}
           feeCategories={feeCategories}

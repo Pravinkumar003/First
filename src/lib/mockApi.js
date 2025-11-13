@@ -1,49 +1,642 @@
-const LS = (k, v) => v===undefined ? JSON.parse(localStorage.getItem(k)||'null') : localStorage.setItem(k, JSON.stringify(v))
-function init() {
-  if (!LS('courses')) LS('courses', [])
-  if (!LS('groups')) LS('groups', [])
-  if (!LS('academic_years')) LS('academic_years', [])
-  if (!LS('batches')) LS('batches', [])
-  if (!LS('applications')) LS('applications', [])
-  if (!LS('students')) LS('students', [])
-  if (!LS('exams')) LS('exams', [])
-  if (!LS('payments')) LS('payments', [])
-  if (!LS('hall_tickets')) LS('hall_tickets', [])
-  if (!LS('results')) LS('results', [])
-  if (!LS('fee_definitions')) LS('fee_definitions', [])
-  if (!LS('fee_types')) LS('fee_types', null)
-  if (!LS('admin_users')) LS('admin_users', [
-    { email:'admin@vijayam.edu', role:'ADMIN' },
-    { email:'principal@vijayam.edu', role:'PRINCIPAL' }
-  ])
+import { supabase } from '../../supabaseClient'
+
+const TABLES = {
+  applications: 'applications',
+  academicYears: 'academic_year',
+  groups: 'groups',
+  courses: 'courses',
+  subCategories: 'subject_category',
+  batches: 'batches',
+  students: 'students',
+  exams: 'exams',
+  payments: 'payments',
+  hallTickets: 'hall_tickets',
+  results: 'results',
+  feeDefinitions: 'fee_definitions',
+  feeCategories: 'fee_categories',
+  adminUsers: 'admin_users'
 }
-init()
-const id = () => Math.random().toString(36).slice(2,10)
+
+const runQuery = async (query, label) => {
+  const { data, error } = await query
+  if (error) {
+    console.error(label ?? 'Supabase query failed', error)
+    throw new Error(label || error.message)
+  }
+  return data
+}
+
+const runMaybeSingle = async (query, label) => {
+  const { data, error } = await query
+  if (error && error.code !== 'PGRST116') {
+    console.error(label ?? 'Supabase query failed', error)
+    throw new Error(label || error.message)
+  }
+  return data ?? null
+}
+
+const mapYear = (row = {}) => ({
+  id: row.id,
+  name: row.academic_year,
+  active: row.status === undefined ? true : Boolean(row.status)
+})
+
+const toYearRow = ({ name, active }) => ({
+  academic_year: name,
+  status: active ? 1 : 0
+})
+
+const mapGroup = (row = {}) => ({
+  id: row.group_id ?? row.id,
+  code: row.group_code,
+  name: row.group_name,
+  years: row.duration_years ?? 0,
+  semesters: row.number_semesters ?? 0
+})
+
+const toGroupRow = ({ code, name, years, semesters }) => ({
+  group_code: code,
+  group_name: name,
+  duration_years: years ?? null,
+  number_semesters: semesters ?? null
+})
+
+const mapCourse = (row = {}) => {
+  const code = row.course_code || row.code
+  const name = row.course_name || row.name
+  const groupCode = row.group_name || row.group_code || row.groupCode || ''
+  const semesters = Number(row.no_of_semesters ?? row.semesters ?? 0) || 0
+  const duration = row.duration_years ?? (semesters ? Math.ceil(semesters / 2) : null)
+  return {
+    id: row.course_id ?? row.id,
+    code,
+    name,
+    courseCode: code,
+    courseName: name,
+    group_code: groupCode,
+    groupCode,
+    semesters,
+    duration_years: duration
+  }
+}
+
+const toCourseRow = ({ code, name, group_code, groupCode, semesters, duration_years }) => ({
+  course_code: code,
+  course_name: name,
+  group_name: group_code || groupCode || null,
+  no_of_semesters: semesters ?? null,
+  duration_years: duration_years ?? (semesters ? Math.ceil(semesters / 2) : null)
+})
+
+const parseSubjectList = (value) => {
+  if (!value && value !== 0) return []
+  if (Array.isArray(value)) return value.filter(Boolean)
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return []
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) return parsed.filter(Boolean)
+    } catch {}
+    return trimmed
+      .split(/[\r\n,]+/)
+      .map(entry => entry.trim())
+      .filter(Boolean)
+  }
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) return parsed.filter(Boolean)
+  } catch {}
+  return []
+}
+
+const mapSubCategory = (row = {}) => ({
+  id: row.category_id ?? row.id,
+  name: row.category_name,
+  subjects: parseSubjectList(row.subjects_name)
+})
+
+const toSubCategoryRow = ({ name, subjects }) => ({
+  category_name: name,
+  category_count: Array.isArray(subjects) ? subjects.length : 0,
+  subjects_name: JSON.stringify(Array.isArray(subjects) ? subjects : [])
+})
+
+const mapApplication = (row = {}) => ({
+  id: row.id,
+  student_id: row.student_id,
+  admission_no: row.admission_no,
+  ht_no: row.ht_no,
+  academic_year: row.academic_year,
+  group: row.group_code || row.group,
+  course_id: row.course_code || row.course_id,
+  full_name: row.full_name,
+  gender: row.gender,
+  dob: row.dob,
+  father_name: row.father_name,
+  mother_name: row.mother_name,
+  nationality: row.nationality,
+  state: row.state,
+  aadhar_no: row.aadhar_number,
+  postal_code: row.postal_code,
+  address: row.address,
+  mobile: row.mobile,
+  email: row.email,
+  religion: row.religion,
+  caste: row.caste,
+  sub_caste: row.sub_caste,
+  photo_url: row.photo_url,
+  cert_url: row.cert_url,
+  status: row.status || 'PENDING',
+  created_at: row.created_at
+})
+
+const toApplicationRow = (app = {}) => ({
+  student_id: app.student_id || null,
+  admission_no: app.admission_no || null,
+  ht_no: app.ht_no || null,
+  academic_year: app.academic_year || null,
+  group_code: app.group || app.group_code || null,
+  course_code: app.course_id || app.course_code || null,
+  full_name: app.full_name || null,
+  gender: app.gender || null,
+  dob: app.dob || null,
+  father_name: app.father_name || null,
+  mother_name: app.mother_name || null,
+  nationality: app.nationality || null,
+  state: app.state || null,
+  aadhar_number: app.aadhar_no || null,
+  postal_code: app.postal_code || null,
+  address: app.address || null,
+  mobile: app.mobile || null,
+  email: app.email || null,
+  religion: app.religion || null,
+  caste: app.caste || null,
+  sub_caste: app.sub_caste || null,
+  photo_url: app.photo_url || null,
+  cert_url: app.cert_url || null,
+  status: app.status || 'PENDING'
+})
+
+const mapStudent = (row = {}) => ({
+  id: row.id ?? row.student_id,
+  student_id: row.student_id,
+  hall_ticket_no: row.hall_ticket_no || row.hallticket_no,
+  hallticket_no: row.hall_ticket_no || row.hallticket_no,
+  full_name: row.full_name,
+  academic_year: row.academic_year,
+  group: row.group_name || row.group,
+  course_id: row.course_name || row.course_id,
+  course_name: row.course_name,
+  gender: row.gender,
+  dob: row.date_of_birth || row.dob,
+  mobile: row.phone_number || row.mobile,
+  email: row.email,
+  address: row.address,
+  father_name: row.father_name,
+  mother_name: row.mother_name,
+  nationality: row.nationality,
+  state: row.state,
+  aadhar_no: row.aadhar_number || row.aadhar_no,
+  postal_code: row.pincode || row.postal_code,
+  religion: row.religion,
+  caste: row.caste,
+  sub_caste: row.sub_caste,
+  photo_url: row.photo_url,
+  cert_url: row.cert_url,
+  status: row.status || 'ACTIVE',
+  created_at: row.created_at
+})
+
+const toStudentRow = (student = {}) => ({
+  student_id: student.student_id,
+  hall_ticket_no: student.hall_ticket_no || student.hallticket_no || null,
+  academic_year: student.academic_year || null,
+  group_name: student.group || student.group_name || null,
+  course_name: student.course_id || student.course_name || null,
+  full_name: student.full_name || null,
+  gender: student.gender || null,
+  date_of_birth: student.dob || student.date_of_birth || null,
+  father_name: student.father_name || null,
+  mother_name: student.mother_name || null,
+  nationality: student.nationality || null,
+  state: student.state || null,
+  aadhar_number: student.aadhar_no || student.aadhar_number || null,
+  address: student.address || null,
+  pincode: student.postal_code || student.pincode || null,
+  phone_number: student.mobile || student.phone_number || null,
+  religion: student.religion || null,
+  caste: student.caste || null,
+  sub_caste: student.sub_caste || null,
+  photo_url: student.photo_url || null,
+  cert_url: student.cert_url || null,
+  status: student.status || 'ACTIVE'
+})
+
+const mapBatch = (row = {}) => ({
+  id: row.id,
+  name: row.name,
+  created_at: row.created_at
+})
+
+const toBatchRow = ({ name }) => ({ name })
+
+const mapExam = (row = {}) => ({
+  id: row.id,
+  title: row.title,
+  date: row.date || row.exam_date,
+  time: row.time || row.exam_time,
+  venue: row.venue,
+  course_id: row.course_id,
+  created_at: row.created_at
+})
+
+const toExamRow = ({ title, date, time, venue, course_id }) => ({
+  title,
+  exam_date: date,
+  exam_time: time,
+  venue,
+  course_id: course_id || null
+})
+
+const mapFeeDefinition = (row = {}) => ({
+  id: row.id ?? row.fee_id,
+  academic_year: row.academic_year,
+  group: row.group_code || row.group,
+  group_code: row.group_code,
+  course_code: row.course_code,
+  semester: row.semester_number ?? row.semester,
+  payment_type: row.payment_type,
+  amount: row.amount
+})
+
+const toFeeDefinitionRow = (fee = {}) => ({
+  academic_year: fee.academic_year,
+  group_code: fee.group || fee.group_code,
+  course_code: fee.course_code,
+  semester_number: fee.semester,
+  payment_type: fee.payment_type,
+  amount: fee.amount
+})
+
+const mapResult = (row = {}) => ({
+  id: row.id ?? row.result_id,
+  student_id: row.student_id,
+  exam_id: row.exam_id,
+  total: row.total,
+  grade: row.grade ?? row.result_status,
+  created_at: row.created_at
+})
+
+const toResultRow = (result = {}) => ({
+  student_id: result.student_id,
+  exam_id: result.exam_id,
+  total: result.total,
+  grade: result.grade
+})
+
+const mapFeeCategory = (row = {}) => ({
+  id: row.id,
+  name: row.name,
+  fees: row.fees || []
+})
+
+const toFeeCategoryRow = (category = {}) => ({
+  id: category.id,
+  name: category.name,
+  fees: category.fees || []
+})
+
+const ADMIN_USERS = [
+  { email: 'admin@vijayam.edu', role: 'ADMIN' },
+  { email: 'principal@vijayam.edu', role: 'PRINCIPAL' }
+]
+
 export const api = {
-  submitApplication: async (app) => { const list = LS('applications')||[]; list.unshift({ id:id(), created_at:new Date().toISOString(), status:'PENDING', ...app }); LS('applications', list); return {ok:true} },
-  login: async (email) => { const users=LS('admin_users')||[]; const u=users.find(x=>x.email===email); if(!u) throw new Error('Access denied'); return u },
-  listApplications: async () => LS('applications')||[],
-  approveApplication: async (appId, student) => { const apps=LS('applications')||[]; const i=apps.findIndex(a=>a.id===appId); if(i>=0){apps[i].status='APPROVED'; LS('applications', apps)}; const st=LS('students')||[]; st.unshift({ id:id(), created_at:new Date().toISOString(), status:'ACTIVE', ...student }); LS('students', st) },
-  deleteApplication: async (appId) => { const apps=LS('applications')||[]; LS('applications', apps.filter(a=>a.id!==appId)) },
-  // Years / Groups / Courses
-  listAcademicYears: async () => LS('academic_years')||[],
-  addAcademicYear: async (y) => { const ys=LS('academic_years')||[]; ys.push({ id:id(), created_at:new Date().toISOString(), active:true, ...y }); LS('academic_years', ys) },
-  listGroups: async () => LS('groups')||[],
-  addGroup: async (g) => { const gs=LS('groups')||[]; gs.push({ id:id(), created_at:new Date().toISOString(), ...g }); LS('groups', gs) },
-  listCourses: async () => LS('courses')||[],
-  addCourse: async (c) => { const cs=LS('courses')||[]; cs.push({ id:id(), created_at:new Date().toISOString(), ...c }); LS('courses', cs) },
-  listBatches: async () => LS('batches')||[],
-  addBatch: async (b) => { const bs=LS('batches')||[]; bs.push({ id:id(), created_at:new Date().toISOString(), ...b }); LS('batches', bs) },
-  listStudents: async () => LS('students')||[],
-  listExams: async () => LS('exams')||[],
-  addExam: async (e) => { const es=LS('exams')||[]; es.push({ id:id(), created_at:new Date().toISOString(), ...e }); LS('exams', es) },
-  addPayment: async (p) => { const ps=LS('payments')||[]; ps.push({ id:id(), created_at:new Date().toISOString(), ...p }); LS('payments', ps) },
-  upsertHallTicket: async (ht) => { const list=LS('hall_tickets')||[]; const ex=list.find(x=>x.student_id===ht.student_id && x.exam_id===ht.exam_id); if(ex){ex.token=ht.token}else{list.push({ id:id(), created_at:new Date().toISOString(), ...ht })}; LS('hall_tickets', list) },
-  addResult: async (r) => { const rs=LS('results')||[]; rs.push({ id:id(), created_at:new Date().toISOString(), ...r }); LS('results', rs) },
-  listResults: async () => LS('results')||[],
-  // Fees
-  listFees: async () => LS('fee_definitions')||[],
-  addFee: async (f) => { const fs=LS('fee_definitions')||[]; fs.push({ id:id(), created_at:new Date().toISOString(), ...f }); LS('fee_definitions', fs) },
-  getFeeTypes: async () => LS('fee_types')||[],
-  setFeeTypes: async (m) => LS('fee_types', m),
+  submitApplication: async (app) => {
+    await runQuery(
+      supabase.from(TABLES.applications).insert(toApplicationRow(app)),
+      'Unable to submit application'
+    )
+    return { ok: true }
+  },
+
+  login: async (email) => {
+    const user = ADMIN_USERS.find(u => u.email.toLowerCase() === String(email).toLowerCase())
+    if (!user) throw new Error('Access denied')
+    return { ...user }
+  },
+
+  listApplications: async () => {
+    const rows = await runQuery(
+      supabase.from(TABLES.applications).select('*').order('created_at', { ascending: false }),
+      'Unable to load applications'
+    )
+    return rows.map(mapApplication)
+  },
+
+  approveApplication: async (appId, student) => {
+    const studentRow = toStudentRow(student)
+    await runQuery(
+      supabase.from(TABLES.students).insert(studentRow),
+      'Unable to create student record'
+    )
+    await runQuery(
+      supabase.from(TABLES.applications).update({ status: 'APPROVED' }).eq('id', appId),
+      'Unable to update application status'
+    )
+  },
+
+  deleteApplication: async (appId) => {
+    await runQuery(
+      supabase.from(TABLES.applications).delete().eq('id', appId),
+      'Unable to delete application'
+    )
+  },
+
+  listAcademicYears: async () => {
+    const rows = await runQuery(
+      supabase.from(TABLES.academicYears).select('id, academic_year, status').order('academic_year'),
+      'Unable to fetch academic years'
+    )
+    return rows.map(mapYear)
+  },
+
+  addAcademicYear: async (payload) => {
+    const row = await runQuery(
+      supabase.from(TABLES.academicYears).insert(toYearRow(payload)).select('id, academic_year, status').single(),
+      'Unable to add academic year'
+    )
+    return mapYear(row)
+  },
+
+  updateAcademicYear: async (id, payload) => {
+    const row = await runQuery(
+      supabase.from(TABLES.academicYears).update(toYearRow(payload)).eq('id', id).select('id, academic_year, status').single(),
+      'Unable to update academic year'
+    )
+    return mapYear(row)
+  },
+
+  deleteAcademicYear: async (id) => {
+    await runQuery(
+      supabase.from(TABLES.academicYears).delete().eq('id', id),
+      'Unable to delete academic year'
+    )
+  },
+
+  listGroups: async () => {
+    const rows = await runQuery(
+      supabase.from(TABLES.groups).select('group_id, group_code, group_name, duration_years, number_semesters').order('group_code'),
+      'Unable to fetch groups'
+    )
+    return rows.map(mapGroup)
+  },
+
+  addGroup: async (group) => {
+    const row = await runQuery(
+      supabase.from(TABLES.groups)
+        .insert(toGroupRow(group))
+        .select('group_id, group_code, group_name, duration_years, number_semesters')
+        .single(),
+      'Unable to add group'
+    )
+    return mapGroup(row)
+  },
+
+  updateGroup: async (id, group) => {
+    const row = await runQuery(
+      supabase.from(TABLES.groups)
+        .update(toGroupRow(group))
+        .eq('group_id', id)
+        .select('group_id, group_code, group_name, duration_years, number_semesters')
+        .single(),
+      'Unable to update group'
+    )
+    return mapGroup(row)
+  },
+
+  deleteGroup: async (id) => {
+    await runQuery(
+      supabase.from(TABLES.groups).delete().eq('group_id', id),
+      'Unable to delete group'
+    )
+  },
+
+  listCourses: async () => {
+    const rows = await runQuery(
+      supabase.from(TABLES.courses)
+        .select('course_id, course_code, course_name, group_name, no_of_semesters, duration_years')
+        .order('course_code'),
+      'Unable to fetch courses'
+    )
+    return rows.map(mapCourse)
+  },
+
+  addCourse: async (course) => {
+    const row = await runQuery(
+      supabase.from(TABLES.courses)
+        .insert(toCourseRow(course))
+        .select('course_id, course_code, course_name, group_name, no_of_semesters, duration_years')
+        .single(),
+      'Unable to add course'
+    )
+    return mapCourse(row)
+  },
+
+  updateCourse: async (id, course) => {
+    const row = await runQuery(
+      supabase.from(TABLES.courses)
+        .update(toCourseRow(course))
+        .eq('course_id', id)
+        .select('course_id, course_code, course_name, group_name, no_of_semesters, duration_years')
+        .single(),
+      'Unable to update course'
+    )
+    return mapCourse(row)
+  },
+
+  deleteCourse: async (id) => {
+    await runQuery(
+      supabase.from(TABLES.courses).delete().eq('course_id', id),
+      'Unable to delete course'
+    )
+  },
+
+  listSubCategories: async () => {
+    const rows = await runQuery(
+      supabase.from(TABLES.subCategories)
+        .select('category_id, category_name, subjects_name')
+        .order('category_name'),
+      'Unable to fetch sub-categories'
+    )
+    return rows.map(mapSubCategory)
+  },
+
+  addSubCategory: async (name) => {
+    const row = await runQuery(
+      supabase.from(TABLES.subCategories)
+        .insert(toSubCategoryRow({ name, subjects: [] }))
+        .select('category_id, category_name, subjects_name')
+        .single(),
+      'Unable to add sub-category'
+    )
+    return mapSubCategory(row)
+  },
+
+  updateSubCategory: async (id, { name, subjects }) => {
+    const row = await runQuery(
+      supabase.from(TABLES.subCategories)
+        .update(toSubCategoryRow({ name, subjects }))
+        .eq('category_id', id)
+        .select('category_id, category_name, subjects_name')
+        .single(),
+      'Unable to update sub-category'
+    )
+    return mapSubCategory(row)
+  },
+
+  deleteSubCategory: async (id) => {
+    await runQuery(
+      supabase.from(TABLES.subCategories).delete().eq('category_id', id),
+      'Unable to delete sub-category'
+    )
+  },
+
+  listBatches: async () => {
+    const rows = await runQuery(
+      supabase.from(TABLES.batches).select('id, name, created_at').order('created_at', { ascending: false }),
+      'Unable to fetch batches'
+    )
+    return rows.map(mapBatch)
+  },
+
+  addBatch: async (batch) => {
+    const row = await runQuery(
+      supabase.from(TABLES.batches).insert(toBatchRow(batch)).select('id, name, created_at').single(),
+      'Unable to add batch'
+    )
+    return mapBatch(row)
+  },
+
+  listStudents: async () => {
+    const rows = await runQuery(
+      supabase.from(TABLES.students)
+        .select('id, student_id, hall_ticket_no, hallticket_no, academic_year, group_name, course_name, full_name, gender, date_of_birth, phone_number, email, address, father_name, mother_name, nationality, state, aadhar_number, pincode, religion, caste, sub_caste, photo_url, cert_url, status, created_at')
+        .order('created_at', { ascending: false }),
+      'Unable to fetch students'
+    )
+    return rows.map(mapStudent)
+  },
+
+  listExams: async () => {
+    const rows = await runQuery(
+      supabase.from(TABLES.exams).select('id, title, exam_date, exam_time, venue, course_id, created_at').order('exam_date', { ascending: false }),
+      'Unable to fetch exams'
+    )
+    return rows.map(mapExam)
+  },
+
+  addExam: async (exam) => {
+    await runQuery(
+      supabase.from(TABLES.exams).insert(toExamRow(exam)),
+      'Unable to add exam'
+    )
+  },
+
+  addPayment: async (payment) => {
+    await runQuery(
+      supabase.from(TABLES.payments).insert({
+        student_id: payment.student_id,
+        amount: Number(payment.amount),
+        method: payment.method,
+        reference: payment.reference || null
+      }),
+      'Unable to record payment'
+    )
+  },
+
+  upsertHallTicket: async ({ student_id, exam_id, token }) => {
+    const existing = await runMaybeSingle(
+      supabase
+        .from(TABLES.hallTickets)
+        .select('id')
+        .eq('student_id', student_id)
+        .eq('exam_id', exam_id)
+        .maybeSingle(),
+      'Unable to load hall ticket'
+    )
+    if (existing) {
+      await runQuery(
+        supabase.from(TABLES.hallTickets).update({ token }).eq('id', existing.id),
+        'Unable to update hall ticket'
+      )
+    } else {
+      await runQuery(
+        supabase.from(TABLES.hallTickets).insert({ student_id, exam_id, token }),
+        'Unable to create hall ticket'
+      )
+    }
+  },
+
+  addResult: async (result) => {
+    await runQuery(
+      supabase.from(TABLES.results).insert(toResultRow(result)),
+      'Unable to record result'
+    )
+  },
+
+  listResults: async () => {
+    const rows = await runQuery(
+      supabase.from(TABLES.results).select('id, student_id, exam_id, total, grade, created_at').order('created_at', { ascending: false }),
+      'Unable to fetch results'
+    )
+    return rows.map(mapResult)
+  },
+
+  listFees: async () => {
+    const rows = await runQuery(
+      supabase.from(TABLES.feeDefinitions)
+        .select('id, academic_year, group_code, course_code, semester_number, payment_type, amount')
+        .order('academic_year', { ascending: false }),
+      'Unable to fetch fee definitions'
+    )
+    return rows.map(mapFeeDefinition)
+  },
+
+  addFee: async (fee) => {
+    await runQuery(
+      supabase.from(TABLES.feeDefinitions).insert(toFeeDefinitionRow(fee)),
+      'Unable to add fee definition'
+    )
+  },
+
+  getFeeTypes: async () => {
+    const rows = await runQuery(
+      supabase.from(TABLES.feeCategories).select('id, name, fees').order('name'),
+      'Unable to fetch fee categories'
+    )
+    return rows.map(mapFeeCategory)
+  },
+
+  setFeeTypes: async (categories) => {
+    const existing = await runQuery(
+      supabase.from(TABLES.feeCategories).select('id'),
+      'Unable to load existing fee categories'
+    )
+    const nextIds = new Set(categories.map(cat => cat.id))
+    const staleIds = existing.map(row => row.id).filter(id => !nextIds.has(id))
+    if (staleIds.length) {
+      await runQuery(
+        supabase.from(TABLES.feeCategories).delete().in('id', staleIds),
+        'Unable to remove old fee categories'
+      )
+    }
+    if (categories.length) {
+      await runQuery(
+        supabase.from(TABLES.feeCategories).upsert(categories.map(toFeeCategoryRow)),
+        'Unable to save fee categories'
+      )
+    }
+  }
 }

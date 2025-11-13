@@ -9,7 +9,30 @@ export default function Students() {
   useEffect(()=>{ load() }, [])
   const approve = async (a) => {
     const year = new Date().getFullYear()
-    const student = { student_id: makeStudentId(), hall_ticket_no: makePermanentHT(year), full_name: a.full_name, dob: a.dob, gender: a.gender, mobile: a.mobile, email: a.email, address: a.address, course_id: a.course_id, photo_url: a.photo_url, cert_url: a.cert_url }
+    const student = {
+      student_id: makeStudentId(),
+      hall_ticket_no: makePermanentHT(year),
+      full_name: a.full_name,
+      dob: a.dob,
+      gender: a.gender,
+      mobile: a.mobile,
+      email: a.email,
+      address: a.address,
+      course_id: a.course_id,
+      group: a.group,
+      academic_year: a.academic_year,
+      father_name: a.father_name,
+      mother_name: a.mother_name,
+      nationality: a.nationality,
+      state: a.state,
+      aadhar_no: a.aadhar_no,
+      postal_code: a.postal_code,
+      religion: a.religion,
+      caste: a.caste,
+      sub_caste: a.sub_caste,
+      photo_url: a.photo_url,
+      cert_url: a.cert_url
+    }
     await api.approveApplication(a.id, student); load()
   }
   return (

@@ -15,7 +15,6 @@ export default function SubCategoriesSection({
   handleTempSubjectChange,
   clearCategoryInputs,
   commitCategorySubjects,
-  setCatItems,
   deleteCategory,
   saveCategory,
   feeCategories,
@@ -26,7 +25,8 @@ export default function SubCategoriesSection({
   saveFeeCategory,
   editFeeCategory,
   deleteFeeCategory,
-  setIsEditingView
+  setIsEditingView,
+  updateCategoryItems
 }) {
   return (
     <>
@@ -113,10 +113,7 @@ export default function SubCategoriesSection({
                         <input
                           className="form-control"
                           value={item.name}
-                          onChange={e => setCatItems(prev => ({
-                            ...prev,
-                            [cat]: prev[cat].map(x => x.id === item.id ? { ...x, name: e.target.value } : x)
-                          }))}
+                          onChange={e => updateCategoryItems(cat, list => list.map(x => x.id === item.id ? { ...x, name: e.target.value } : x))}
                         />
                       </div>
                     ))}
@@ -173,15 +170,15 @@ export default function SubCategoriesSection({
                             <input
                               className="form-control"
                               value={it.name}
-                              onChange={e => setCatItems(prev => ({
-                                ...prev,
-                                [viewCat]: prev[viewCat].map(x => x.id === it.id ? { ...x, name: e.target.value } : x)
-                              }))}
+                              onChange={e => updateCategoryItems(viewCat, list => list.map(x => x.id === it.id ? { ...x, name: e.target.value } : x))}
                             />
-                            <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => setCatItems(prev => ({
-                              ...prev,
-                              [viewCat]: prev[viewCat].filter(x => x.id !== it.id)
-                            }))}>Delete</button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-danger"
+                              onClick={() => updateCategoryItems(viewCat, list => list.filter(x => x.id !== it.id))}
+                            >
+                              Delete
+                            </button>
                           </div>
                         ) : (
                           <div className="subject-name">{it.name}</div>
