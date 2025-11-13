@@ -32,7 +32,7 @@ export default function AdminShell({ children, onSignOut }) {
     navTo('/')
   }
   return (
-    <div className="min-vh-100 d-grid" style={{ gridTemplateColumns: collapsed ? '88px 1fr' : '280px 1fr' }}>
+    <div className="admin-shell d-grid" style={{ gridTemplateColumns: collapsed ? '88px 1fr' : '280px 1fr' }}>
       <aside className={`sidebar-modern p-3 ${collapsed ? 'collapsed' : ''}`}>
         <div className="d-flex align-items-center justify-content-between mb-3 brand-row">
           <div className="d-flex align-items-center gap-2">
@@ -54,17 +54,17 @@ export default function AdminShell({ children, onSignOut }) {
             </Link>
           ))}
         </nav>
-        <hr className="hr-soft my-3" />
-        <button className="btn btn-outline-secondary w-100 modern-signout" onClick={handleSignOut} title="Sign out">
-          <i className="bi bi-box-arrow-right"></i>
-          <span className="label ms-2">Sign out</span>
-        </button>
       </aside>
-      <main className="p-4">
+      <main className="admin-main p-4">
         <div className="brandbar rounded px-3 py-2 mb-3 d-flex align-items-center justify-content-between header-shadow">
-          <div className="fw-semibold text-brand">Smart Examination & Hall Ticket Management</div>
+          <div className="brandbar-title">Smart Examination &amp; Hall Ticket Management</div>
+          <button className="btn btn-outline-secondary modern-signout" onClick={handleSignOut} title="Sign out">
+            <i className="bi bi-box-arrow-right me-2"></i>Sign out
+          </button>
         </div>
-        {children}
+        <div className="admin-main-scroll">
+          {children}
+        </div>
       </main>
     </div>
   )

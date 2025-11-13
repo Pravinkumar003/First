@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import AdminShell from '../components/AdminShell'
 import { api } from '../lib/mockApi'
 
@@ -25,54 +25,46 @@ const buildSubjectForm = (category = '') => ({
   subjectName: '',
   remark: ''
 })
+const TAB_CONFIG = [
+  { key: 'years', label: 'Academic Years', tagline: 'Define academic timelines and activation status.' },
+  { key: 'groups', label: 'Groups & Courses', tagline: 'Manage programme structures and duration.' },
+  { key: 'subcats', label: 'Sub-categories', tagline: 'Organise subjects and fee classifications.' },
+  { key: 'subjects', label: 'Subjects', tagline: 'Control curriculum details semester by semester.' }
+]
+
 const normalizeFeeCategories = (data) => {
-  if (Array.isArray(data)) {
-    const hasNestedFees = data.some(item => Array.isArray(item?.fees) || Array.isArray(item?.items))
-    if (hasNestedFees) {
-      return data
-        .map(cat => ({
-          id: cat?.id || uid(),
-          name: (cat?.name || '').toString(),
-          fees: (cat?.fees || cat?.items || [])
-            .map(fee => ({
-              id: fee?.id || uid(),
-              name: (fee?.name || '').toString(),
-              amount: fee?.amount === 0 || fee?.amount ? String(fee.amount) : ''
-            }))
-            .filter(fee => fee.name.trim())
-        }))
-        .filter(cat => cat.name.trim() || cat.fees.length)
-    }
-    const fallbackFees = data
-      .map(item => ({
+  if (!Array.isArray(data)) return []
+  const hasNestedFees = data.some(item => Array.isArray(item?.fees) || Array.isArray(item?.items))
+  if (hasNestedFees) {
+    return data
+      .map(cat => ({
+        id: cat?.id || uid(),
+        name: (cat?.name || '').toString(),
+        fees: (cat?.fees || cat?.items || [])
+          .map(fee => ({
+            id: fee?.id || uid(),
+            name: (fee?.name || '').toString(),
+            amount: fee?.amount === 0 || fee?.amount ? String(fee.amount) : ''
+          }))
+          .filter(fee => fee.name.trim())
+      }))
+      .filter(cat => cat.name.trim() || cat.fees.length)
+  }
+  return data
+    .map(item => {
+      const feeName = (item?.name || '').toString()
+      if (!feeName.trim()) return null
+      return {
         id: item?.id || uid(),
-        name: (item?.name || '').toString(),
-        amount: item?.amount === 0 || item?.amount ? String(item.amount) : ''
-      }))
-      .filter(item => item.name.trim())
-    if (!fallbackFees.length) return []
-    return [{
-      id: uid(),
-      name: 'General',
-      fees: fallbackFees
-    }]
-  }
-  if (data && typeof data === 'object') {
-    const entries = Object.entries(data)
-      .map(([name, amount]) => ({
-        id: uid(),
-        name,
-        amount: amount === 0 || amount ? String(amount) : ''
-      }))
-      .filter(item => item.name.trim())
-    if (!entries.length) return []
-    return [{
-      id: uid(),
-      name: 'General',
-      fees: entries
-    }]
-  }
-  return []
+        name: feeName,
+        fees: [{
+          id: uid(),
+          name: `${feeName} Fee`,
+          amount: item?.amount === 0 || item?.amount ? String(item.amount) : ''
+        }]
+      }
+    })
+    .filter(Boolean)
 }
 
 export default function Setup() {
@@ -83,12 +75,29 @@ export default function Setup() {
   // Academic Years (shared)
   const [yearForm, setYearForm] = useState({ name: '', active: true })
   const [academicYears, setAcademicYears] = useState([])
+  const [editingYearId, setEditingYearId] = useState('')
   const addYear = async () => {
     if (!yearForm.name) return
-    const rec = { id: uid(), name: yearForm.name, active: yearForm.active }
-    setAcademicYears(prev => [...prev, rec])
-    try { await api.addAcademicYear({ name: yearForm.name, active: yearForm.active }) } catch {}
+    if (editingYearId) {
+      setAcademicYears(prev => prev.map(y => y.id === editingYearId ? { ...y, name: yearForm.name, active: yearForm.active } : y))
+      setEditingYearId('')
+    } else {
+      const rec = { id: uid(), name: yearForm.name, active: yearForm.active }
+      setAcademicYears(prev => [...prev, rec])
+      try { await api.addAcademicYear({ name: yearForm.name, active: yearForm.active }) } catch {}
+    }
     setYearForm({ name: '', active: true })
+  }
+  const editYear = (year) => {
+    setYearForm({ name: year.name, active: year.active })
+    setEditingYearId(year.id)
+  }
+  const deleteYear = (id) => {
+    setAcademicYears(prev => prev.filter(y => y.id !== id))
+    if (editingYearId === id) {
+      setYearForm({ name: '', active: true })
+      setEditingYearId('')
+    }
   }
 
   // Groups
@@ -107,7 +116,7 @@ export default function Setup() {
       );
       setGroups(updatedGroups);
       try { 
-        await api.updateGroup(editingGroupId, { 
+        await api.updateGroup?.(editingGroupId, { 
           code, 
           name: groupForm.name,
           years: Number(groupForm.years)||0,
@@ -167,7 +176,7 @@ export default function Setup() {
       ));
       ensureSemesters(code, Number(semCount));
       try { 
-        await api.updateCourse(editingCourseId, { 
+        await api.updateCourse?.(editingCourseId, { 
           code, 
           name: courseName, 
           group_code: groupCode,
@@ -291,56 +300,19 @@ export default function Setup() {
   const updateFeeDraft = (catId, field, value) => {
     setFeeDrafts(prev => ({ ...prev, [catId]: { ...prev[catId], [field]: value } }))
   }
-  const addFeeLine = (catId) => {
-    const draft = feeDrafts[catId] || { name: '', amount: '' }
-    const trimmed = (draft.name || '').trim()
-    if (!trimmed) return
-    setFeeCategories(prev => prev.map(cat => {
-      if (cat.id !== catId) return cat
-      return {
-        ...cat,
-        fees: [...cat.fees, { id: uid(), name: trimmed, amount: draft.amount || '' }]
-      }
-    }))
-    setFeeDrafts(prev => ({ ...prev, [catId]: { name: '', amount: '' } }))
-  }
-  const updateFeeLine = (catId, feeId, field, value) => {
-    setFeeCategories(prev => prev.map(cat => {
-      if (cat.id !== catId) return cat
-      return {
-        ...cat,
-        fees: cat.fees.map(fee => fee.id === feeId ? { ...fee, [field]: value } : fee)
-      }
-    }))
-  }
-  const deleteFeeLine = (catId, feeId) => {
-    setFeeCategories(prev => prev.map(cat => {
-      if (cat.id !== catId) return cat
-      return {
-        ...cat,
-        fees: cat.fees.filter(fee => fee.id !== feeId)
-      }
-    }))
-  }
+  const addFeeLine = () => {}
+  const updateFeeLine = () => {}
+  const deleteFeeLine = () => {}
   const saveFeeCategories = async () => {
     const payload = feeCategories
       .map(cat => ({
         id: cat.id,
         name: cat.name.trim(),
-        fees: cat.fees
-          .map(fee => ({
-            id: fee.id,
-            name: fee.name.trim(),
-            amount: Number(fee.amount || 0)
-          }))
-          .filter(fee => fee.name)
+        fees: []
       }))
-      .filter(cat => cat.name && cat.fees.length)
+      .filter(cat => cat.name)
     try { await api.setFeeTypes?.(payload) } catch {}
-    setFeeCategories(payload.map(cat => ({
-      ...cat,
-      fees: cat.fees.map(fee => ({ ...fee, amount: String(fee.amount) }))
-    })))
+    setFeeCategories(payload)
   }
   const saveCategory = () => {
     const trimmed = categoryName.trim()
@@ -448,20 +420,116 @@ export default function Setup() {
   const editSubject = (rec) => { setSubjectForm({ ...rec, semester: rec.semester.toString() }); setEditingSubjectId(rec.id) }
   const deleteSubject = (id) => setSubjects(subjects.filter(s => s.id !== id))
 
+  const neutralCardStyle = {
+    borderRadius: '18px',
+    border: '1px solid #e2e8f0',
+    background: 'linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%)',
+    boxShadow: '0 18px 35px rgba(15,23,42,0.08)'
+  }
+  const coolCardStyle = {
+    borderRadius: '18px',
+    border: '1px solid #e1e7ef',
+    background: 'linear-gradient(180deg, #ffffff 0%, #f3f6fb 100%)',
+    boxShadow: '0 16px 32px rgba(15,23,42,0.07)'
+  }
+  const accentBadgeStyle = {
+    backgroundColor: '#ecf0ff',
+    color: '#1d3ecf',
+    fontWeight: 600,
+    borderRadius: '999px',
+    padding: '0.35rem 0.9rem'
+  }
+  const courseBadgeStyle = {
+    backgroundColor: '#e0f2fe',
+    color: '#0369a1',
+    fontWeight: 600,
+    borderRadius: '999px',
+    padding: '0.35rem 0.9rem'
+  }
+  const pillButtonStyle = {
+    borderRadius: '999px',
+    border: '1px solid #e2e8f0',
+    backgroundColor: '#ffffff',
+    fontWeight: 600,
+    color: '#0f172a'
+  }
+  const currentTabMeta = TAB_CONFIG.find(cfg => cfg.key === tab) || TAB_CONFIG[0]
+  const heroStats = [
+    { label: 'Academic Years', value: academicYears.length || 0, meta: 'records' },
+    { label: 'Groups', value: groups.length || 0, meta: 'active' },
+    { label: 'Courses', value: courses.length || 0, meta: 'listed' },
+    { label: 'Subjects', value: subjects.length || 0, meta: 'published' }
+  ]
+
   return (
     <AdminShell>
-      <h2 className="fw-bold mb-3">Admin Setup</h2>
+      <div className="desktop-container">
+        <h2 className="fw-bold mb-3">Admin Setup</h2>
+        <section className="setup-hero mb-4">
+          <div className="setup-hero-grid">
+            <div className="setup-hero-copywrap">
+              <p className="setup-hero-eyebrow text-uppercase mb-2">Administration · Setup Console</p>
+              <h3 className="setup-hero-title mb-2">{currentTabMeta.label}</h3>
+              <p className="setup-hero-copy mb-3">{currentTabMeta.tagline}</p>
+              <div className="setup-hero-chips d-flex flex-wrap gap-2">
+                <span className="setup-hero-chip">Smart Examination Platform</span>
+                <span className="setup-hero-chip">Hall Ticket Management</span>
+              </div>
+            </div>
+            <div className="setup-stat-grid">
+              {heroStats.map(stat => (
+                <div key={stat.label} className="setup-stat-card">
+                  <div className="setup-stat-label">{stat.label}</div>
+                  <div className="setup-stat-value">{stat.value}</div>
+                  <div className="setup-stat-meta">{stat.meta}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+      <nav className="setup-tab-nav d-flex flex-wrap gap-2 mb-4">
+        {TAB_CONFIG.map(cfg => (
+          <Link
+            key={cfg.key}
+            to={`/admin/setup/${cfg.key}`}
+            className={`setup-tab-pill ${tab === cfg.key ? 'active' : ''}`}
+          >
+            <div className="setup-pill-label">{cfg.label}</div>
+            <div className="setup-pill-meta">{cfg.tagline}</div>
+          </Link>
+        ))}
+      </nav>
 
       {tab==='years' && (
-        <section className="card card-soft p-3 mb-3">
+        <section className="setup-section mb-4">
           <h5 className="section-title">Academic Years</h5>
           <div className="row g-2">
             <div className="col-md-5"><input className="form-control" placeholder="e.g., 2022-2025" value={yearForm.name} onChange={e=>setYearForm({...yearForm, name:e.target.value})} /></div>
             <div className="col-md-3 d-flex align-items-center"><div className="form-check"><input className="form-check-input" type="checkbox" id="activeYear" checked={yearForm.active} onChange={e=>setYearForm({...yearForm, active:e.target.checked})} /><label className="form-check-label ms-2" htmlFor="activeYear">Active</label></div></div>
-            <div className="col-md-4 text-end"><button className="btn btn-brand" onClick={addYear}>Add Year</button></div>
+            <div className="col-md-4 text-end">
+              <button className="btn btn-brand me-2" onClick={addYear}>{editingYearId ? 'Update Year' : 'Add Year'}</button>
+              {editingYearId && <button className="btn btn-outline-secondary" onClick={()=>{setYearForm({ name:'', active:true }); setEditingYearId('')}}>Cancel</button>}
+            </div>
           </div>
           {academicYears.length>0 && (
-            <div className="table-responsive mt-3"><table className="table mb-0"><thead><tr><th>Year</th><th>Status</th></tr></thead><tbody>{academicYears.map(y=> (<tr key={y.id}><td>{y.name}</td><td><span className="badge bg-success-subtle text-success">{y.active?'Active':'Inactive'}</span></td></tr>))}</tbody></table></div>
+            <div className="setup-list mt-3">
+              {academicYears.map(y=> (
+                <div className="setup-list-item" key={y.id}>
+                  <div>
+                    <div className="setup-list-title">{y.name}</div>
+                    <div className="setup-list-meta">Created</div>
+                  </div>
+                  <div className="d-flex gap-2 align-items-center">
+                    <span className={`status-pill ${y.active ? 'status-pill--active' : 'status-pill--inactive'}`}>
+                      {y.active ? 'Active' : 'Inactive'}
+                    </span>
+                    <button type="button" className="btn btn-sm btn-outline-primary" onClick={()=>editYear(y)}>Edit</button>
+                    <button type="button" className="btn btn-sm btn-outline-danger" onClick={()=>deleteYear(y.id)}>Delete</button>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </section>
       )}
@@ -469,18 +537,18 @@ export default function Setup() {
       {tab==='groups' && (
         <>
           {/* Groups */}
-          <section className="card card-soft p-3 mb-3">
+          <section className="setup-section mb-4">
             <h5 className="section-title">Groups</h5>
             <div className="row">
-              <div className="col-md-8">
+              <div className="col-12">
                 <div className="row g-2">
-                  <div className="col-md-6">
-                    <label className="form-label fw-bold mb-1">Group Code</label>
-                    <input className="form-control" placeholder="Group Code" value={groupForm.code} onChange={e=>setGroupForm({...groupForm, code:e.target.value.toUpperCase()})} />
-                  </div>
                   <div className="col-md-6">
                     <label className="form-label fw-bold mb-1">Group Name</label>
                     <input className="form-control" placeholder="Group Name" value={groupForm.name} onChange={e=>setGroupForm({...groupForm, name:e.target.value})} />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label fw-bold mb-1">Group Code</label>
+                    <input className="form-control" placeholder="Group Code" value={groupForm.code} onChange={e=>setGroupForm({...groupForm, code:e.target.value.toUpperCase()})} />
                   </div>
                   <div className="col-md-6">
                     <label className="form-label fw-bold mb-1">Duration (years)</label>
@@ -524,50 +592,64 @@ export default function Setup() {
                   )}
                 </div>
               </div>
-              <div className="col-md-4">
-                <div className="card h-100">
-                  <div className="card-body">
-                    <h6 className="card-title fw-bold">Available Groups</h6>
-                    <div className="table-responsive">
-                      <table className="table table-sm">
-                        <thead>
-                          <tr>
-                            <th>S.No</th>
-                            <th>Group Name</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {groups.length > 0 ? (
-                            groups.map((group, index) => (
-                              <tr key={group.id}>
-                                <td>{index + 1}</td>
-                                <td>{group.name} ({group.code})</td>
-                              </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td colSpan="2" className="text-center text-muted">No groups available</td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
             {groups.length>0 && (
-              <div className="table-responsive mt-3"><table className="table mb-0"><thead><tr><th>Code</th><th>Name</th><th>Years</th><th>Semesters</th><th>Actions</th></tr></thead><tbody>{groups.map(g=> (
-                <tr key={g.id}><td>{g.code}</td><td>{g.name}</td><td>{g.years||'-'}</td><td>{g.semesters||'-'}</td><td>
-                  <button className="btn btn-sm btn-outline-primary me-2" onClick={()=>editGroup(g)}>Edit</button>
-                  <button className="btn btn-sm btn-outline-danger" onClick={()=>deleteGroup(g.id)}>Delete</button>
-                </td></tr>
-              ))}</tbody></table></div>
+              <div className="mt-4">
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <span className="text-muted text-uppercase fw-semibold small" style={{ letterSpacing: '0.08em' }}>Showing {groups.length} group{groups.length===1?'':'s'}</span>
+                </div>
+                <div className="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
+                  {groups.map(g=> (
+                    <div className="col" key={g.id}>
+                      <div className="card border-0 h-100" style={neutralCardStyle}>
+                        <div className="card-body d-flex flex-column">
+                          <div className="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                              <div className="text-uppercase text-muted small mb-1">Group Code</div>
+                              <div className="fs-5 fw-bold">{g.code || '-'}</div>
+                            </div>
+                            <span style={accentBadgeStyle}>{g.years || 0} yrs</span>
+                          </div>
+                          <p className="mb-3 text-muted fw-semibold">{g.name}</p>
+                          <div className="d-flex flex-wrap gap-4 mb-4 text-muted">
+                            <div>
+                              <div className="text-uppercase small">Duration</div>
+                              <div className="fw-semibold text-dark">{g.years || '-'} Years</div>
+                            </div>
+                            <div>
+                              <div className="text-uppercase small">Semesters</div>
+                              <div className="fw-semibold text-dark">{g.semesters || '-'}</div>
+                            </div>
+                          </div>
+                          <div className="mt-auto d-flex gap-2">
+                            <button
+                              type="button"
+                              className="btn btn-sm flex-fill"
+                              style={pillButtonStyle}
+                              onClick={()=>editGroup(g)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm flex-fill"
+                              style={{ ...pillButtonStyle, color: '#b91c1c', borderColor: '#fde2e1', backgroundColor: '#fff5f5' }}
+                              onClick={()=>deleteGroup(g.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </section>
 
           {/* Courses */}
-          <section className="card card-soft p-3 mb-3">
+          <section className="setup-section mb-4">
             <h5 className="section-title">Courses</h5>
             <div className="row">
               <div className="col-md-8">
@@ -586,21 +668,21 @@ export default function Setup() {
                     </select>
                   </div>
                   <div className="col-md-4">
-                    <label className="form-label fw-bold mb-1">Course Code</label>
-                    <input 
-                      className="form-control" 
-                      placeholder="Enter Course Code" 
-                      value={courseForm.courseCode} 
-                      onChange={e=>setCourseForm({...courseForm, courseCode:e.target.value.toUpperCase()})} 
-                    />
-                  </div>
-                  <div className="col-md-4">
                     <label className="form-label fw-bold mb-1">Course Name</label>
                     <input 
                       className="form-control" 
                       placeholder="Enter Course Name" 
                       value={courseForm.courseName} 
                       onChange={e=>setCourseForm({...courseForm, courseName:e.target.value})} 
+                    />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label fw-bold mb-1">Course Code</label>
+                    <input 
+                      className="form-control" 
+                      placeholder="Enter Course Code" 
+                      value={courseForm.courseCode} 
+                      onChange={e=>setCourseForm({...courseForm, courseCode:e.target.value.toUpperCase()})} 
                     />
                   </div>
                 </div>
@@ -626,12 +708,52 @@ export default function Setup() {
               </div>
             </div>
             {courses.length>0 && (
-              <div className="table-responsive mt-3"><table className="table mb-0"><thead><tr><th>Group</th><th>Code</th><th>Name</th><th>Semesters</th><th>Actions</th></tr></thead><tbody>{courses.map(c=> (
-                <tr key={c.id}><td>{c.groupCode}</td><td>{c.courseCode}</td><td>{c.courseName}</td><td>{c.semesters}</td><td>
-                  <button className="btn btn-sm btn-outline-primary me-2" onClick={()=>editCourse(c)}>Edit</button>
-                  <button className="btn btn-sm btn-outline-danger" onClick={()=>deleteCourse(c.id)}>Delete</button>
-                </td></tr>
-              ))}</tbody></table></div>
+              <div className="mt-4">
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <span className="text-muted text-uppercase fw-semibold small" style={{ letterSpacing: '0.08em' }}>Showing {courses.length} course{courses.length===1?'':'s'}</span>
+                </div>
+                <div className="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
+                  {courses.map(c=> (
+                    <div className="col" key={c.id}>
+                      <div className="card border-0 h-100" style={coolCardStyle}>
+                        <div className="card-body d-flex flex-column">
+                          <div className="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                              <div className="text-uppercase text-muted small mb-1">Course Name</div>
+                              <div className="fs-5 fw-bold">{c.courseName}</div>
+                            </div>
+                            <span style={courseBadgeStyle}>{c.semesters} sems</span>
+                          </div>
+                          <div className="mb-2">
+                            <div className="text-muted text-uppercase small mb-1">Course Code</div>
+                            <div className="fw-semibold text-dark">{c.courseCode}</div>
+                          </div>
+                          <p className="text-muted text-uppercase small mb-1">Group</p>
+                          <p className="fw-semibold text-dark mb-4">{c.groupCode}</p>
+                          <div className="mt-auto d-flex gap-2">
+                            <button
+                              type="button"
+                              className="btn btn-sm flex-fill"
+                              style={pillButtonStyle}
+                              onClick={()=>editCourse(c)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm flex-fill"
+                              style={{ ...pillButtonStyle, color: '#b91c1c', borderColor: '#fde2e1', backgroundColor: '#fff5f5' }}
+                              onClick={()=>deleteCourse(c.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </section>
 
@@ -642,99 +764,91 @@ export default function Setup() {
 
       {tab==='subcats' && (
         <>
-          {/* Subject Sub-categories (Count -> Inputs -> OK) */}
-          <section className="card card-soft p-3 mb-3">
+          {/* Subject Sub-categories */}
+          <section className="setup-section mb-4">
             <h5 className="section-title">Sub-categories</h5>
-            <div className="row g-2 align-items-end mb-3">
-              <div className="col-md-4">
-                <label className="form-label text-muted fw-600">{editingCategory? 'Edit Sub-category':'Add a Sub-category'}</label>
-                <input className="form-control" placeholder="e.g., English" value={categoryName} onChange={e=>setCategoryName(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'){ e.preventDefault(); saveCategory() } }} />
-              </div>
-              <div className="col-md-2">
-                <button type="button" className="btn btn-brand w-100" onClick={saveCategory}>{editingCategory? 'Update':'Add'}</button>
-              </div>
-              {editingCategory && (
-                <div className="col-md-2">
-                  <button type="button" className="btn btn-outline-secondary w-100" onClick={()=>{ setCategoryName(''); setEditingCategory('') }}>Cancel</button>
+            <div className="subcat-input-panel">
+              <div className="flex-grow-1">
+                <p className="text-uppercase text-muted small mb-1">{editingCategory? 'Update existing sub-category' : 'Add a new sub-category'}</p>
+                <div className="d-flex gap-2 flex-wrap">
+                  <input className="form-control flex-grow-1" placeholder="e.g., English" value={categoryName} onChange={e=>setCategoryName(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'){ e.preventDefault(); saveCategory() } }} />
+                  <button type="button" className="btn btn-brand" onClick={saveCategory}>{editingCategory? 'Update':'Add'}</button>
+                  {editingCategory && (
+                    <button type="button" className="btn btn-outline-secondary" onClick={()=>{ setCategoryName(''); setEditingCategory('') }}>Cancel</button>
+                  )}
                 </div>
-              )}
+              </div>
+              <div className="subcat-input-copy text-muted">
+                <div className="fw-semibold text-dark">Organise subjects into sub-categories</div>
+                <div className="small">Create descriptive buckets (e.g., Languages, Labs) to streamline subject assignment.</div>
+              </div>
             </div>
 
             {categories.length===0 && <div className="alert alert-info mb-0">Add a sub-category to begin creating subjects.</div>}
-            {categories.map(cat => {
-              const generatedInputs = tempCatInputs[cat] || []
-              const subjectCount = (catItems[cat]||[]).length
-              const existingSubjects = catItems[cat] || []
-              const existingCount = existingSubjects.length
-              const showSubjectInput = subjectCount===0 || editingCategory === cat
-              return (
-                <div key={cat} className="subcat-card mb-3 p-3 border rounded bg-white">
-                  <div className="row g-2 align-items-end">
-                    <div className="col-md-4">
-                      <div className="fw-600">{cat}</div>
-                      <div className="text-muted">{subjectCount} subject{subjectCount===1?'':'s'} configured</div>
+            <div className="subcat-grid">
+              {categories.map(cat => {
+                const generatedInputs = tempCatInputs[cat] || []
+                const subjectCount = (catItems[cat]||[]).length
+                const existingSubjects = catItems[cat] || []
+                const existingCount = existingSubjects.length
+                const showSubjectInput = subjectCount===0 || editingCategory === cat
+                return (
+                  <div key={cat} className="subcat-panel">
+                    <div className="subcat-panel-header">
+                      <div>
+                        <div className="subcat-panel-title">{cat}</div>
+                        <div className="subcat-panel-meta">{subjectCount} subject{subjectCount===1?'':'s'} configured</div>
+                      </div>
+                      <div className="subcat-panel-actions">
+                        <button type="button" className="btn btn-sm btn-outline-brand" onClick={()=>openViewCat(cat)}>View list</button>
+                        <button type="button" className="btn btn-sm btn-outline-primary" onClick={()=>{ setCategoryName(cat); setEditingCategory(cat) }}>Rename</button>
+                        <button type="button" className="btn btn-sm btn-outline-danger" onClick={()=>deleteCategory(cat)}>Delete</button>
+                      </div>
                     </div>
                     {showSubjectInput && (
-                      <div className="col-md-3">
-                        <label className="form-label text-muted fw-600 mb-1">How many subjects to add?</label>
-                        <input type="number" min="0" className="form-control" placeholder="e.g., 2" value={catCounts[cat] ?? ''} onChange={e=>handleSubjectAmountChange(cat, e.target.value)} />
+                      <div className="row g-3 mt-2">
+                        <div className="col-md-4">
+                          <label className="form-label text-muted fw-600 mb-1">Generate subjects</label>
+                          <input type="number" min="0" className="form-control" placeholder="Count" value={catCounts[cat] ?? ''} onChange={e=>handleSubjectAmountChange(cat, e.target.value)} />
+                        </div>
+                        {subjectCount>0 && (
+                          <div className="col-md-8 d-flex align-items-center">
+                            <span className="text-muted small">Edit the existing subjects inline.</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {showSubjectInput && subjectCount>0 && (
+                      <div className="row g-2 mt-3">
+                        <div className="col-12 text-muted fw-600 small">Existing subjects</div>
+                        {existingSubjects.map(item => (
+                          <div key={item.id} className="col-md-3">
+                            <input
+                              className="form-control"
+                              value={item.name}
+                              onChange={e=>setCatItems(prev=>({
+                                ...prev,
+                                [cat]: prev[cat].map(x=> x.id===item.id ? { ...x, name: e.target.value } : x)
+                              }))}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {showSubjectInput && generatedInputs.length>0 && (
+                      <div className="row g-2 mt-3">
+                        {generatedInputs.map((val,idx)=> (
+                          <div key={idx} className="col-md-3"><input className="form-control" placeholder={`Subject ${existingCount + idx + 1}`} value={val} onChange={e=>handleTempSubjectChange(cat, idx, e.target.value)} /></div>
+                        ))}
+                        <div className="col-12 text-end">
+                          <button type="button" className="btn btn-brand me-2" onClick={()=>commitCategorySubjects(cat)}>Add Subjects</button>
+                          <button type="button" className="btn btn-outline-secondary" onClick={()=>clearCategoryInputs(cat)}>Clear</button>
+                        </div>
                       </div>
                     )}
                   </div>
-                  {showSubjectInput && subjectCount>0 && (
-                    <div className="row g-2 mt-2">
-                      <div className="col-12 text-muted fw-600 small">Existing subjects</div>
-                      {existingSubjects.map(item => (
-                        <div key={item.id} className="col-md-3">
-                          <input
-                            className="form-control"
-                            value={item.name}
-                            onChange={e=>setCatItems(prev=>({
-                              ...prev,
-                              [cat]: prev[cat].map(x=> x.id===item.id ? { ...x, name: e.target.value } : x)
-                            }))}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {showSubjectInput && generatedInputs.length>0 && (
-                    <div className="row g-2 mt-2">
-                      {generatedInputs.map((val,idx)=> (
-                        <div key={idx} className="col-md-3"><input className="form-control" placeholder={`Subject ${existingCount + idx + 1}`} value={val} onChange={e=>handleTempSubjectChange(cat, idx, e.target.value)} /></div>
-                      ))}
-                      <div className="col-12 text-end">
-                        <button type="button" className="btn btn-brand me-2" onClick={()=>commitCategorySubjects(cat)}>Add Subjects</button>
-                        <button type="button" className="btn btn-outline-secondary" onClick={()=>clearCategoryInputs(cat)}>Clear</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-
-            {/* Summary table */}
-            <div className="table-responsive mt-3">
-              <table className="table mb-0">
-                <thead><tr><th>Sub-category</th><th>Subjects</th><th className="text-end">Actions</th></tr></thead>
-                <tbody>
-                  {categories.length===0 ? (
-                    <tr><td colSpan="3" className="text-center text-muted">No sub-categories yet.</td></tr>
-                  ) : (
-                    categories.map(cat => (
-                      <tr key={cat}>
-                        <td>{cat}</td>
-                        <td>{(catItems[cat]||[]).length}</td>
-                        <td className="text-end">
-                          <button type="button" className="btn btn-outline-brand btn-sm me-2 btn-hover-lift" onClick={()=>openViewCat(cat)}>View</button>
-                          <button type="button" className="btn btn-outline-primary btn-sm me-2 btn-hover-lift" onClick={()=>{ setCategoryName(cat); setEditingCategory(cat) }}>Edit</button>
-                          <button type="button" className="btn btn-outline-danger btn-sm btn-hover-lift" onClick={()=>deleteCategory(cat)}>Delete</button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                )
+              })}
             </div>
 
             {/* Drawer to view items */}
@@ -742,30 +856,32 @@ export default function Setup() {
               <div className="drawer-open">
                 <div className="drawer-backdrop" onClick={closeViewCat}></div>
                 <div className="drawer-panel" role="dialog" aria-modal="true">
-                  <div className="drawer-header">
-                    <div className="fw-600">Subjects in {viewCat}</div>
+                  <div className="drawer-header align-items-start">
+                    <div>
+                      <div className="drawer-eyebrow text-uppercase">Sub-category</div>
+                      <div className="drawer-title">Subjects in {viewCat}</div>
+                      <div className="drawer-meta">{(catItems[viewCat]||[]).length} subject{(catItems[viewCat]||[]).length === 1 ? '' : 's'} configured</div>
+                    </div>
                     <button type="button" className="btn btn-sm btn-outline-secondary" onClick={closeViewCat}><i className="bi bi-x"></i></button>
                   </div>
                   <div className="drawer-body">
-                    <div className="d-flex justify-content-between align-items-center mb-3">
-                      <div>
-                        <div className="fw-600">{(catItems[viewCat]||[]).length} subject{(catItems[viewCat]||[]).length === 1 ? '' : 's'}</div>
-                        <div className="text-muted small">Manage the subject list for {viewCat}</div>
-                      </div>
-                      {(catItems[viewCat]||[]).length>0 && (
+                    {(catItems[viewCat]||[]).length>0 && (
+                      <div className="d-flex justify-content-between align-items-center mb-3">
+                        <div className="drawer-helper-text">Manage the subject list for {viewCat}</div>
                         <button type="button" className="btn btn-sm btn-brand btn-hover-lift" onClick={()=>setIsEditingView(prev=>!prev)}>
                           {isEditingView ? 'Done Editing' : 'Edit Subjects'}
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                     {(catItems[viewCat]||[]).length===0 ? (
                       <div className="text-muted">No subjects added yet.</div>
                     ) : (
-                      <ul className="list-unstyled">
+                      <div className="subject-tiles">
                         {catItems[viewCat].map((it, idx) => (
-                          <li key={it.id} className="py-1">
+                          <div key={it.id} className="subject-tile">
+                            <div className="subject-index">{(idx+1).toString().padStart(2,'0')}</div>
                             {isEditingView ? (
-                              <div className="d-flex align-items-center gap-2">
+                              <div className="d-flex gap-2 w-100">
                                 <input className="form-control" value={it.name} onChange={e=>setCatItems(prev=>({
                                   ...prev,
                                   [viewCat]: prev[viewCat].map(x=> x.id===it.id ? { ...x, name: e.target.value } : x)
@@ -776,14 +892,11 @@ export default function Setup() {
                                 }))}>Delete</button>
                               </div>
                             ) : (
-                              <div className="drawer-list-row d-flex justify-content-between align-items-center border rounded px-3 py-2 bg-light">
-                                <span className="fw-500">{it.name}</span>
-                                <span className="text-muted small">{idx+1}</span>
-                              </div>
+                              <div className="subject-name">{it.name}</div>
                             )}
-                          </li>
+                          </div>
                         ))}
-                      </ul>
+                      </div>
                     )}
                   </div>
                   <div className="drawer-footer d-flex justify-content-end">
@@ -793,7 +906,7 @@ export default function Setup() {
               </div>
             )}
           </section>
-          <section className="card card-soft p-3 mb-3">
+          <section className="setup-section mb-4">
             <h5 className="section-title">Fee Categories</h5>
             <div className="row g-2 align-items-end mb-3">
               <div className="col-md-5 col-lg-4">
@@ -819,62 +932,21 @@ export default function Setup() {
                 </div>
               )}
             </div>
-            {feeCategories.length === 0 && (
-              <div className="alert alert-info mb-0">No fee categories yet. Add one above to start adding fee sub-categories.</div>
-            )}
-            <div className="d-flex flex-column gap-3">
-              {feeCategories.map(cat => {
-                const draft = feeDrafts[cat.id] || { name: '', amount: '' }
-                return (
-                  <div key={cat.id} className="border rounded p-3">
-                    <div className="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-                      <div>
-                        <div className="fw-600">{cat.name}</div>
-                        <div className="text-muted small">{cat.fees.length ? `${cat.fees.length} ${cat.fees.length === 1 ? 'sub-category' : 'sub-categories'}` : 'No sub-categories yet'}</div>
-                      </div>
-                      <div className="d-flex gap-2">
-                        <button type="button" className="btn btn-sm btn-outline-primary" onClick={()=>editFeeCategory(cat)}>Rename</button>
-                        <button type="button" className="btn btn-sm btn-outline-danger" onClick={()=>deleteFeeCategory(cat.id)}>Delete</button>
-                      </div>
+            <div className="fee-grid">
+              {feeCategories.map(cat => (
+                <div key={cat.id} className="fee-panel">
+                  <div className="d-flex justify-content-between flex-wrap gap-2 mb-3">
+                    <div>
+                      <div className="fee-panel-title">{cat.name}</div>
+                      <div className="fee-panel-meta">Configured category</div>
                     </div>
-                    {cat.fees.length > 0 && (
-                      <div className="d-flex flex-column gap-2 mb-3">
-                        {cat.fees.map(fee => (
-                          <div key={fee.id} className="row g-2 align-items-end">
-                            <div className="col-md-5 col-lg-4">
-                              <label className="form-label text-muted fw-600 mb-1">Fee name</label>
-                              <input className="form-control" value={fee.name} onChange={e=>updateFeeLine(cat.id, fee.id, 'name', e.target.value)} />
-                            </div>
-                            <div className="col-md-3 col-lg-2">
-                              <label className="form-label text-muted fw-600 mb-1">Amount</label>
-                              <input type="number" className="form-control" value={fee.amount} onChange={e=>updateFeeLine(cat.id, fee.id, 'amount', e.target.value)} />
-                            </div>
-                            <div className="col-md-3 col-lg-2">
-                              <button type="button" className="btn btn-outline-danger mt-md-4 w-100" onClick={()=>deleteFeeLine(cat.id, fee.id)}>Remove</button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <div className="row g-2 align-items-end border-top pt-3 mt-2">
-                      <div className="col-md-5 col-lg-4">
-                        <label className="form-label text-muted fw-600">Fee name</label>
-                        <input className="form-control" placeholder="Sub-category name" value={draft.name || ''} onChange={e=>updateFeeDraft(cat.id, 'name', e.target.value)} />
-                      </div>
-                      <div className="col-md-3 col-lg-2">
-                        <label className="form-label text-muted fw-600">Amount</label>
-                        <input type="number" className="form-control" placeholder="0" value={draft.amount || ''} onChange={e=>updateFeeDraft(cat.id, 'amount', e.target.value)} />
-                      </div>
-                      <div className="col-md-3 col-lg-2">
-                        <button type="button" className="btn btn-outline-brand w-100 mt-md-4" onClick={()=>addFeeLine(cat.id)}>Add Sub-category</button>
-                      </div>
+                    <div className="d-flex gap-2">
+                      <button type="button" className="btn btn-sm btn-outline-primary" onClick={()=>editFeeCategory(cat)}>Rename</button>
+                      <button type="button" className="btn btn-sm btn-outline-danger" onClick={()=>deleteFeeCategory(cat.id)}>Delete</button>
                     </div>
                   </div>
-                )
-              })}
-            </div>
-            <div className="text-end mt-3">
-              <button type="button" className="btn btn-brand" disabled={!feeCategories.some(cat=>cat.fees.length)} onClick={saveFeeCategories}>Save All</button>
+                </div>
+              ))}
             </div>
           </section>
         </>
@@ -883,9 +955,9 @@ export default function Setup() {
       {tab==='subjects' && (
         <>
           {/* Subjects */}
-          <section className="card card-soft p-3 mb-3">
+          <section className="setup-section mb-4">
             <h5 className="section-title">Subjects</h5>
-            <div className="row g-2">
+            <div className="row g-2 justify-content-center">
               <div className="col-md-3"><select className="form-select" value={subjectForm.academicYearId} onChange={e=>setSubjectForm({...subjectForm, academicYearId:e.target.value})}><option value="">Academic Year</option>{academicYears.map(y=> <option key={y.id} value={y.id}>{y.name}</option>)}</select></div>
               <div className="col-md-3"><select className="form-select" value={subjectForm.groupCode} onChange={e=>setSubjectForm({...subjectForm, groupCode:e.target.value, courseCode:'', semester:''})}><option value="">Group</option>{groups.map(g=> <option key={g.id} value={g.code}>{g.code}</option>)}</select></div>
               <div className="col-md-3"><select className="form-select" value={subjectForm.courseCode} onChange={e=>setSubjectForm({...subjectForm, courseCode:e.target.value, semester:''})}><option value="">Course</option>{coursesForGroup.map(c=> <option key={c.id} value={c.courseCode}>{c.courseCode} - {c.courseName}</option>)}</select></div>
@@ -964,6 +1036,7 @@ export default function Setup() {
           </section>
         </>
       )}
+      </div>
     </AdminShell>
   )
 }
