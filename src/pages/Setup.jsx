@@ -96,16 +96,49 @@ export default function Setup() {
   const [groupForm, setGroupForm] = useState({ id: '', code: '', name: '', years: 0, semesters: 0 })
   const [editingGroupId, setEditingGroupId] = useState('')
   const saveGroup = async () => {
-    if (!groupForm.code || !groupForm.name) return
-    if (!editingGroupId && groups.some(g => g.code === groupForm.code)) return
+    if (!groupForm.code || !groupForm.name) return;
+    const code = groupForm.code.toUpperCase();
+    
     if (editingGroupId) {
-      setGroups(groups.map(g => g.id === editingGroupId ? { ...g, code: groupForm.code, name: groupForm.name, years: Number(groupForm.years)||0, semesters: Number(groupForm.semesters)||0 } : g))
+      const updatedGroups = groups.map(g => 
+        g.id === editingGroupId 
+          ? { ...g, code, name: groupForm.name, years: Number(groupForm.years)||0, semesters: Number(groupForm.semesters)||0 } 
+          : g
+      );
+      setGroups(updatedGroups);
+      try { 
+        await api.updateGroup(editingGroupId, { 
+          code, 
+          name: groupForm.name,
+          years: Number(groupForm.years)||0,
+          semesters: Number(groupForm.semesters)||0
+        }); 
+      } catch (error) {
+        console.error('Error updating group:', error);
+      }
     } else {
-      const rec = { id: uid(), code: groupForm.code.toUpperCase(), name: groupForm.name, years: Number(groupForm.years)||0, semesters: Number(groupForm.semesters)||0 }
-      setGroups([...groups, rec])
-      try { await api.addGroup({ code: rec.code, name: rec.name }) } catch {}
+      if (groups.some(g => g.code === code)) return;
+      const newGroup = { 
+        id: uid(), 
+        code, 
+        name: groupForm.name, 
+        years: Number(groupForm.years)||0, 
+        semesters: Number(groupForm.semesters)||0 
+      };
+      setGroups(prev => [...prev, newGroup]);
+      try { 
+        await api.addGroup({ 
+          code: newGroup.code, 
+          name: newGroup.name,
+          years: newGroup.years,
+          semesters: newGroup.semesters
+        }); 
+      } catch (error) {
+        console.error('Error adding group:', error);
+      }
     }
-    setGroupForm({ id: '', code: '', name: '', years: 0, semesters: 0 }); setEditingGroupId('')
+    setGroupForm({ id: '', code: '', name: '', years: 0, semesters: 0 }); 
+    setEditingGroupId('');
   }
   const editGroup = (g) => { setGroupForm(g); setEditingGroupId(g.id) }
   const deleteGroup = (id) => { setGroups(groups.filter(g => g.id !== id)) }
@@ -122,20 +155,51 @@ export default function Setup() {
     setSemesters(prev => [...prev.filter(s => s.courseCode !== courseCode), ...rows])
   }
   const saveCourse = async () => {
-    const { groupCode, courseCode, courseName, semesters: semCount } = courseForm
-    if (!groupCode || !courseCode || !courseName || !semCount) return
-    const code = courseCode.toUpperCase()
+    const { groupCode, courseCode, courseName, semesters: semCount } = courseForm;
+    if (!groupCode || !courseCode || !courseName || !semCount) return;
+    const code = courseCode.toUpperCase();
+    
     if (editingCourseId) {
-      setCourses(courses.map(c => c.id === editingCourseId ? { ...c, groupCode, courseCode: code, courseName, semesters: Number(semCount) } : c))
-      ensureSemesters(code, Number(semCount))
+      setCourses(courses.map(c => 
+        c.id === editingCourseId 
+          ? { ...c, groupCode, courseCode: code, courseName, semesters: Number(semCount) } 
+          : c
+      ));
+      ensureSemesters(code, Number(semCount));
+      try { 
+        await api.updateCourse(editingCourseId, { 
+          code, 
+          name: courseName, 
+          group_code: groupCode,
+          duration_years: Math.ceil(Number(semCount)/2)
+        }); 
+      } catch (error) {
+        console.error('Error updating course:', error);
+      }
     } else {
-      if (courses.some(c => c.courseCode === code)) return
-      const newCourse = { id: uid(), groupCode, courseCode: code, courseName, semesters: Number(semCount) }
-      setCourses([...courses, newCourse])
-      ensureSemesters(newCourse.courseCode, newCourse.semesters)
-      try { await api.addCourse({ code: newCourse.courseCode, name: newCourse.courseName, duration_years: Math.ceil(Number(semCount)/2), group_code: groupCode }) } catch {}
+      if (courses.some(c => c.courseCode === code)) return;
+      const newCourse = { 
+        id: uid(), 
+        groupCode, 
+        courseCode: code, 
+        courseName, 
+        semesters: Number(semCount) || 0 
+      };
+      setCourses(prev => [...prev, newCourse]);
+      ensureSemesters(code, Number(semCount));
+      try { 
+        await api.addCourse({ 
+          code: newCourse.courseCode, 
+          name: newCourse.courseName, 
+          group_code: groupCode,
+          duration_years: Math.ceil(Number(semCount)/2) 
+        }); 
+      } catch (error) {
+        console.error('Error adding course:', error);
+      }
     }
-    setCourseForm({ id: '', groupCode: '', courseCode: '', courseName: '', semesters: 6 }); setEditingCourseId('')
+    setCourseForm({ id: '', groupCode: '', courseCode: '', courseName: '', semesters: 6 }); 
+    setEditingCourseId('');
   }
   const editCourse = (c) => { setCourseForm(c); setEditingCourseId(c.id) }
   const deleteCourse = (id) => {
@@ -407,14 +471,89 @@ export default function Setup() {
           {/* Groups */}
           <section className="card card-soft p-3 mb-3">
             <h5 className="section-title">Groups</h5>
-            <div className="row g-2">
-              <div className="col-md-3"><input className="form-control" placeholder="Group Code" value={groupForm.code} onChange={e=>setGroupForm({...groupForm, code:e.target.value.toUpperCase()})} /></div>
-              <div className="col-md-3"><input className="form-control" placeholder="Group Name" value={groupForm.name} onChange={e=>setGroupForm({...groupForm, name:e.target.value})} /></div>
-              <div className="col-md-2"><input type="number" className="form-control" placeholder="Years" value={groupForm.years} onChange={e=>setGroupForm({...groupForm, years:e.target.value})} /></div>
-              <div className="col-md-2"><input type="number" className="form-control" placeholder="No. of Semesters" value={groupForm.semesters} onChange={e=>setGroupForm({...groupForm, semesters:e.target.value})} /></div>
-              <div className="col-md-2 text-end">
-                <button className="btn btn-brand" onClick={saveGroup}>{editingGroupId? 'Update Group':'Add Group'}</button>
-                {editingGroupId && <button className="btn btn-outline-secondary ms-2" onClick={()=>{setGroupForm({ id:'', code:'', name:'', years:0, semesters:0}); setEditingGroupId('')}}>Cancel</button>}
+            <div className="row">
+              <div className="col-md-8">
+                <div className="row g-2">
+                  <div className="col-md-6">
+                    <label className="form-label fw-bold mb-1">Group Code</label>
+                    <input className="form-control" placeholder="Group Code" value={groupForm.code} onChange={e=>setGroupForm({...groupForm, code:e.target.value.toUpperCase()})} />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label fw-bold mb-1">Group Name</label>
+                    <input className="form-control" placeholder="Group Name" value={groupForm.name} onChange={e=>setGroupForm({...groupForm, name:e.target.value})} />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label fw-bold mb-1">Duration (years)</label>
+                    <input 
+                      type="number" 
+                      className="form-control no-spinner" 
+                      placeholder="Years" 
+                      value={groupForm.years} 
+                      onChange={e=>setGroupForm({...groupForm, years:e.target.value})} 
+                      style={{'-moz-appearance': 'textfield'}}
+                      onWheel={(e) => e.target.blur()}
+                    />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label fw-bold mb-1">Number of semesters</label>
+                    <input 
+                      type="number" 
+                      className="form-control no-spinner" 
+                      placeholder="No. of Semesters" 
+                      value={groupForm.semesters} 
+                      onChange={e=>setGroupForm({...groupForm, semesters:e.target.value})} 
+                      style={{'-moz-appearance': 'textfield'}}
+                      onWheel={(e) => e.target.blur()}
+                    />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <button className="btn btn-brand me-2" onClick={saveGroup}>
+                    {editingGroupId ? 'Update Group' : 'Add Group'}
+                  </button>
+                  {editingGroupId && (
+                    <button 
+                      className="btn btn-outline-secondary" 
+                      onClick={()=>{
+                        setGroupForm({ id:'', code:'', name:'', years:0, semesters:0}); 
+                        setEditingGroupId('')
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="col-md-4">
+                <div className="card h-100">
+                  <div className="card-body">
+                    <h6 className="card-title fw-bold">Available Groups</h6>
+                    <div className="table-responsive">
+                      <table className="table table-sm">
+                        <thead>
+                          <tr>
+                            <th>S.No</th>
+                            <th>Group Name</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {groups.length > 0 ? (
+                            groups.map((group, index) => (
+                              <tr key={group.id}>
+                                <td>{index + 1}</td>
+                                <td>{group.name} ({group.code})</td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan="2" className="text-center text-muted">No groups available</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             {groups.length>0 && (
@@ -430,15 +569,61 @@ export default function Setup() {
           {/* Courses */}
           <section className="card card-soft p-3 mb-3">
             <h5 className="section-title">Courses</h5>
-            <div className="row g-2">
-              <div className="col-md-3"><select className="form-select" value={courseForm.groupCode} onChange={e=>setCourseForm({...courseForm, groupCode:e.target.value})}><option value="">Group</option>{groups.map(g=> <option key={g.id} value={g.code}>{g.code}</option>)}</select></div>
-              <div className="col-md-3"><input className="form-control" placeholder="Course Code" value={courseForm.courseCode} onChange={e=>setCourseForm({...courseForm, courseCode:e.target.value.toUpperCase()})} /></div>
-              <div className="col-md-4"><input className="form-control" placeholder="Course Name" value={courseForm.courseName} onChange={e=>setCourseForm({...courseForm, courseName:e.target.value})} /></div>
-              <div className="col-md-2"><input type="number" className="form-control" placeholder="No. of Semesters" min="1" value={courseForm.semesters} onChange={e=>setCourseForm({...courseForm, semesters:e.target.value})} /></div>
-            </div>
-            <div className="mt-2 text-end">
-              <button className="btn btn-accent" onClick={saveCourse}>{editingCourseId? 'Update Course':'Add Course'}</button>
-              {editingCourseId && <button className="btn btn-outline-secondary ms-2" onClick={()=>{setCourseForm({ id:'', groupCode:'', courseCode:'', courseName:'', semesters:6}); setEditingCourseId('')}}>Cancel</button>}
+            <div className="row">
+              <div className="col-md-8">
+                <div className="row g-2">
+                  <div className="col-md-4">
+                    <label className="form-label fw-bold mb-1">Select Group</label>
+                    <select 
+                      className="form-select" 
+                      value={courseForm.groupCode} 
+                      onChange={e=>setCourseForm({...courseForm, groupCode:e.target.value})}
+                    >
+                      <option value="">Select Group</option>
+                      {groups.map(g=> (
+                        <option key={g.id} value={g.code}>{g.code}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label fw-bold mb-1">Course Code</label>
+                    <input 
+                      className="form-control" 
+                      placeholder="Enter Course Code" 
+                      value={courseForm.courseCode} 
+                      onChange={e=>setCourseForm({...courseForm, courseCode:e.target.value.toUpperCase()})} 
+                    />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label fw-bold mb-1">Course Name</label>
+                    <input 
+                      className="form-control" 
+                      placeholder="Enter Course Name" 
+                      value={courseForm.courseName} 
+                      onChange={e=>setCourseForm({...courseForm, courseName:e.target.value})} 
+                    />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <button 
+                    className="btn btn-brand me-2" 
+                    onClick={saveCourse}
+                  >
+                    {editingCourseId ? 'Update Course' : 'Add Course'}
+                  </button>
+                  {editingCourseId && (
+                    <button 
+                      className="btn btn-outline-secondary" 
+                      onClick={()=>{
+                        setCourseForm({ id:'', groupCode:'', courseCode:'', courseName:'', semesters:6}); 
+                        setEditingCourseId('')
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
             {courses.length>0 && (
               <div className="table-responsive mt-3"><table className="table mb-0"><thead><tr><th>Group</th><th>Code</th><th>Name</th><th>Semesters</th><th>Actions</th></tr></thead><tbody>{courses.map(c=> (
