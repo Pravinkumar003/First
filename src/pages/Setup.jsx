@@ -25,22 +25,52 @@ const buildSubjectForm = (category = '') => ({
   subjectName: '',
   remark: ''
 })
-const normalizeFeeTypes = (data) => {
+const normalizeFeeCategories = (data) => {
   if (Array.isArray(data)) {
-    return data
+    const hasNestedFees = data.some(item => Array.isArray(item?.fees) || Array.isArray(item?.items))
+    if (hasNestedFees) {
+      return data
+        .map(cat => ({
+          id: cat?.id || uid(),
+          name: (cat?.name || '').toString(),
+          fees: (cat?.fees || cat?.items || [])
+            .map(fee => ({
+              id: fee?.id || uid(),
+              name: (fee?.name || '').toString(),
+              amount: fee?.amount === 0 || fee?.amount ? String(fee.amount) : ''
+            }))
+            .filter(fee => fee.name.trim())
+        }))
+        .filter(cat => cat.name.trim() || cat.fees.length)
+    }
+    const fallbackFees = data
       .map(item => ({
         id: item?.id || uid(),
         name: (item?.name || '').toString(),
         amount: item?.amount === 0 || item?.amount ? String(item.amount) : ''
       }))
       .filter(item => item.name.trim())
+    if (!fallbackFees.length) return []
+    return [{
+      id: uid(),
+      name: 'General',
+      fees: fallbackFees
+    }]
   }
   if (data && typeof data === 'object') {
-    return Object.entries(data).map(([name, amount]) => ({
+    const entries = Object.entries(data)
+      .map(([name, amount]) => ({
+        id: uid(),
+        name,
+        amount: amount === 0 || amount ? String(amount) : ''
+      }))
+      .filter(item => item.name.trim())
+    if (!entries.length) return []
+    return [{
       id: uid(),
-      name,
-      amount: amount === 0 || amount ? String(amount) : ''
-    }))
+      name: 'General',
+      fees: entries
+    }]
   }
   return []
 }
@@ -158,34 +188,95 @@ export default function Setup() {
     setCatItems(prev => ({ ...prev, [cat]: [...(prev[cat] || []), ...newItems] }))
     clearCategoryInputs(cat)
   }
-  const [feeTypes, setFeeTypes] = useState([])
-  const [newFee, setNewFee] = useState({ name: '', amount: '' })
+  const [feeCategories, setFeeCategories] = useState([])
+  const [feeCategoryName, setFeeCategoryName] = useState('')
+  const [editingFeeCategoryId, setEditingFeeCategoryId] = useState('')
+  const [feeDrafts, setFeeDrafts] = useState({})
   useEffect(()=>{ (async()=>{ try {
     const ft = await api.getFeeTypes?.()
     if (ft) {
-      const normalized = normalizeFeeTypes(ft)
-      setFeeTypes(normalized)
+      const normalized = normalizeFeeCategories(ft)
+      setFeeCategories(normalized)
     }
   } catch {} })() }, [])
-  const updateFeeType = (id, field, value) => {
-    setFeeTypes(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item))
-  }
-  const addFeeType = () => {
-    const trimmed = newFee.name.trim()
+  const saveFeeCategory = () => {
+    const trimmed = feeCategoryName.trim()
     if (!trimmed) return
-    if (feeTypes.some(ft => ft.name.trim().toLowerCase() === trimmed.toLowerCase())) return
-    setFeeTypes(prev => [...prev, { id: uid(), name: trimmed, amount: newFee.amount || '' }])
-    setNewFee({ name: '', amount: '' })
+    const duplicate = feeCategories.some(cat => cat.name.trim().toLowerCase() === trimmed.toLowerCase() && cat.id !== editingFeeCategoryId)
+    if (duplicate) return
+    if (editingFeeCategoryId) {
+      setFeeCategories(prev => prev.map(cat => cat.id === editingFeeCategoryId ? { ...cat, name: trimmed } : cat))
+    } else {
+      setFeeCategories(prev => [...prev, { id: uid(), name: trimmed, fees: [] }])
+    }
+    setFeeCategoryName('')
+    setEditingFeeCategoryId('')
   }
-  const deleteFeeType = (id) => {
-    setFeeTypes(prev => prev.filter(item => item.id !== id))
+  const editFeeCategory = (cat) => {
+    setFeeCategoryName(cat.name)
+    setEditingFeeCategoryId(cat.id)
   }
-  const saveFeeTypes = async () => {
-    const payload = feeTypes
-      .map(item => ({ id: item.id, name: item.name.trim(), amount: Number(item.amount || 0) }))
-      .filter(item => item.name)
+  const deleteFeeCategory = (id) => {
+    setFeeCategories(prev => prev.filter(cat => cat.id !== id))
+    setFeeDrafts(prev => deleteKey(prev, id))
+    if (editingFeeCategoryId === id) {
+      setFeeCategoryName('')
+      setEditingFeeCategoryId('')
+    }
+  }
+  const updateFeeDraft = (catId, field, value) => {
+    setFeeDrafts(prev => ({ ...prev, [catId]: { ...prev[catId], [field]: value } }))
+  }
+  const addFeeLine = (catId) => {
+    const draft = feeDrafts[catId] || { name: '', amount: '' }
+    const trimmed = (draft.name || '').trim()
+    if (!trimmed) return
+    setFeeCategories(prev => prev.map(cat => {
+      if (cat.id !== catId) return cat
+      return {
+        ...cat,
+        fees: [...cat.fees, { id: uid(), name: trimmed, amount: draft.amount || '' }]
+      }
+    }))
+    setFeeDrafts(prev => ({ ...prev, [catId]: { name: '', amount: '' } }))
+  }
+  const updateFeeLine = (catId, feeId, field, value) => {
+    setFeeCategories(prev => prev.map(cat => {
+      if (cat.id !== catId) return cat
+      return {
+        ...cat,
+        fees: cat.fees.map(fee => fee.id === feeId ? { ...fee, [field]: value } : fee)
+      }
+    }))
+  }
+  const deleteFeeLine = (catId, feeId) => {
+    setFeeCategories(prev => prev.map(cat => {
+      if (cat.id !== catId) return cat
+      return {
+        ...cat,
+        fees: cat.fees.filter(fee => fee.id !== feeId)
+      }
+    }))
+  }
+  const saveFeeCategories = async () => {
+    const payload = feeCategories
+      .map(cat => ({
+        id: cat.id,
+        name: cat.name.trim(),
+        fees: cat.fees
+          .map(fee => ({
+            id: fee.id,
+            name: fee.name.trim(),
+            amount: Number(fee.amount || 0)
+          }))
+          .filter(fee => fee.name)
+      }))
+      .filter(cat => cat.name && cat.fees.length)
     try { await api.setFeeTypes?.(payload) } catch {}
-    setFeeTypes(payload.map(item => ({ ...item, amount: String(item.amount) })))
+    setFeeCategories(payload.map(cat => ({
+      ...cat,
+      fees: cat.fees.map(fee => ({ ...fee, amount: String(fee.amount) }))
+    })))
   }
   const saveCategory = () => {
     const trimmed = categoryName.trim()
@@ -519,41 +610,86 @@ export default function Setup() {
           </section>
           <section className="card card-soft p-3 mb-3">
             <h5 className="section-title">Fee Categories</h5>
-            {feeTypes.length === 0 && (
-              <div className="alert alert-info">No fee categories yet. Add one below to get started.</div>
+            <div className="row g-2 align-items-end mb-3">
+              <div className="col-md-5 col-lg-4">
+                <label className="form-label text-muted fw-600">{editingFeeCategoryId ? 'Edit fee category' : 'Add a fee category'}</label>
+                <input
+                  className="form-control"
+                  placeholder="e.g., Tuition"
+                  value={feeCategoryName}
+                  onChange={e=>setFeeCategoryName(e.target.value)}
+                  onKeyDown={e=>{ if (e.key==='Enter'){ e.preventDefault(); saveFeeCategory() } }}
+                />
+              </div>
+              <div className="col-md-3 col-lg-2">
+                <button type="button" className="btn btn-brand w-100 mt-md-4" onClick={saveFeeCategory}>
+                  {editingFeeCategoryId ? 'Update Category' : 'Add Category'}
+                </button>
+              </div>
+              {editingFeeCategoryId && (
+                <div className="col-md-3 col-lg-2">
+                  <button type="button" className="btn btn-outline-secondary w-100 mt-md-4" onClick={()=>{ setFeeCategoryName(''); setEditingFeeCategoryId('') }}>
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+            {feeCategories.length === 0 && (
+              <div className="alert alert-info mb-0">No fee categories yet. Add one above to start adding fee sub-categories.</div>
             )}
-            {feeTypes.length > 0 && (
-              <div className="row g-3 align-items-stretch">
-                {feeTypes.map(item => (
-                  <div className="col-md-6 col-lg-4" key={item.id}>
-                    <div className="border rounded p-3 h-100">
-                      <label className="form-label text-muted fw-600">Fee name</label>
-                      <input className="form-control mb-2" value={item.name} onChange={e=>updateFeeType(item.id, 'name', e.target.value)} />
-                      <label className="form-label text-muted fw-600 mb-1">Amount</label>
+            <div className="d-flex flex-column gap-3">
+              {feeCategories.map(cat => {
+                const draft = feeDrafts[cat.id] || { name: '', amount: '' }
+                return (
+                  <div key={cat.id} className="border rounded p-3">
+                    <div className="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+                      <div>
+                        <div className="fw-600">{cat.name}</div>
+                        <div className="text-muted small">{cat.fees.length ? `${cat.fees.length} ${cat.fees.length === 1 ? 'sub-category' : 'sub-categories'}` : 'No sub-categories yet'}</div>
+                      </div>
                       <div className="d-flex gap-2">
-                        <input type="number" className="form-control" value={item.amount} onChange={e=>updateFeeType(item.id, 'amount', e.target.value)} />
-                        <button type="button" className="btn btn-outline-danger" onClick={()=>deleteFeeType(item.id)}>Delete</button>
+                        <button type="button" className="btn btn-sm btn-outline-primary" onClick={()=>editFeeCategory(cat)}>Rename</button>
+                        <button type="button" className="btn btn-sm btn-outline-danger" onClick={()=>deleteFeeCategory(cat.id)}>Delete</button>
+                      </div>
+                    </div>
+                    {cat.fees.length > 0 && (
+                      <div className="d-flex flex-column gap-2 mb-3">
+                        {cat.fees.map(fee => (
+                          <div key={fee.id} className="row g-2 align-items-end">
+                            <div className="col-md-5 col-lg-4">
+                              <label className="form-label text-muted fw-600 mb-1">Fee name</label>
+                              <input className="form-control" value={fee.name} onChange={e=>updateFeeLine(cat.id, fee.id, 'name', e.target.value)} />
+                            </div>
+                            <div className="col-md-3 col-lg-2">
+                              <label className="form-label text-muted fw-600 mb-1">Amount</label>
+                              <input type="number" className="form-control" value={fee.amount} onChange={e=>updateFeeLine(cat.id, fee.id, 'amount', e.target.value)} />
+                            </div>
+                            <div className="col-md-3 col-lg-2">
+                              <button type="button" className="btn btn-outline-danger mt-md-4 w-100" onClick={()=>deleteFeeLine(cat.id, fee.id)}>Remove</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="row g-2 align-items-end border-top pt-3 mt-2">
+                      <div className="col-md-5 col-lg-4">
+                        <label className="form-label text-muted fw-600">Fee name</label>
+                        <input className="form-control" placeholder="Sub-category name" value={draft.name || ''} onChange={e=>updateFeeDraft(cat.id, 'name', e.target.value)} />
+                      </div>
+                      <div className="col-md-3 col-lg-2">
+                        <label className="form-label text-muted fw-600">Amount</label>
+                        <input type="number" className="form-control" placeholder="0" value={draft.amount || ''} onChange={e=>updateFeeDraft(cat.id, 'amount', e.target.value)} />
+                      </div>
+                      <div className="col-md-3 col-lg-2">
+                        <button type="button" className="btn btn-outline-brand w-100 mt-md-4" onClick={()=>addFeeLine(cat.id)}>Add Sub-category</button>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-            <div className="row g-2 align-items-end mt-3">
-              <div className="col-md-5 col-lg-4">
-                <label className="form-label text-muted fw-600">Fee name</label>
-                <input className="form-control" placeholder="e.g., Sports" value={newFee.name} onChange={e=>setNewFee({...newFee, name: e.target.value})} />
-              </div>
-              <div className="col-md-3 col-lg-3">
-                <label className="form-label text-muted fw-600">Amount</label>
-                <input type="number" className="form-control" placeholder="0" value={newFee.amount} onChange={e=>setNewFee({...newFee, amount: e.target.value})} />
-              </div>
-              <div className="col-md-2 col-lg-2">
-                <button type="button" className="btn btn-outline-brand w-100 mt-4" onClick={addFeeType}>Add Fee</button>
-              </div>
-              <div className="col-md-2 col-lg-3 text-end">
-                <button type="button" className="btn btn-brand mt-4" disabled={!feeTypes.length} onClick={saveFeeTypes}>Save All</button>
-              </div>
+                )
+              })}
+            </div>
+            <div className="text-end mt-3">
+              <button type="button" className="btn btn-brand" disabled={!feeCategories.some(cat=>cat.fees.length)} onClick={saveFeeCategories}>Save All</button>
             </div>
           </section>
         </>
