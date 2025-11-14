@@ -148,44 +148,25 @@ export default function AdminApplications() {
     }
   }
 
-  const heroStats = [
-    { label: 'Academic Years', value: years.length || '--', meta: 'configured' },
-    { label: 'Groups', value: groups.length || '--', meta: 'active' },
-    { label: 'Courses', value: courses.length || '--', meta: 'listed' },
-    { label: 'Status', value: msg ? 'Submitted' : 'Draft', meta: 'latest action' }
-  ]
-
   return (
     <AdminShell>
       <div className="desktop-container">
         <section className="setup-hero mb-4">
-          <div className="setup-hero-grid">
-            <div className="setup-hero-copywrap">
-              <div className="admin-applications__crest" aria-hidden="true">
-                <img src={crestPrimary} alt="Vijayam crest" />
-              </div>
-              <h3 className="setup-hero-title mb-2">Vijayam Arts & Science College</h3>
-              <p className="setup-hero-copy mb-3">Collect, verify, and onboard applicants with confidence.</p>
-              <div className="setup-hero-chips d-flex flex-wrap gap-2">
-                <span className="setup-hero-chip">Smart Examination Platform</span>
-                <span className="setup-hero-chip">Admissions Control</span>
-              </div>
-              <p className="setup-hero-eyebrow text-uppercase mt-3">Applications · Admin Console</p>
+          <div className="setup-hero-copywrap">
+            <div className="admin-applications__crest" aria-hidden="true">
+              <img src={crestPrimary} alt="Vijayam crest" />
             </div>
-            <div className="setup-stat-grid">
-              {heroStats.map((stat) => (
-                <div key={stat.label} className="setup-stat-card">
-                  <div className="setup-stat-label">{stat.label}</div>
-                  <div className="setup-stat-value">{stat.value}</div>
-                  <div className="setup-stat-meta">{stat.meta}</div>
-                </div>
-              ))}
+            <h3 className="setup-hero-title mb-2">Vijayam Arts & Science College</h3>
+            <p className="setup-hero-copy mb-3">Collect, verify, and onboard applicants with confidence.</p>
+            <div className="setup-hero-chips d-flex flex-wrap gap-2">
+              <span className="setup-hero-chip text-uppercase">SMART EXAMINATION PLATFORM</span>
             </div>
+            <p className="setup-hero-eyebrow text-uppercase mt-3">APPLICATIONS&nbsp;&nbsp;ADMIN CONSOLE</p>
           </div>
         </section>
 
-        <div className="row g-4">
-          <div className="col-xl-8">
+        <div className="row g-4 justify-content-center">
+          <div className="col-xl-10 col-lg-11">
             <div className="card card-soft p-4 mb-4">
               <div className="d-flex justify-content-between align-items-center mb-3">
                 <div>
@@ -355,23 +336,6 @@ export default function AdminApplications() {
             </div>
           </div>
 
-          <div className="col-xl-4">
-            <div className="card card-soft p-4 mb-4">
-              <h5 className="fw-bold mb-3">Review Checklist</h5>
-              <ul className="list-unstyled small text-muted mb-0">
-                <li className="mb-2"><strong>Identity</strong> - verify student ID / HT number.</li>
-                <li className="mb-2"><strong>Programme</strong> - confirm group & course combo.</li>
-                <li className="mb-2"><strong>Documents</strong> - ensure clear photo & certificates.</li>
-                <li><strong>Contact</strong> - capture valid mobile & PIN.</li>
-              </ul>
-            </div>
-            <div className="card card-soft p-4">
-              <h5 className="fw-bold mb-3">Need Assistance?</h5>
-              <p className="mb-1">Admissions Desk</p>
-              <p className="fw-bold mb-1">+91 4567 00 2200</p>
-              <a href="mailto:admissions@vijayam.edu" className="text-decoration-none">admissions@vijayam.edu</a>
-            </div>
-          </div>
         </div>
       </div>
     </AdminShell>
