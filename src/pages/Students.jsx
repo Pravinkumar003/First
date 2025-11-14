@@ -1,6 +1,7 @@
 import AdminShell from '../components/AdminShell'
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../../supabaseClient'
+import { trackPromise } from '../store/ui'
 
 export default function Students() {
   const [students, setStudents] = useState([])
@@ -76,7 +77,7 @@ export default function Students() {
         setLoading(false)
       }
     }
-    loadData()
+    trackPromise(loadData())
   }, [])
 
   // Filter students based on selected filters

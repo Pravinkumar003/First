@@ -742,10 +742,10 @@ export default function Setup() {
 
   const currentTabMeta = TAB_CONFIG.find(cfg => cfg.key === tab) || TAB_CONFIG[0]
   const heroStats = [
-    { label: 'Academic Years', value: academicYears.length || 0, meta: 'records' },
-    { label: 'Groups', value: groups.length || 0, meta: 'active' },
-    { label: 'Courses', value: courses.length || 0, meta: 'listed' },
-    { label: 'Subjects', value: subjects.length || 0, meta: 'published' }
+    { key: 'years', label: 'Academic Years', value: academicYears.length || 0, meta: 'records', route: 'years' },
+    { key: 'groups', label: 'Groups & Courses', value: groups.length || 0, meta: 'active', route: 'groups' },
+    { key: 'courses', label: 'Courses', value: courses.length || 0, meta: 'listed', route: 'groups' },
+    { key: 'subjects', label: 'Subjects', value: subjects.length || 0, meta: 'published', route: 'subjects' }
   ]
 
   return (
@@ -755,21 +755,24 @@ export default function Setup() {
         <section className="setup-hero mb-4">
           <div className="setup-hero-grid">
             <div className="setup-hero-copywrap">
-              <p className="setup-hero-eyebrow text-uppercase mb-2">Administration · Setup Console</p>
-              <h3 className="setup-hero-title mb-2">{currentTabMeta.label}</h3>
+              <h3 className="setup-hero-title mb-2">Vijayam Arts & Science College</h3>
               <p className="setup-hero-copy mb-3">{currentTabMeta.tagline}</p>
               <div className="setup-hero-chips d-flex flex-wrap gap-2">
                 <span className="setup-hero-chip">Smart Examination Platform</span>
-                <span className="setup-hero-chip">Hall Ticket Management</span>
               </div>
+              <p className="setup-hero-eyebrow text-uppercase mt-3">Administration · Setup Console</p>
             </div>
             <div className="setup-stat-grid">
               {heroStats.map(stat => (
-                <div key={stat.label} className="setup-stat-card">
+                <Link
+                  key={stat.key}
+                  to={`/admin/setup/${stat.route}`}
+                  className="setup-stat-card"
+                >
                   <div className="setup-stat-label">{stat.label}</div>
                   <div className="setup-stat-value">{stat.value}</div>
                   <div className="setup-stat-meta">{stat.meta}</div>
-                </div>
+                </Link>
               ))}
             </div>
           </div>
