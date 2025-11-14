@@ -4,16 +4,16 @@ import { useAuth } from '../store/auth'
 import logo from '../assets/media/images.png'
 const nav = [
   // { to: '/application', label: 'Application Form', icon: 'bi-file-earmark-arrow-down' },
-  { to: '/admin/applications', label: 'Applications', icon: 'bi-inboxes' },
-  { to: '/admin/setup/years', label: 'Academic Years', icon: 'bi-calendar3' },
-  { to: '/admin/setup/groups', label: 'Groups & Courses', icon: 'bi-diagram-3' },
-  { to: '/admin/setup/subcats', label: 'Sub-categories', icon: 'bi-list-ul' },
-  { to: '/admin/setup/subjects', label: 'Subjects', icon: 'bi-journal-text' },
-  { to: '/admin/departments', label: 'Departments', icon: 'bi-mortarboard' },
+  { to: '/admin/applications', label: 'Exam Applications', icon: 'bi-inboxes' },
+  { to: '/admin/setup/years', label: 'Create Academic Years', icon: 'bi-calendar3' },
+  { to: '/admin/setup/groups', label: 'Create Groups & Courses', icon: 'bi-diagram-3' },
+  { to: '/admin/setup/subcats', label: 'Create Sub-categories', icon: 'bi-list-ul' },
+  { to: '/admin/setup/subjects', label: 'Create Subjects', icon: 'bi-journal-text' },
+  { to: '/admin/departments', label: 'Fees Generation', icon: 'bi-mortarboard' },
   { to: '/admin/batches', label: 'Batches', icon: 'bi-people' },
-  { to: '/admin/courses', label: 'Courses', icon: 'bi-book' },
-  { to: '/admin/students', label: 'Students', icon: 'bi-person-badge' },
-  { to: '/admin/exams', label: 'Exams', icon: 'bi-journal-check' },
+  { to: '/admin/courses', label: 'View Courses', icon: 'bi-book' },
+  { to: '/admin/students', label: 'Students Details', icon: 'bi-person-badge' },
+  { to: '/admin/exams', label: 'Create Exam Time Table', icon: 'bi-journal-check' },
   { to: '/admin/payments', label: 'Payments', icon: 'bi-credit-card' },
   { to: '/admin/hall-tickets', label: 'Hall Tickets', icon: 'bi-ticket-perforated' },
   { to: '/admin/results', label: 'Results', icon: 'bi-award' }
@@ -39,7 +39,7 @@ export default function AdminShell({ children, onSignOut }) {
             <img src={logo} alt="Vijayam Logo" className="brand-logo rounded-circle border" />
             <div className="brand-text">
               <div className="heading-font fw-800">Vijayam College of Arts & Science</div>
-              <div className="small text-muted">Chennai</div>
+              <div className="small text-white fw-bold">Chittor</div>
             </div>
           </div>
           <button className="btn btn-sm btn-toggle" onClick={() => setCollapsed(!collapsed)} title={collapsed ? 'Expand' : 'Collapse'}>
