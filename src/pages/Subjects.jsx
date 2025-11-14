@@ -87,21 +87,6 @@ export default function SubjectsSection({
           </select>
         </div>
         <div className="col-12 col-sm-6 col-xl-3">
-          <label className="form-label fw-bold mb-1">Fee Type</label>
-          <select className="form-select" value={subjectForm.feeCategory} onChange={e => setSubjectForm({ ...subjectForm, feeCategory: e.target.value, feeAmount: '' })}>
-            <option value="">Select Fee Type</option>
-            {feeCategories.map(cat => (
-              <option key={cat.id} value={cat.name}>{cat.name}</option>
-            ))}
-          </select>
-        </div>
-        {subjectForm.feeCategory && (
-          <div className="col-12 col-sm-6 col-xl-3">
-            <label className="form-label fw-bold mb-1">Fee Amount</label>
-            <input type="number" className="form-control" placeholder="Amount" value={subjectForm.feeAmount} onChange={e => setSubjectForm({ ...subjectForm, feeAmount: e.target.value })} />
-          </div>
-        )}
-        <div className="col-12 col-sm-6 col-xl-3">
           <label className="form-label fw-bold mb-1">Sub-category</label>
           <select className="form-select" value={subjectForm.category} onChange={e => setSubjectForm({ ...subjectForm, category: e.target.value, subjectSelections: [], subjectName: '' })}>
             <option value="">Select Sub-category</option>
@@ -153,7 +138,7 @@ export default function SubjectsSection({
           </div>
           <div className="table-responsive">
             <table className="table mb-0">
-              <thead><tr><th>Year</th><th>Group</th><th>Course</th><th>Sem</th><th>Category</th><th>Subject</th><th>Fee</th><th>Amount</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Year</th><th>Group</th><th>Course</th><th>Sem</th><th>Category</th><th>Subject</th><th>Actions</th></tr></thead>
               <tbody>
                 {pendingSubjects.map(item => (
                   <tr key={item.id}>
@@ -163,8 +148,6 @@ export default function SubjectsSection({
                     <td>{getSemesterLabel(item)}</td>
                     <td>{item.category}</td>
                     <td>{item.subjectName}</td>
-                    <td>{item.feeCategory || '-'}</td>
-                    <td>{item.feeAmount !== undefined && item.feeAmount !== '' ? item.feeAmount : '-'}</td>
                     <td>
                       <button type="button" className="btn btn-sm btn-outline-primary me-2" onClick={() => editPendingSubject(item)}>Edit</button>
                       <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => deletePendingSubject(item.id)}>Remove</button>
@@ -179,7 +162,7 @@ export default function SubjectsSection({
       {subjects.length > 0 && (
         <div className="table-responsive mt-3">
           <table className="table mb-0">
-            <thead><tr><th>Year</th><th>Group</th><th>Course</th><th>Sem</th><th>Category</th><th>Subject Name</th><th>Fee</th><th>Amount</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Year</th><th>Group</th><th>Course</th><th>Sem</th><th>Category</th><th>Subject Name</th><th>Actions</th></tr></thead>
             <tbody>
              {subjects.map(s => (
                 <tr key={s.id}>
@@ -189,8 +172,6 @@ export default function SubjectsSection({
                   <td>{getSemesterLabel(s)}</td>
                   <td>{s.category}</td>
                   <td>{s.subjectName}</td>
-                  <td>{s.feeCategory || '-'}</td>
-                  <td>{s.feeAmount !== undefined && s.feeAmount !== '' ? s.feeAmount : '-'}</td>
                   <td>
                     <button className="btn btn-sm btn-outline-primary me-2" onClick={() => editSubject(s)}>Edit</button>
                     <button className="btn btn-sm btn-outline-danger" onClick={() => deleteSubject(s.id)}>Delete</button>
