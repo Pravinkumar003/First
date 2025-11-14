@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/mockApi'
 import { useAuth } from '../store/auth'
+import crestAccent from '../assets/media/EMS2.jpg'
 
 export default function AdminLogin() {
   useEffect(() => {
@@ -39,11 +40,16 @@ export default function AdminLogin() {
   return (
     <main className="admin-login-shell">
       <section className="admin-login-card" aria-live="polite">
-        <p className="admin-login-eyebrow">Exam Control Centre</p>
-        <h1 className="admin-login-title">Admin login</h1>
-        <p className="admin-login-subtitle">
-          Sign in with your Vijayam credentials to access the exam management console.
-        </p>
+        <div className="admin-login-brand">
+          <div className="admin-login-logo" aria-hidden="true">
+            <img src={crestAccent} alt="Vijayam crest" />
+          </div>
+          <div>
+            <p className="admin-login-eyebrow">Exam Control Centre</p>
+            <h1 className="admin-login-title">Admin login</h1>
+            <p className="admin-login-subtitle">Sign in to manage Vijayam exams.</p>
+          </div>
+        </div>
 
         <form className="admin-login-form" onSubmit={onLogin}>
           <label className="admin-login-field">
@@ -85,7 +91,7 @@ export default function AdminLogin() {
           {error && <p className="admin-login-error">{error}</p>}
 
           <button className="admin-login-submit" disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
       </section>
