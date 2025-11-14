@@ -1,9 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/mockApi'
 import { useAuth } from '../store/auth'
 
 export default function AdminLogin() {
+  useEffect(() => {
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previous
+    }
+  }, [])
+
   const nav = useNavigate()
   const { setUser } = useAuth()
   const [email, setEmail] = useState('admin@vijayam.edu')
@@ -11,31 +19,76 @@ export default function AdminLogin() {
   const [role, setRole] = useState('ADMIN')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const onLogin = async (e) => {
-    e.preventDefault(); setLoading(true); setError('')
-    try { const u = await api.login(email); setUser({ email: u.email, role: u.role }); nav('/admin') }
-    catch (err) { setError(err.message) } finally { setLoading(false) }
+
+  const onLogin = async (event) => {
+    event.preventDefault()
+    setLoading(true)
+    setError('')
+
+    try {
+      const user = await api.login(email)
+      setUser({ email: user.email, role: user.role })
+      nav('/admin')
+    } catch (err) {
+      setError(err.message || 'Unable to sign in right now')
+    } finally {
+      setLoading(false)
+    }
   }
+
   return (
-    <div className="container py-5">
-      <div className="row justify-content-center">
-        <div className="col-md-5">
-          <div className="card card-soft p-4">
-            <div className="d-flex align-items-center gap-2 mb-2">
-              <img src="/logo-placeholder.png" className="brand-logo" alt="logo" />
-              <div><h4 className="fw-bold mb-0">Vijayam College</h4><div className="text-muted">Chennai</div></div>
-            </div>
-            <h5>Admin / Principal Login</h5>
-            <form onSubmit={onLogin} className="mt-3">
-              <div className="mb-3"><label className="form-label">Email</label><input className="form-control" value={email} onChange={e=>setEmail(e.target.value)} required /></div>
-              <div className="mb-3"><label className="form-label">Password</label><input type="password" className="form-control" value={password} onChange={e=>setPassword(e.target.value)} required /></div>
-              <div className="mb-3"><label className="form-label">Login as</label><select className="form-select" value={role} onChange={e=>setRole(e.target.value)}><option value="ADMIN">Admin</option><option value="PRINCIPAL">Principal</option></select></div>
-              {error && <div className="alert alert-danger py-2">{error}</div>}
-              <button className="btn btn-brand w-100" disabled={loading}>{loading?'Signing in...':'Sign In'}</button>
-            </form>
-          </div>
-        </div>
-      </div>
-    </div>
+    <main className="admin-login-shell">
+      <section className="admin-login-card" aria-live="polite">
+        <p className="admin-login-eyebrow">Exam Control Centre</p>
+        <h1 className="admin-login-title">Admin login</h1>
+        <p className="admin-login-subtitle">
+          Sign in with your Vijayam credentials to access the exam management console.
+        </p>
+
+        <form className="admin-login-form" onSubmit={onLogin}>
+          <label className="admin-login-field">
+            <span>Email</span>
+            <input
+              type="email"
+              className="admin-login-input"
+              value={email}
+              autoComplete="username"
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+          </label>
+
+          <label className="admin-login-field">
+            <span>Password</span>
+            <input
+              type="password"
+              className="admin-login-input"
+              value={password}
+              autoComplete="current-password"
+              onChange={(event) => setPassword(event.target.value)}
+              required
+            />
+          </label>
+
+          <label className="admin-login-field">
+            <span>Login as</span>
+            <select
+              className="admin-login-input admin-login-select"
+              value={role}
+              onChange={(event) => setRole(event.target.value)}
+            >
+              <option value="ADMIN">Admin</option>
+              <option value="PRINCIPAL">Principal</option>
+            </select>
+          </label>
+
+          {error && <p className="admin-login-error">{error}</p>}
+
+          <button className="admin-login-submit" disabled={loading}>
+            {loading ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
+      </section>
+    </main>
   )
 }
