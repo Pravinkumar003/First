@@ -150,23 +150,24 @@ export default function AdminApplications() {
 
   return (
     <AdminShell>
-      <div className="desktop-container">
-        <section className="setup-hero mb-4">
-          <div className="setup-hero-copywrap">
-            <div className="admin-applications__crest" aria-hidden="true">
+      <div className="desktop-container" style={{ overflowX: 'hidden' }}>
+        <section className="setup-hero mb-4 text-center">
+          <div className="setup-hero-copywrap mx-auto text-center" style={{ maxWidth: '640px' }}>
+            <div className="admin-applications__crest mx-auto" aria-hidden="true">
               <img src={crestPrimary} alt="Vijayam crest" />
             </div>
             <h3 className="setup-hero-title mb-2">Vijayam Arts & Science College</h3>
             <p className="setup-hero-copy mb-3">Collect, verify, and onboard applicants with confidence.</p>
-            <div className="setup-hero-chips d-flex flex-wrap gap-2">
+            <div className="setup-hero-chips d-flex flex-wrap gap-2 justify-content-center">
               <span className="setup-hero-chip text-uppercase">SMART EXAMINATION PLATFORM</span>
+              <span className="setup-hero-chip text-uppercase">ADMISSIONS CONTROL</span>
+              <span className="setup-hero-chip text-uppercase">APPLICATIONS ADMIN CONSOLE</span>
             </div>
-            <p className="setup-hero-eyebrow text-uppercase mt-3">APPLICATIONS&nbsp;&nbsp;ADMIN CONSOLE</p>
           </div>
         </section>
 
-        <div className="row g-4 justify-content-center">
-          <div className="col-xl-10 col-lg-11">
+        <div className="row g-4 justify-content-center mx-0">
+          <div className="col-12 col-lg-11 col-xl-10">
             <div className="card card-soft p-4 mb-4">
               <div className="d-flex justify-content-between align-items-center mb-3">
                 <div>
@@ -320,7 +321,7 @@ export default function AdminApplications() {
                       <input type="file" accept="image/*" className="form-control" onChange={(e) => setPhoto(e.target.files?.[0] || null)} />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Certificates (PDF/Image)</label>
+                      <label className="form-label">Signature</label>
                       <input type="file" accept="application/pdf,image/*" className="form-control" onChange={(e) => setCert(e.target.files?.[0] || null)} />
                     </div>
                   </div>
