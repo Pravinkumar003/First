@@ -57,7 +57,7 @@ export default function AdminShell({ children, onSignOut }) {
       </aside>
       <main className="admin-main p-4">
         <div className="brandbar rounded px-3 py-2 mb-3 d-flex align-items-center justify-content-between header-shadow">
-          <div className="brandbar-title">Smart Examination &amp; Hall Ticket Management</div>
+          <div className="brandbar-title">Exam Management System</div>
           <button className="btn btn-outline-secondary modern-signout" onClick={handleSignOut} title="Sign out">
             <i className="bi bi-box-arrow-right me-2"></i>Sign out
           </button>
