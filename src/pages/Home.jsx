@@ -21,6 +21,10 @@ export default function Home() {
               </div>
               <h1 className="home-hero__title">Vijayam Arts & Science College</h1>
               <p className="home-hero__subtitle">Exam Management System</p>
+              <p className="home-hero__tagline">
+                <span className="home-hero__tagline-text">Student access to applications, results, and timetables.</span>
+                <span className="home-hero__tagline-arrow" aria-hidden="true">↓</span>
+              </p>
 
               <div className="home-hero__actions home-hero__actions--triple">
                 <Link to="/application" className="btn btn-hero-primary">Application</Link>

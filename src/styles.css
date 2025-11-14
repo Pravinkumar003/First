@@ -99174,3 +99174,49 @@ body {
   font-style: italic;
   letter-spacing: 0.04em;
 }
+.home-hero__tagline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+  padding: 0.45rem 0.95rem;
+  border-radius: 999px;
+  background: rgba(0, 9, 26, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  font-size: 1rem;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+.home-hero__tagline-text {
+  color: inherit;
+  font-weight: 500;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+}
+.home-hero__tagline-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #ffe081;
+  font-size: 1.25rem;
+  animation: homeHeroTaglineArrow 1.4s ease-in-out infinite;
+}
+@keyframes homeHeroTaglineArrow {
+  0% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  50% {
+    transform: translateY(6px);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+}
