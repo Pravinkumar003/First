@@ -1,4 +1,4 @@
-ï»¿import { Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import crestPrimary from '../assets/media/images.png'
 import crestAccent from '../assets/media/EMS2.jpg'
 import heroTexture from '../assets/media/EMS.jpg'
@@ -6,7 +6,6 @@ import heroTexture from '../assets/media/EMS.jpg'
 const statHighlights = [
   { value: '38+', label: 'UG & PG programmes' },
   { value: '18K+', label: 'Successful alumni' },
-  { value: '24/7', label: 'Student support window' }
 ]
 
 export default function Home() {
@@ -26,9 +25,10 @@ export default function Home() {
                 <span>Official control room for approvals & schedules</span>
                 <span>Coordinated support for principals, staff, and students</span>
               </div>
-              <div className="home-hero__actions">
-                <Link to="/application" className="btn btn-hero-primary">Start Application</Link>
+              <div className="home-hero__actions home-hero__actions--triple">
+                <Link to="/application" className="btn btn-hero-primary">Application</Link>
                 <Link to="/public/results" className="btn btn-hero-secondary">Check Results</Link>
+                <Link to="/public/results" className="btn btn-hero-secondary">View Exam Result</Link>
               </div>
             </section>
 
@@ -40,7 +40,7 @@ export default function Home() {
                 <p className="home-hero__control-label">Exam Control Centre</p>
               </div>
               <p className="home-hero__control-login-label">Admin login</p>
-              <p className="home-hero__control-sub">Digital queue Â· auto notifications Â· zero paperwork</p>
+              <p className="home-hero__control-sub">Digital queue · auto notifications · zero paperwork</p>
               <div className="home-hero__stats home-hero__stats--stacked">
                 {statHighlights.map((stat) => (
                   <div key={stat.label} className="home-hero__stat">
@@ -59,3 +59,4 @@ export default function Home() {
     </div>
   )
 }
+
