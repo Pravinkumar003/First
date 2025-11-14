@@ -1,6 +1,7 @@
 import AdminShell from '../components/AdminShell'
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../../supabaseClient'
+import { toast } from 'react-toastify'
 
 export default function Students() {
   const [students, setStudents] = useState([])
@@ -13,6 +14,32 @@ export default function Students() {
   const [groups, setGroups] = useState([])
   const [courses, setCourses] = useState([])
   const [loading, setLoading] = useState(false)
+  const [editingStudent, setEditingStudent] = useState(null)
+  const [editForm, setEditForm] = useState({
+    student_id: '',
+    hall_ticket_no: '',
+    academic_year: '',
+    group_name: '',
+    course_name: '',
+    full_name: '',
+    gender: '',
+    date_of_birth: '',
+    father_name: '',
+    mother_name: '',
+    nationality: '',
+    state: '',
+    aadhar_number: '',
+    address: '',
+    pincode: '',
+    phone_number: '',
+    email: '',
+    religion: '',
+    caste: '',
+    sub_caste: '',
+    photo_url: '',
+    cert_url: '',
+    status: 'ACTIVE'
+  })
 
   // Load initial data
   useEffect(() => {
@@ -95,8 +122,73 @@ export default function Students() {
   }
 
   const handleEdit = (student) => {
-    // Implement edit functionality
-    console.log('Edit student:', student)
+    setEditingStudent(student)
+    setEditForm({
+      student_id: student.student_id || '',
+      hall_ticket_no: student.hall_ticket_no || '',
+      academic_year: student.academic_year || '',
+      group_name: student.group_name || '',
+      course_name: student.course_name || '',
+      full_name: student.full_name || '',
+      gender: student.gender || '',
+      date_of_birth: student.date_of_birth || '',
+      father_name: student.father_name || '',
+      mother_name: student.mother_name || '',
+      nationality: student.nationality || '',
+      state: student.state || '',
+      aadhar_number: student.aadhar_number || '',
+      address: student.address || '',
+      pincode: student.pincode || '',
+      phone_number: student.phone_number || '',
+      email: student.email || '',
+      religion: student.religion || '',
+      caste: student.caste || '',
+      sub_caste: student.sub_caste || '',
+      photo_url: student.photo_url || '',
+      cert_url: student.cert_url || '',
+      status: student.status || 'ACTIVE'
+    })
+  }
+
+  const handleEditChange = (e) => {
+    const { name, value } = e.target
+    setEditForm(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }
+
+  const handleUpdateStudent = async () => {
+    if (!editingStudent) return
+    
+    try {
+      setLoading(true)
+      const { error } = await supabase
+        .from('students')
+        .update(editForm)
+        .eq('id', editingStudent.id)
+      
+      if (error) throw error
+      
+      // Update the local state
+      setStudents(prev => prev.map(student => 
+        student.id === editingStudent.id 
+          ? { ...student, ...editForm } 
+          : student
+      ))
+      
+      toast.success('Student updated successfully')
+      setEditingStudent(null)
+    } catch (error) {
+      console.error('Error updating student:', error)
+      toast.error('Failed to update student')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setEditingStudent(null)
   }
 
   const handleDelete = async (studentId) => {
@@ -226,6 +318,208 @@ export default function Students() {
           </table>
         </div>
       </div>
+
+      {/* Edit Student Modal */}
+      {editingStudent && (
+        <div className="modal d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header bg-light">
+                <h5 className="modal-title">Edit Student: {editingStudent.student_id}</h5>
+                <button type="button" className="btn-close" onClick={handleCancelEdit}></button>
+              </div>
+              <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                <div className="row">
+                  <div className="col-md-6">
+                    <h6>Student Information</h6>
+                    <div className="mb-3">
+                      <label className="form-label">Student ID</label>
+                      <input type="text" className="form-control" name="student_id" value={editForm.student_id} onChange={handleEditChange} required />
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">Hall Ticket No</label>
+                      <input type="text" className="form-control" name="hall_ticket_no" value={editForm.hall_ticket_no} onChange={handleEditChange} />
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">Full Name</label>
+                      <input type="text" className="form-control" name="full_name" value={editForm.full_name} onChange={handleEditChange} required />
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">Date of Birth</label>
+                      <input type="date" className="form-control" name="date_of_birth" value={editForm.date_of_birth} onChange={handleEditChange} />
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">Gender</label>
+                      <select className="form-select" name="gender" value={editForm.gender} onChange={handleEditChange}>
+                        <option value="">Select Gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <h6>Academic Information</h6>
+                    <div className="mb-3">
+                      <label className="form-label">Academic Year</label>
+                      <select className="form-select" name="academic_year" value={editForm.academic_year} onChange={handleEditChange}>
+                        <option value="">Select Year</option>
+                        {years.map(year => (
+                          <option key={year.id} value={year.academic_year}>{year.academic_year}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">Group</label>
+                      <select className="form-select" name="group_name" value={editForm.group_name} onChange={handleEditChange}>
+                        <option value="">Select Group</option>
+                        {groups.map(group => (
+                          <option key={group.group_id} value={group.group_code}>{group.group_name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">Course</label>
+                      <select className="form-select" name="course_name" value={editForm.course_name} onChange={handleEditChange}>
+                        <option value="">Select Course</option>
+                        {courses.map(course => (
+                          <option key={course.course_id} value={course.course_code}>{course.course_name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">Status</label>
+                      <select className="form-select" name="status" value={editForm.status} onChange={handleEditChange}>
+                        <option value="ACTIVE">Active</option>
+                        <option value="INACTIVE">Inactive</option>
+                        <option value="GRADUATED">Graduated</option>
+                        <option value="DROPPED">Dropped</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="row mt-3">
+                  <div className="col-md-6">
+                    <h6>Parent Information</h6>
+                    <div className="mb-3">
+                      <label className="form-label">Father's Name</label>
+                      <input type="text" className="form-control" name="father_name" value={editForm.father_name} onChange={handleEditChange} />
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">Mother's Name</label>
+                      <input type="text" className="form-control" name="mother_name" value={editForm.mother_name} onChange={handleEditChange} />
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <h6>Contact Information</h6>
+                    <div className="mb-3">
+                      <label className="form-label">Phone Number</label>
+                      <input type="tel" className="form-control" name="phone_number" value={editForm.phone_number} onChange={handleEditChange} />
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">Email</label>
+                      <input type="email" className="form-control" name="email" value={editForm.email} onChange={handleEditChange} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="row mt-3">
+                  <div className="col-12">
+                    <h6>Address & Identity</h6>
+                    <div className="mb-3">
+                      <label className="form-label">Address</label>
+                      <textarea className="form-control" name="address" rows="2" value={editForm.address} onChange={handleEditChange}></textarea>
+                    </div>
+                    <div className="row">
+                      <div className="col-md-6">
+                        <div className="mb-3">
+                          <label className="form-label">State</label>
+                          <input type="text" className="form-control" name="state" value={editForm.state} onChange={handleEditChange} />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="mb-3">
+                          <label className="form-label">Pincode</label>
+                          <input type="text" className="form-control" name="pincode" value={editForm.pincode} onChange={handleEditChange} />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="row">
+                      <div className="col-md-6">
+                        <div className="mb-3">
+                          <label className="form-label">Aadhar Number</label>
+                          <input type="text" className="form-control" name="aadhar_number" value={editForm.aadhar_number} onChange={handleEditChange} />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="mb-3">
+                          <label className="form-label">Nationality</label>
+                          <input type="text" className="form-control" name="nationality" value={editForm.nationality} onChange={handleEditChange} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="row mt-3">
+                  <div className="col-md-4">
+                    <div className="mb-3">
+                      <label className="form-label">Religion</label>
+                      <input type="text" className="form-control" name="religion" value={editForm.religion} onChange={handleEditChange} />
+                    </div>
+                  </div>
+                  <div className="col-md-4">
+                    <div className="mb-3">
+                      <label className="form-label">Caste</label>
+                      <input type="text" className="form-control" name="caste" value={editForm.caste} onChange={handleEditChange} />
+                    </div>
+                  </div>
+                  <div className="col-md-4">
+                    <div className="mb-3">
+                      <label className="form-label">Sub Caste</label>
+                      <input type="text" className="form-control" name="sub_caste" value={editForm.sub_caste} onChange={handleEditChange} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="row mt-3">
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Photo URL</label>
+                      <input type="text" className="form-control" name="photo_url" value={editForm.photo_url} onChange={handleEditChange} />
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Certificate URL</label>
+                      <input type="text" className="form-control" name="cert_url" value={editForm.cert_url} onChange={handleEditChange} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={handleCancelEdit}
+                  disabled={loading}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-primary"
+                  onClick={handleUpdateStudent}
+                  disabled={loading}
+                >
+                  {loading ? 'Updating...' : 'Update Student'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminShell>
   )
 }
