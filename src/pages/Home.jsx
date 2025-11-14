@@ -21,14 +21,11 @@ export default function Home() {
               </div>
               <h1 className="home-hero__title">Vijayam Arts & Science College</h1>
               <p className="home-hero__subtitle">Exam Management System</p>
-              <div className="home-hero__microcopy">
-                <span>Official control room for approvals & schedules</span>
-                <span>Coordinated support for principals, staff, and students</span>
-              </div>
+
               <div className="home-hero__actions home-hero__actions--triple">
                 <Link to="/application" className="btn btn-hero-primary">Application</Link>
                 <Link to="/public/results" className="btn btn-hero-secondary">Check Results</Link>
-                <Link to="/public/results" className="btn btn-hero-secondary">View Exam Result</Link>
+                <Link to="/public/timetable" className="btn btn-hero-secondary">Exam Timetable</Link>
               </div>
             </section>
 
@@ -39,8 +36,11 @@ export default function Home() {
               <div className="home-hero__control-header">
                 <p className="home-hero__control-label">Exam Control Centre</p>
               </div>
+              <div className="home-hero__microcopy">
+                <span>Official control room for approvals & schedules</span>
+                <span>Coordinated support for principals, staff, and students</span>
+              </div>
               <p className="home-hero__control-login-label">Admin login</p>
-              <p className="home-hero__control-sub">Digital queue · auto notifications · zero paperwork</p>
               <div className="home-hero__stats home-hero__stats--stacked">
                 {statHighlights.map((stat) => (
                   <div key={stat.label} className="home-hero__stat">
@@ -59,4 +59,7 @@ export default function Home() {
     </div>
   )
 }
+
+
+
 

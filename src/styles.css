@@ -99157,3 +99157,20 @@ body {
     flex-wrap: wrap;
   }
 }
+
+
+
+
+
+.home-hero__control .home-hero__microcopy {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.home-hero__control .home-hero__microcopy span {
+  color: inherit;
+}
+.home-hero__title {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-style: italic;
+  letter-spacing: 0.04em;
+}
