@@ -69,7 +69,9 @@ export default function Home() {
                 ))}
               </div>
               <div className="home-hero__control-footer">
-                <Link to="/admin/login" className="btn btn-hero-contrast">Login</Link>
+                <Link to="/admin/login" className="btn btn-hero-contrast home-hero__login-btn">
+                   Login
+                </Link>
               </div>
             </aside>
           </div>

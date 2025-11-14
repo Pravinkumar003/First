@@ -74926,7 +74926,7 @@ body {
 
 
 
-  top: 50%;
+  top: 55%;
 
 
 
@@ -92814,7 +92814,7 @@ body {
 
 
 
-  top: 50%;
+  top: 55%;
 
 
 
@@ -99268,4 +99268,23 @@ body {
 .home-hero__action-btn--timetable:focus-visible {
   transform: translateY(-3px);
   box-shadow: 0 22px 40px rgba(6, 119, 90, 0.3);
+}
+.home-hero__login-btn {
+  min-width: 11rem;
+  padding: 0.85rem 2.25rem;
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  background: rgba(12, 20, 44, 0.35);
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #fff8ea;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 18px 35px rgba(7, 10, 24, 0.4);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.3s ease;
+}
+.home-hero__login-btn:hover,
+.home-hero__login-btn:focus-visible {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.18));
+  color: #0f1836;
+  border-color: rgba(255, 255, 255, 0.85);
+  transform: translateY(-3px);
+  box-shadow: 0 20px 38px rgba(9, 13, 31, 0.45);
 }
