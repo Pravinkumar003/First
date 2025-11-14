@@ -73374,7 +73374,7 @@ body {
 
 
 
-  padding-right: clamp(2rem, 4vw, 3.5rem);
+  padding-right: clamp(4rem, 6vw, 6rem);
 
 
 
@@ -74958,7 +74958,7 @@ body {
 
 
 
-  right: clamp(-70px, -6vw, -40px);
+  right: clamp(0.75rem, 2vw, 2.75rem);
 
 
 
@@ -92878,7 +92878,7 @@ body {
 
 
 
-  right: -90px;
+  right: clamp(0.75rem, 2vw, 2.75rem);
 
 
 
@@ -93006,7 +93006,7 @@ body {
 
 
 
-  width: clamp(150px, 15vw, 200px);
+  width: clamp(170px, 18vw, 230px);
 
 
 
@@ -93070,7 +93070,7 @@ body {
 
 
 
-  height: clamp(150px, 15vw, 200px);
+  height: clamp(170px, 18vw, 230px);
 
 
 
@@ -99219,4 +99219,53 @@ body {
     transform: translateY(0);
     opacity: 0.4;
   }
+}
+.home-hero__action-btn {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  z-index: 0;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.35s ease;
+}
+.home-hero__action-btn--apply::after {
+  content: '';
+  position: absolute;
+  inset: -15%;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.55), transparent 65%);
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  z-index: -1;
+}
+.home-hero__action-btn--apply:hover,
+.home-hero__action-btn--apply:focus-visible {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 45px rgba(236, 175, 76, 0.45);
+}
+.home-hero__action-btn--apply:hover::after,
+.home-hero__action-btn--apply:focus-visible::after {
+  opacity: 1;
+  transform: scale(1.15);
+}
+.home-hero__action-btn--results {
+  background: linear-gradient(135deg, #eef3ff, #9ab7ff);
+  color: #0f2244;
+  border: 1px solid rgba(154, 183, 255, 0.45);
+  box-shadow: 0 18px 30px rgba(44, 78, 150, 0.25);
+}
+.home-hero__action-btn--results:hover,
+.home-hero__action-btn--results:focus-visible {
+  transform: translateY(-3px);
+  box-shadow: 0 22px 40px rgba(44, 78, 150, 0.35);
+}
+.home-hero__action-btn--timetable {
+  background: linear-gradient(135deg, #defbef, #32c7a3);
+  color: #053c2a;
+  border: 1px solid rgba(50, 199, 163, 0.45);
+  box-shadow: 0 18px 30px rgba(6, 119, 90, 0.2);
+}
+.home-hero__action-btn--timetable:hover,
+.home-hero__action-btn--timetable:focus-visible {
+  transform: translateY(-3px);
+  box-shadow: 0 22px 40px rgba(6, 119, 90, 0.3);
 }

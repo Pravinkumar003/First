@@ -23,13 +23,28 @@ export default function Home() {
               <p className="home-hero__subtitle">Exam Management System</p>
               <p className="home-hero__tagline">
                 <span className="home-hero__tagline-text">Student access to applications, results, and timetables.</span>
-                <span className="home-hero__tagline-arrow" aria-hidden="true">↓</span>
+                <span className="home-hero__tagline-arrow" aria-hidden="true">{'\u2193'}</span>
               </p>
 
               <div className="home-hero__actions home-hero__actions--triple">
-                <Link to="/application" className="btn btn-hero-primary">Application</Link>
-                <Link to="/public/results" className="btn btn-hero-secondary">Check Results</Link>
-                <Link to="/public/timetable" className="btn btn-hero-secondary">Exam Timetable</Link>
+                <Link
+                  to="/application"
+                  className="btn btn-hero-primary home-hero__action-btn home-hero__action-btn--apply"
+                >
+                  Application
+                </Link>
+                <Link
+                  to="/public/results"
+                  className="btn btn-hero-secondary home-hero__action-btn home-hero__action-btn--results"
+                >
+                  Check Results
+                </Link>
+                <Link
+                  to="/public/timetable"
+                  className="btn btn-hero-secondary home-hero__action-btn home-hero__action-btn--timetable"
+                >
+                  Exam Timetable
+                </Link>
               </div>
             </section>
 
@@ -63,7 +78,3 @@ export default function Home() {
     </div>
   )
 }
-
-
-
-
