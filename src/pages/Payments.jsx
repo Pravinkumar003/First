@@ -1,5 +1,5 @@
 import AdminShell from '../components/AdminShell';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../supabaseClient';
 import { api } from '../lib/mockApi';
 import { validateRequiredFields } from '../lib/validation';
@@ -27,6 +27,18 @@ export default function Payments() {
   });
 
   const [saving, setSaving] = useState(false);
+
+  const hasActiveFilters = Boolean(form.year || form.group_code || form.courseCode || form.semester);
+
+  const filteredStudents = useMemo(() => {
+    return students.filter(s => {
+      const matchesYear = !form.year || s.academic_year === form.year;
+      const matchesGroup = !form.group_code || [s.group_code, s.group, s.group_name].includes(form.group_code);
+      const matchesCourse = !form.courseCode || [s.course_code, s.course_name, s.course_id].includes(form.courseCode);
+      const matchesSemester = !form.semester || !s.semester || String(s.semester) === String(form.semester);
+      return matchesYear && matchesGroup && matchesCourse && matchesSemester;
+    });
+  }, [students, form.year, form.group_code, form.courseCode, form.semester]);
 
   const loadData = useCallback(async () => {
     try {
@@ -258,6 +270,48 @@ export default function Payments() {
             </select>
           </div>
         </div>
+        <div className="mt-4">
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <span className="fw-semibold">Matched students</span>
+            <span className="text-muted small">{hasActiveFilters ? filteredStudents.length : 0} found</span>
+          </div>
+          {!hasActiveFilters ? (
+            <div className="text-muted small">Select Academic Year, Group, Course, or Semester to see matching students.</div>
+          ) : filteredStudents.length === 0 ? (
+            <div className="text-muted small">No students match the selected filters yet.</div>
+          ) : (
+            <div className="list-group list-group-flush">
+              {filteredStudents.map(s => {
+                const studentName = s.full_name || s.name || 'Unnamed student';
+                const matchedGroup = groups.find(
+                  g =>
+                    g.code === s.group_code ||
+                    g.code === s.group ||
+                    g.code === s.group_name ||
+                    g.name === s.group ||
+                    g.name === s.group_name
+                );
+                const departmentLabel =
+                  matchedGroup?.name ||
+                  s.department ||
+                  s.department_name ||
+                  s.group_name ||
+                  s.group ||
+                  'Department unknown';
+                const semesterLabel = s.semester ? `Sem ${s.semester}` : 'Semester n/a';
+
+                return (
+                  <div key={`filtered-${s.student_id}`} className="list-group-item border rounded mb-2">
+                    <div className="mb-1"><strong>ID:</strong> {s.student_id}</div>
+                    <div className="mb-1"><strong>Name:</strong> {studentName}</div>
+                    <div className="mb-1"><strong>Department:</strong> {departmentLabel}</div>
+                    <div className="mb-0"><strong>Semester:</strong> {semesterLabel}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Payment Form */}
@@ -274,19 +328,11 @@ export default function Payments() {
             >
               <option value="">Select Student</option>
 
-              {students
-                .filter(s => {
-                  const matchesYear = !form.year || s.academic_year === form.year;
-                  const matchesGroup = !form.group_code || [s.group_code, s.group, s.group_name].includes(form.group_code);
-                  const matchesCourse = !form.courseCode || [s.course_code, s.course_name, s.course_id].includes(form.courseCode);
-                  const matchesSemester = !form.semester || !s.semester || String(s.semester) === String(form.semester);
-                  return matchesYear && matchesGroup && matchesCourse && matchesSemester;
-                })
-                .map(s => (
-                  <option key={s.student_id} value={s.student_id}>
-                    {s.student_id} - {s.full_name}
-                  </option>
-                ))}
+              {filteredStudents.map(s => (
+                <option key={s.student_id} value={s.student_id}>
+                  {s.student_id} - {s.full_name}
+                </option>
+              ))}
             </select>
           </div>
 
