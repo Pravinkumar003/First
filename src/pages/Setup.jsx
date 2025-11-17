@@ -326,64 +326,6 @@ export default function Setup() {
   const [categoryName, setCategoryName] = useState('')
   const [editingCategory, setEditingCategory] = useState('')
   const [catItems, setCatItems] = useState({})
-  const [catCounts, setCatCounts] = useState({})
-  const [tempCatInputs, setTempCatInputs] = useState({})
-  const [viewCat, setViewCat] = useState('')
-  const [isEditingView, setIsEditingView] = useState(false)
-  const persistCategorySubjects = async (catName, items) => {
-    const id = categoryIdMap[catName]
-    if (!id) return
-    const subjects = itemsToNames(items)
-    try {
-      await api.updateSubCategory?.(id, { name: catName, subjects })
-    } catch (error) {
-      console.error(`Failed to save subjects for ${catName}`, error)
-    }
-  }
-  const updateCategoryItems = (catName, updater) => {
-    setCatItems(prev => {
-      const prevList = prev[catName] || []
-      const nextList = typeof updater === 'function' ? updater(prevList) : (Array.isArray(updater) ? updater : [])
-      const nextState = { ...prev, [catName]: nextList }
-      persistCategorySubjects(catName, nextList)
-      return nextState
-    })
-  }
-  const openViewCat = (cat) => {
-    setViewCat(cat)
-    setIsEditingView(false)
-  }
-  const closeViewCat = () => {
-    setViewCat('')
-    setIsEditingView(false)
-  }
-  const handleSubjectAmountChange = (cat, rawValue) => {
-    setCatCounts(prev => ({ ...prev, [cat]: rawValue }))
-    const count = Math.max(0, Number(rawValue) || 0)
-    setTempCatInputs(prev => {
-      const tempExisting = prev[cat] || []
-      const next = Array.from({ length: count }, (_, idx) => tempExisting[idx] ?? '')
-      return { ...prev, [cat]: next }
-    })
-  }
-  const handleTempSubjectChange = (cat, idx, value) => {
-    setTempCatInputs(prev => {
-      const arr = [...(prev[cat] || [])]
-      arr[idx] = value
-      return { ...prev, [cat]: arr }
-    })
-  }
-  const clearCategoryInputs = (cat) => {
-    setTempCatInputs(prev => ({ ...prev, [cat]: [] }))
-    setCatCounts(prev => ({ ...prev, [cat]: '' }))
-  }
-  const commitCategorySubjects = (cat) => {
-    const names = (tempCatInputs[cat] || []).map(n => n.trim()).filter(Boolean)
-    if (!names.length) return
-    const newItems = names.map(name => ({ id: randomId(), name }))
-    updateCategoryItems(cat, prevList => [...prevList, ...newItems])
-    clearCategoryInputs(cat)
-  }
   const [feeCategories, setFeeCategories] = useState([])
   const [feeCategoryName, setFeeCategoryName] = useState('')
   const [editingFeeCategoryId, setEditingFeeCategoryId] = useState('')
@@ -502,13 +444,10 @@ export default function Setup() {
     if (editingCategory) {
       setCategories(categories.map(c => c === editingCategory ? trimmed : c))
       setCatItems(prev => renameKey(prev, editingCategory, trimmed, []))
-      setCatCounts(prev => renameKey(prev, editingCategory, trimmed, ''))
-      setTempCatInputs(prev => renameKey(prev, editingCategory, trimmed, []))
       setSubjects(prev => prev.map(s => s.category === editingCategory ? { ...s, category: trimmed } : s))
-    if (viewCat === editingCategory) setViewCat(trimmed)
-      if (subjectForm.category === editingCategory) {
-        setSubjectForm(prev => ({ ...prev, category: trimmed }))
-      }
+    if (subjectForm.category === editingCategory) {
+      setSubjectForm(prev => ({ ...prev, category: trimmed }))
+    }
       const catId = categoryIdMap[editingCategory]
       const currentItems = catItems[editingCategory] || []
       if (catId) {
@@ -530,8 +469,6 @@ export default function Setup() {
         const id = created?.id
         setCategories(prev => [...prev, label])
         setCatItems(prev => ({ ...prev, [label]: subjectsToItems(created?.subjects || []) }))
-        setCatCounts(prev => ({ ...prev, [label]: '' }))
-        setTempCatInputs(prev => ({ ...prev, [label]: [] }))
         if (id) {
           setCategoryIdMap(prev => ({ ...prev, [label]: id }))
         }
@@ -556,8 +493,6 @@ export default function Setup() {
     if (remaining.length === categories.length) return
     setCategories(remaining)
     setCatItems(prev => deleteKey(prev, name))
-    setCatCounts(prev => deleteKey(prev, name))
-    setTempCatInputs(prev => deleteKey(prev, name))
     setCategoryIdMap(prev => deleteKey(prev, name))
     setSubjects(prev => {
       const fallback = remaining[0] || ''
@@ -573,7 +508,6 @@ export default function Setup() {
     if (subjectForm.category === name) {
       setSubjectForm(prev => ({ ...prev, category: remaining[0] || '' }))
     }
-    if (viewCat === name) closeViewCat()
     if (editingCategory === name) {
       setCategoryName('')
       setEditingCategory('')
@@ -833,17 +767,6 @@ export default function Setup() {
           editingCategory={editingCategory}
           setEditingCategory={setEditingCategory}
           catItems={catItems}
-          catCounts={catCounts}
-          tempCatInputs={tempCatInputs}
-          viewCat={viewCat}
-          isEditingView={isEditingView}
-          openViewCat={openViewCat}
-          closeViewCat={closeViewCat}
-          handleSubjectAmountChange={handleSubjectAmountChange}
-          handleTempSubjectChange={handleTempSubjectChange}
-          clearCategoryInputs={clearCategoryInputs}
-          commitCategorySubjects={commitCategorySubjects}
-          updateCategoryItems={updateCategoryItems}
           deleteCategory={deleteCategory}
           saveCategory={saveCategory}
           feeCategories={feeCategories}
@@ -854,7 +777,6 @@ export default function Setup() {
           saveFeeCategory={saveFeeCategory}
           editFeeCategory={editFeeCategory}
           deleteFeeCategory={deleteFeeCategory}
-          setIsEditingView={setIsEditingView}
         />
       )}
 
