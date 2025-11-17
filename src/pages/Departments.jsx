@@ -137,8 +137,8 @@ export default function Departments() {
   };
 
   const deleteSubjectFee = (id) => {
-    if (!window.confirm("Delete this subject fee?")) return;
     setSubjectFees((prev) => prev.filter((x) => x.id !== id));
+    showToast('Subject fee removed.', { type: 'info', title: 'Subject fees' });
   };
 
   // ---------------- CATEGORY FEES (CHECKBOX) ----------------
@@ -335,8 +335,7 @@ export default function Departments() {
   };
 
   const deleteCategoryFee = async (id) => {
-    if (!window.confirm("Delete this category fee?")) return;
-    
+    showToast('Deleting category fee...', { type: 'info', title: 'Deleting' });
     try {
       const { error } = await supabase
         .from('fee_structure')
@@ -512,20 +511,19 @@ export default function Departments() {
 
   // Delete Supplementary Fee
   const deleteSupplementaryFee = async (id) => {
-    if (window.confirm('Are you sure you want to delete this fee entry?')) {
-      try {
-        const { error } = await supabase
-          .from('Supplementary')
-          .delete()
-          .eq('id', id);
-        
-        if (error) throw error;
-        
-        setSupplementaryFees(supplementaryFees.filter(fee => fee.id !== id));
-      } catch (error) {
+    try {
+      const { error } = await supabase
+        .from('Supplementary')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      setSupplementaryFees(supplementaryFees.filter(fee => fee.id !== id));
+      showToast('Supplementary fee deleted.', { type: 'success', title: 'Supplementary fees' });
+    } catch (error) {
       console.error('Error deleting supplementary fee:', error);
       showToast('Error deleting supplementary fee. Please try again.', { type: 'danger', title: 'Supplementary fees' });
-      }
     }
   };
 
@@ -896,9 +894,8 @@ export default function Departments() {
                             <button
                               className="btn btn-sm btn-danger"
                               onClick={() => {
-                                if (window.confirm('Delete all fee categories for this semester?')) {
-                                  fees.feeCategories?.forEach(cat => deleteCategoryFee(cat.id));
-                                }
+                                showToast('Deleting all fee categories for this semester.', { type: 'warning', title: 'Delete categories' });
+                                fees.feeCategories?.forEach(cat => deleteCategoryFee(cat.id));
                               }}
                             >
                               Delete
