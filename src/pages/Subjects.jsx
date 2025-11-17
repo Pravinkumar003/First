@@ -31,6 +31,51 @@ export default function SubjectsSection({
     const numeric = Number(raw)
     return Number.isNaN(numeric) ? raw : numeric
   }
+  const extraNames = subjectForm.extraSubjectNames || []
+  const updateExtraName = (idx, value) => {
+    setSubjectForm(prev => {
+      const list = [...(prev.extraSubjectNames || [])]
+      list[idx] = value
+      return { ...prev, extraSubjectNames: list }
+    })
+  }
+  const removeExtraName = (idx) => {
+    setSubjectForm(prev => {
+      const list = [...(prev.extraSubjectNames || [])]
+      list.splice(idx, 1)
+      return { ...prev, extraSubjectNames: list }
+    })
+  }
+  const addExtraNameField = () => {
+    setSubjectForm(prev => ({
+      ...prev,
+      extraSubjectNames: [...(prev.extraSubjectNames || []), '']
+    }))
+  }
+  const extraInputFields = (
+    <>
+      {extraNames.map((value, idx) => (
+        <div key={`extra-${idx}`} className="d-flex gap-2 mt-2">
+          <input
+            className="form-control"
+            placeholder={`Subject ${idx + 2}`}
+            value={value}
+            onChange={e => updateExtraName(idx, e.target.value)}
+          />
+          <button
+            type="button"
+            className="btn btn-outline-danger btn-sm"
+            onClick={() => removeExtraName(idx)}
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+      <button type="button" className="btn btn-sm btn-outline-primary mt-3" onClick={addExtraNameField}>
+        Add another subject
+      </button>
+    </>
+  )
   return (
     <section className="setup-section mb-4">
       <h5 className="section-title">Subjects</h5>
@@ -118,9 +163,13 @@ export default function SubjectsSection({
                 )
               })}
               <input className="form-control mt-2" placeholder="Or type custom subject" value={subjectForm.subjectName} onChange={e => setSubjectForm({ ...subjectForm, subjectName: e.target.value, subjectSelections: [] })} />
+              {extraInputFields}
             </div>
           ) : (
-            <input className="form-control" placeholder="Subject Name" value={subjectForm.subjectName} onChange={e => setSubjectForm({ ...subjectForm, subjectName: e.target.value })} />
+            <>
+              <input className="form-control" placeholder="Subject Name" value={subjectForm.subjectName} onChange={e => setSubjectForm({ ...subjectForm, subjectName: e.target.value })} />
+              {extraInputFields}
+            </>
           )}
         </div>
       </div>

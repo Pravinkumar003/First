@@ -42,6 +42,7 @@ const buildSubjectForm = (category = '') => ({
   category,
   categoryId: '',
   subjectName: '',
+  extraSubjectNames: [],
   subjectSelections: [],
   feeCategory: '',
   feeAmount: '',
@@ -560,13 +561,26 @@ export default function Setup() {
   const semForCourse = semesters.filter(s => s.courseCode === subjectForm.courseCode)
 
   const saveSubject = () => {
-    const { academicYearId, groupCode, courseCode, semester, category, subjectName, subjectSelections = [], feeCategory, feeAmount } = subjectForm
+    const {
+      academicYearId,
+      groupCode,
+      courseCode,
+      semester,
+      category,
+      subjectName,
+      extraSubjectNames = [],
+      subjectSelections = [],
+      feeCategory,
+      feeAmount
+    } = subjectForm
     const selectedNames = Array.isArray(subjectSelections) ? subjectSelections : []
     const hasSelection = selectedNames.length > 0
-    const typedName = subjectName ? subjectName.trim() : ''
+    const manualNames = [subjectName, ...(Array.isArray(extraSubjectNames) ? extraSubjectNames : [])]
+      .map(name => (name || '').trim())
+      .filter(Boolean)
     if (!academicYearId || !groupCode || !courseCode || !semester || !category) return
-    if (!hasSelection && !typedName) return
-    const names = hasSelection ? selectedNames : [typedName]
+    if (!hasSelection && manualNames.length === 0) return
+    const names = hasSelection ? selectedNames : manualNames
     const academicYearName = resolveYearName(academicYearId)
     const categoryId = categoryIdMap[category] || ''
     const courseMeta = courses.find(c => c.courseCode === courseCode || c.code === courseCode)
@@ -596,6 +610,7 @@ export default function Setup() {
     setSubjectForm(prev => ({
       ...prev,
       subjectName: '',
+      extraSubjectNames: [],
       subjectSelections: [],
       feeCategory: '',
       feeAmount: ''
@@ -651,6 +666,7 @@ export default function Setup() {
       feeCategory: rec.feeCategory || '',
       feeAmount: rec.feeAmount?.toString() || '',
       subjectName: isPreset ? '' : rec.subjectName,
+      extraSubjectNames: [],
       subjectSelections: isPreset ? [rec.subjectName] : []
     })
     setEditingSubjectId(rec.subjectId || rec.id)
