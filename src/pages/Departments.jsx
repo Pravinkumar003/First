@@ -38,6 +38,7 @@ export default function Departments() {
   const [paper1, setPaper1] = useState('');
   const [paper2, setPaper2] = useState('');
   const [paper3Plus, setPaper3Plus] = useState('');
+  const [editingFeeId, setEditingFeeId] = useState(null);
 
   // ---------------- LOAD MASTER DATA ----------------
   useEffect(() => {
@@ -149,7 +150,49 @@ export default function Departments() {
     );
   };
 
-  const handleCategoryOK = () => {
+  const fetchCategoryFees = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('fee_structure')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const feesMap = new Map();
+
+      data.forEach(item => {
+        const key = `${item.academic_year}_${item.group}_${item.course}_${item.semester}`;
+        if (!feesMap.has(key)) {
+          feesMap.set(key, {
+            id: item.id,
+            feeCategories: [],
+            amount: item.amount,
+            academic_year: String(item.academic_year),
+            group: item.group,
+            course_code: item.course,
+            semester: String(item.semester || ''),
+            created_at: item.created_at
+          });
+        }
+        if (item.fee_cat) {
+          feesMap.get(key).feeCategories.push({
+            id: item.id,
+            name: item.fee_cat,
+            amount: item.amount
+          });
+        }
+      });
+
+      const formattedData = Array.from(feesMap.values());
+      setCategoryFees(formattedData);
+    } catch (error) {
+      console.error('Error fetching category fees:', error);
+      alert('Error loading category fees');
+    }
+  };
+
+  const handleCategoryOK = async () => {
     if (selectedCategories.length === 0) {
       showToast('Select at least one fee category.', { type: 'warning', title: 'No categories selected' });
       return;
@@ -162,28 +205,120 @@ export default function Departments() {
       Semester: form.semester
     }, { title: 'Select academic details' })) return;
 
-    const newRecords = selectedCategories.map((catId) => {
-      const cat = feeCats.find((c) => String(c.id) === String(catId));
-      if (!cat) return null;
+    try {
+      const amountValue = parseFloat(categoryAmount);
+      if (isNaN(amountValue)) {
+        throw new Error('Please enter a valid amount');
+      }
 
-      return {
-        id: Date.now() + "_" + Math.random().toString(36),
-        feeCategoryId: cat.id,
-        name: cat.name,
-        amount: Number(categoryAmount),
-        academic_year: form.year,
-        group: form.group,
-        course_code: form.courseCode,
-        semester: form.semester,
-      };
-    }).filter(Boolean);
+      // First, check if we already have fees for this semester
+      const { data: existingFees, error: fetchError } = await supabase
+        .from('fee_structure')
+        .select('*')
+        .eq('academic_year', String(form.year))
+        .eq('group', form.group)
+        .eq('course', form.courseCode)
+        .eq('semester', form.semester);
 
-    setCategoryFees((prev) => [...prev, ...newRecords]);
-    setSelectedCategories([]);
-    setCategoryAmount("");
+      if (fetchError) throw fetchError;
+
+      // Prepare the fee data
+      const feeData = {};
+      selectedCategories.forEach(catId => {
+        const cat = feeCats.find(c => String(c.id) === String(catId));
+        if (cat) {
+          feeData[cat.name] = amountValue;
+        }
+      });
+
+      if (existingFees && existingFees.length > 0) {
+        // Update existing record
+        const existingData = {};
+        existingFees.forEach(item => {
+          if (item.fee_cat) {
+            existingData[item.fee_cat] = item.amount;
+          }
+        });
+
+        // Merge existing data with new data
+        const updatedData = { ...existingData, ...feeData };
+
+        // First, delete existing records for this semester
+        const { error: deleteError } = await supabase
+          .from('fee_structure')
+          .delete()
+          .eq('academic_year', String(form.year))
+          .eq('group', form.group)
+          .eq('course', form.courseCode)
+          .eq('semester', form.semester);
+
+        if (deleteError) throw deleteError;
+
+        // Then insert new records
+        const insertData = Object.entries(updatedData).map(([feeCat, amount]) => ({
+          academic_year: String(form.year),
+          group: form.group,
+          course: form.courseCode,
+          semester: form.semester,
+          fee_cat: feeCat,
+          amount: amount,
+          created_at: new Date().toISOString()
+        }));
+
+        const { error: insertError } = await supabase
+          .from('fee_structure')
+          .insert(insertData);
+
+        if (insertError) throw insertError;
+      } else {
+        // Insert new records
+        const insertData = Object.entries(feeData).map(([feeCat, amount]) => ({
+          academic_year: String(form.year),
+          group: form.group,
+          course: form.courseCode,
+          semester: form.semester,
+          fee_cat: feeCat,
+          amount: amount,
+          created_at: new Date().toISOString()
+        }));
+
+        const { error: insertError } = await supabase
+          .from('fee_structure')
+          .insert(insertData);
+
+        if (insertError) throw insertError;
+      }
+
+      // Refresh the list
+      await fetchCategoryFees();
+      
+      // Clear the form
+      setSelectedCategories([]);
+      setCategoryAmount("");
+      
+    } catch (error) {
+      console.error('Error saving category fee:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        error: error
+      });
+      
+      // More user-friendly error message
+      let errorMessage = 'Error saving category fee';
+      if (error.code === '42P01') {
+        errorMessage = 'The Supplementary table does not exist in the database. Please create it first.';
+      } else if (error.code === '42501') {
+        errorMessage = 'Permission denied. Please check your database permissions.';
+      } else if (error.message) {
+        errorMessage += `: ${error.message}`;
+      }
+      
+      alert(errorMessage);
+    }
   };
 
-  const submitAllCategories = () => {
+  const submitAllCategories = async () => {
     if (categoryFees.length === 0) {
       showToast('No fee category entries added!', { type: 'warning', title: 'Nothing to submit' });
       return;
@@ -199,9 +334,23 @@ export default function Departments() {
     showToast('Fee categories submitted!', { type: 'success' });
   };
 
-  const deleteCategoryFee = (id) => {
+  const deleteCategoryFee = async (id) => {
     if (!window.confirm("Delete this category fee?")) return;
-    setCategoryFees((prev) => prev.filter((x) => x.id !== id));
+    
+    try {
+      const { error } = await supabase
+        .from('fee_structure')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      // Refresh the list
+      await fetchCategoryFees();
+    } catch (error) {
+      console.error('Error deleting category fee:', error);
+      alert('Error deleting category fee');
+    }
   };
 
   // ---------------- FILTER ----------------
@@ -224,8 +373,24 @@ export default function Departments() {
   const filteredSubjectFees = filterRecords(subjectFees);
   const filteredCategoryFees = filterRecords(categoryFees);
 
+  // Fetch Supplementary Fees from Supabase
+  const fetchSupplementaryFees = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('Supplementary')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setSupplementaryFees(data || []);
+    } catch (error) {
+      console.error('Error fetching supplementary fees:', error);
+      alert('Error loading supplementary fees');
+    }
+  };
+
   // Handle Supplementary Fees Submission
-  const handleSupplementarySubmit = (e) => {
+  const handleSupplementarySubmit = async (e) => {
     e.preventDefault();
     
     if (!validateRequiredFields({
@@ -236,32 +401,175 @@ export default function Departments() {
       return;
     }
 
-    const newFee = {
-      id: Date.now(),
-      paper1: Number(paper1),
-      paper2: Number(paper2),
-      paper3Plus: Number(paper3Plus),
-      academic_year: form.year || 'Not specified',
-      group: form.group || 'Not specified',
-      course_code: form.courseCode || 'Not specified',
-      semester: form.semester || 'Not specified',
-      createdAt: new Date().toISOString()
+    // Convert to numbers and validate
+    const paper1Value = parseFloat(paper1);
+    const paper2Value = parseFloat(paper2);
+    const paper3Value = parseFloat(paper3Plus);
+
+    if (isNaN(paper1Value) || isNaN(paper2Value) || isNaN(paper3Value)) {
+      alert('Please enter valid numbers for all fields');
+      return;
+    }
+
+    const feeData = {
+      'Paper-1': paper1Value,
+      'Paper-2': paper2Value,
+      'Paper-3': paper3Value,
+      created_at: new Date().toISOString()
     };
 
-    setSupplementaryFees([...supplementaryFees, newFee]);
-    
-    // Clear form
+    console.log('Submitting fee data:', {
+      editingFeeId,
+      feeData,
+      table: 'Supplementary',
+      supabaseConnected: !!supabase
+    });
+
+    try {
+      if (editingFeeId) {
+        // Update existing fee
+        console.log('Updating existing fee with ID:', editingFeeId);
+        const { data, error } = await supabase
+          .from('Supplementary')
+          .update(feeData)
+          .eq('id', editingFeeId)
+          .select();
+        
+        if (error) {
+          console.error('Update error details:', error);
+          throw error;
+        }
+        
+        console.log('Update successful, updated data:', data);
+        setSupplementaryFees(supplementaryFees.map(fee => 
+          fee.id === editingFeeId ? { ...fee, ...feeData } : fee
+        ));
+        setEditingFeeId(null);
+      } else {
+        // Create new fee
+        console.log('Creating new fee');
+        const { data, error } = await supabase
+          .from('Supplementary')
+          .insert([feeData])
+          .select();
+        
+        if (error) {
+          console.error('Insert error details:', error);
+          throw error;
+        }
+        
+        console.log('Insert successful, new data:', data);
+        if (data && data.length > 0) {
+          setSupplementaryFees([data[0], ...supplementaryFees]);
+        } else {
+          console.log('No data returned from insert, refetching...');
+          await fetchSupplementaryFees();
+        }
+      }
+      
+      // Clear form
+      setPaper1('');
+      setPaper2('');
+      setPaper3Plus('');
+    } catch (error) {
+      console.error('Error in handleSupplementarySubmit:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        error: error
+      });
+      
+      // More user-friendly error message
+      let errorMessage = 'Error saving supplementary fee';
+      if (error.code === '42P01') {
+        errorMessage = 'The Supplementary table does not exist in the database. Please create it first.';
+      } else if (error.code === '42501') {
+        errorMessage = 'Permission denied. Please check your database permissions.';
+      } else if (error.message) {
+        errorMessage += `: ${error.message}`;
+      }
+      
+      alert(errorMessage);
+    }
+  };
+
+  // Set up edit mode for a fee
+  const handleEditFee = (fee) => {
+    setPaper1(fee['Paper-1'].toString());
+    setPaper2(fee['Paper-2'].toString());
+    setPaper3Plus(fee['Paper-3'].toString());
+    setEditingFeeId(fee.id);
+  };
+
+  // Cancel edit mode
+  const cancelEdit = () => {
     setPaper1('');
     setPaper2('');
     setPaper3Plus('');
+    setEditingFeeId(null);
   };
 
   // Delete Supplementary Fee
-  const deleteSupplementaryFee = (id) => {
+  const deleteSupplementaryFee = async (id) => {
     if (window.confirm('Are you sure you want to delete this fee entry?')) {
-      setSupplementaryFees(supplementaryFees.filter(fee => fee.id !== id));
+      try {
+        const { error } = await supabase
+          .from('Supplementary')
+          .delete()
+          .eq('id', id);
+        
+        if (error) throw error;
+        
+        setSupplementaryFees(supplementaryFees.filter(fee => fee.id !== id));
+      } catch (error) {
+        console.error('Error deleting supplementary fee:', error);
+        alert('Error deleting supplementary fee');
+      }
     }
   };
+
+  // Helper function to check if a table exists
+  const checkTableExists = async (tableName) => {
+    try {
+      const { data, error } = await supabase
+        .from(tableName)
+        .select('*')
+        .limit(1);
+      
+      if (error && error.code === '42P01') {
+        // Table doesn't exist
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Error checking table existence:', error);
+      return false;
+    }
+  };
+
+  // Fetch supplementary fees on component mount
+  useEffect(() => {
+    const init = async () => {
+      const tableExists = await checkTableExists('Supplementary');
+      console.log('Supplementary table exists:', tableExists);
+      if (tableExists) {
+        await fetchSupplementaryFees();
+      } else {
+        alert('The Supplementary table does not exist in your Supabase database. Please create it with the required columns: id, Paper-1, Paper-2, Paper-3, created_at');
+      }
+      
+      // Check and load category fees
+      const feeTableExists = await checkTableExists('fee_structure');
+      console.log('Fee structure table exists:', feeTableExists);
+      if (feeTableExists) {
+        await fetchCategoryFees();
+      } else {
+        console.log('Fee structure table does not exist. It will be created when you add your first fee.');
+      }
+    };
+    init();
+  }, []);
 
   // ======================================================
   // ====================== UI ============================
@@ -307,7 +615,7 @@ export default function Departments() {
               <option value="">Group</option>
               {groups.map((g) => (
                 <option key={g.id} value={g.code}>
-                  {g.code}
+                  {g.name}
                 </option>
               ))}
             </select>
@@ -328,7 +636,7 @@ export default function Departments() {
                 .filter((c) => !form.group || c.group_code === form.group)
                 .map((c) => (
                   <option key={c.id} value={c.code}>
-                    {c.code} - {c.name}
+                    {c.name}
                   </option>
                 ))}
             </select>
@@ -402,37 +710,15 @@ export default function Departments() {
       {filteredCategoryFees.length > 0 && (
         <div className="card card-soft p-4 mb-4">
           <h4 className="fw-bold mb-3">Fee Category Records</h4>
-          {Object.entries(
-            filteredCategoryFees.reduce((acc, rec) => {
-              const key = `${rec.academic_year}-${rec.group}-${rec.course_code}-${rec.semester}`;
-              if (!acc[key]) {
-                acc[key] = [];
-              }
-              acc[key].push(rec);
-              return acc;
-            }, {})
-          ).map(([key, fees]) => {
-            const [year, group, course, semester] = key.split('-');
-            // Group fees by amount and combine category names with the same amount
-            const feeGroups = fees.reduce((groups, fee) => {
-              const amount = fee.amount;
-              if (!groups[amount]) {
-                groups[amount] = [];
-              }
-              groups[amount].push(fee.name);
-              return groups;
-            }, {});
-            
-            // Create display strings for each amount group
-            const categoryGroups = Object.entries(feeGroups).map(([amount, names]) => {
-              return `${names.join(' & ')}: ₹${parseInt(amount).toLocaleString('en-IN')}`;
-            });
-            
-            const categories = categoryGroups.join(' | ');
-            const displayAmount = fees.length > 0 ? `₹${fees.reduce((sum, fee) => sum + parseInt(fee.amount), 0).toLocaleString('en-IN')}` : '';
+          {filteredCategoryFees.map((fees, index) => {
+            const year = fees.academic_year;
+            const group = fees.group;
+            const course = fees.course_code;
+            const semester = fees.semester;
+            const categoryDisplays = fees.feeCategories || [];
             
             return (
-              <div key={key} className="mb-4">
+              <div key={index} className="mb-4">
                 <table className="table table-bordered align-middle">
                   <thead>
                     <tr>
@@ -440,13 +726,13 @@ export default function Departments() {
                       <th>GROUP</th>
                       <th>COURSE</th>
                       <th>SEMESTER</th>
-                      <th>FEES CATEGORIES</th>
+                      <th>FEE CATEGORIES</th>
                       <th>FEE AMOUNT</th>
                       <th>ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {editingCategoryFeeId === fees[0].id ? (
+                    {editingCategoryFeeId === fees.id ? (
                       // Edit mode
                       <tr>
                         <td colSpan="7" className="p-0">
@@ -457,12 +743,12 @@ export default function Departments() {
                                 <button
                                   className="btn btn-sm btn-success"
                                   onClick={() => {
-                                    // Update all fees with the new values
+                                    // Update the fee entry with new values
                                     const updatedFees = categoryFees.map(fee => {
-                                      if (fee.academic_year === fees[0].academic_year && 
-                                          fee.group === fees[0].group && 
-                                          fee.course_code === fees[0].course_code && 
-                                          fee.semester === fees[0].semester) {
+                                      if (fee.academic_year === fees.academic_year && 
+                                          fee.group === fees.group && 
+                                          fee.course_code === fees.course_code && 
+                                          fee.semester === fees.semester) {
                                         return {
                                           ...fee,
                                           academic_year: form.year,
@@ -486,6 +772,27 @@ export default function Departments() {
                                   Cancel
                                 </button>
                               </div>
+                            </div>
+                            <div className="mb-3">
+                              <label className="form-label fw-bold">Common Amount (₹)</label>
+                              <input
+                                type="number"
+                                className="form-control"
+                                value={fees?.amount || ''}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setCategoryFees(prev => 
+                                    prev.map(fee => 
+                                      fee.academic_year === fees.academic_year &&
+                                      fee.group === fees.group &&
+                                      fee.course_code === fees.course_code &&
+                                      fee.semester === fees.semester
+                                        ? { ...fee, amount: value }
+                                        : fee
+                                    )
+                                  );
+                                }}
+                              />
                             </div>
                             <div className="row g-3 mb-3">
                               <div className="col-md-3">
@@ -554,25 +861,13 @@ export default function Departments() {
                                 </select>
                               </div>
                             </div>
-                            {fees.map((rec) => (
-                              <div key={rec.id} className="d-flex align-items-center gap-3 mb-2">
-                                <span className="w-25">{rec.name}:</span>
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm w-25"
-                                  value={rec.amount}
-                                  onChange={(e) => {
-                                    const value = e.target.value;
-                                    setCategoryFees((prev) =>
-                                      prev.map((x) =>
-                                        x.id === rec.id ? { ...x, amount: value } : x
-                                      )
-                                    );
-                                  }}
-                                />
+                            {fees.feeCategories?.map((cat) => (
+                              <div key={cat.id} className="d-flex align-items-center gap-3 mb-2">
+                                <span className="w-25">{cat.name}</span>
+                                <div className="w-25">₹{parseInt(cat.amount).toLocaleString('en-IN')}</div>
                                 <button
                                   className="btn btn-sm btn-outline-danger"
-                                  onClick={() => deleteCategoryFee(rec.id)}
+                                  onClick={() => deleteCategoryFee(cat.id)}
                                 >
                                   Remove
                                 </button>
@@ -584,17 +879,17 @@ export default function Departments() {
                     ) : (
                       // View mode
                       <tr>
-                        <td>{fees[0].academic_year}</td>
-                        <td>{fees[0].group}</td>
-                        <td>{fees[0].course_code}</td>
-                        <td>{fees[0].semester}</td>
-                        <td>{categories}</td>
-                        <td>{displayAmount}</td>
+                        <td>{fees.academic_year}</td>
+                        <td>{groups.find(g => g.code === fees.group)?.name || fees.group}</td>
+                        <td>{courses.find(c => c.code === fees.course_code)?.name || fees.course_code}</td>
+                        <td>{fees.semester}</td>
+                        <td>{categoryDisplays.map(cat => cat.name).join(', ')}</td>
+                        <td>₹{parseInt(fees.amount).toLocaleString('en-IN')}</td>
                         <td>
                           <div className="d-flex gap-2">
                             <button
                               className="btn btn-sm btn-warning"
-                              onClick={() => setEditingCategoryFeeId(fees[0].id)}
+                              onClick={() => setEditingCategoryFeeId(fees.id)}
                             >
                               Edit
                             </button>
@@ -602,7 +897,7 @@ export default function Departments() {
                               className="btn btn-sm btn-danger"
                               onClick={() => {
                                 if (window.confirm('Delete all fee categories for this semester?')) {
-                                  fees.forEach(fee => deleteCategoryFee(fee.id));
+                                  fees.feeCategories?.forEach(cat => deleteCategoryFee(cat.id));
                                 }
                               }}
                             >
@@ -647,7 +942,7 @@ export default function Departments() {
               />
             </div>
             <div className="col-md-3">
-              <label className="form-label">3+ Papers Fee (₹)</label>
+              <label className="form-label">3 and above Papers Fee (₹)</label>
               <input
                 type="number"
                 value={paper3Plus}
@@ -657,12 +952,14 @@ export default function Departments() {
               />
             </div>
             <div className="col-md-3 d-flex align-items-end">
-              <button
-                type="submit"
-                className="btn btn-primary w-100"
-              >
-                Add Supplementary Fee
+              <div className="d-flex gap-2">
+                <button
+                  type="submit"
+                  className="btn btn-primary flex-grow-1"
+                >
+                {editingFeeId ? 'Update Fee' : 'Add Supplementary Fee'}
               </button>
+              </div>
             </div>
           </div>
         </form>
@@ -681,16 +978,25 @@ export default function Departments() {
               <tbody>
                 {supplementaryFees.map((fee) => (
                   <tr key={fee.id}>
-                    <td>₹{fee.paper1}</td>
-                    <td>₹{fee.paper2}</td>
-                    <td>₹{fee.paper3Plus}</td>
+                    <td>₹{fee['Paper-1']}</td>
+                    <td>₹{fee['Paper-2']}</td>
+                    <td>₹{fee['Paper-3']}</td>
                     <td>
-                      <button
-                        onClick={() => deleteSupplementaryFee(fee.id)}
-                        className="btn btn-sm btn-danger"
-                      >
-                        Delete
-                      </button>
+                      <div className="d-flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleEditFee(fee)}
+                          className="btn btn-sm btn-primary"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => deleteSupplementaryFee(fee.id)}
+                          className="btn btn-sm btn-danger"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
