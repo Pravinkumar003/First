@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/mockApi'
 import { useAuth } from '../store/auth'
-import crestAccent from '../assets/media/EMS2.jpg'
+import crestAccent from '../assets/media/images.png'
 
 export default function AdminLogin() {
   useEffect(() => {

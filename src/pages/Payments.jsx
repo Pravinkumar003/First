@@ -1,5 +1,5 @@
 import AdminShell from '../components/AdminShell';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../supabaseClient';
 import { api } from '../lib/mockApi';
 import { validateRequiredFields } from '../lib/validation';
@@ -11,6 +11,7 @@ export default function Payments() {
   const [groups, setGroups] = useState([]);
   const [courses, setCourses] = useState([]);
   const [students, setStudents] = useState([]);
+  const [subjects, setSubjects] = useState([]);
   const [feeDefinitions, setFeeDefinitions] = useState([]);
 
   // Form
@@ -28,7 +29,33 @@ export default function Payments() {
 
   const [saving, setSaving] = useState(false);
 
+  const [activePaymentStudent, setActivePaymentStudent] = useState(null);
+  const [subjectSelection, setSubjectSelection] = useState({});
+  const [quickPaymentAmount, setQuickPaymentAmount] = useState('');
+
   const hasActiveFilters = Boolean(form.year || form.group_code || form.courseCode || form.semester);
+
+  const firstDefined = (...values) => values.find(value => value !== undefined && value !== null && value !== '');
+
+  const getMatchedGroup = student =>
+    groups.find(
+      g =>
+        g.code === student.group_code ||
+        g.code === student.group ||
+        g.code === student.group_name ||
+        g.name === student.group ||
+        g.name === student.group_name
+    );
+
+  const getMatchedCourse = student =>
+    courses.find(
+      c =>
+        c.courseCode === student.course_code ||
+        c.courseCode === student.course_name ||
+        c.courseCode === student.courseCode ||
+        c.courseName === student.course_name ||
+        c.courseName === student.courseCode
+    );
 
   const filteredStudents = useMemo(() => {
     return students.filter(s => {
@@ -40,14 +67,69 @@ export default function Payments() {
     });
   }, [students, form.year, form.group_code, form.courseCode, form.semester]);
 
+  const subjectsForActiveStudent = useMemo(() => {
+    if (!activePaymentStudent) return [];
+    const {
+      course_code,
+      course_name,
+      courseCode,
+      course,
+      semester
+    } = activePaymentStudent;
+    const courseValues = new Set(
+      [
+        course_code,
+        course_name,
+        courseCode,
+        course,
+      ].filter(Boolean)
+    );
+    const semesterValue =
+      semester === '' ||
+      semester === undefined ||
+      semester === null
+        ? null
+        : Number(semester);
+
+    return subjects.filter(subject => {
+      const matchesCourse =
+        courseValues.size === 0 ||
+        courseValues.has(subject.courseCode) ||
+        courseValues.has(subject.courseName);
+      const subjectSemester =
+        subject.semester === '' || subject.semester === undefined || subject.semester === null
+          ? null
+          : Number(subject.semester);
+      const matchesSemester = semesterValue === null || subjectSemester === null || semesterValue === subjectSemester;
+      return matchesCourse && matchesSemester;
+    });
+  }, [
+    subjects,
+    activePaymentStudent?.student_id,
+    activePaymentStudent?.course_code,
+    activePaymentStudent?.course_name,
+    activePaymentStudent?.courseCode,
+    activePaymentStudent?.course,
+    activePaymentStudent?.semester
+  ]);
+
+  const selectedSubjectCount = Object.values(subjectSelection || {}).filter(Boolean).length;
+  const hasSelectedSubjects = selectedSubjectCount > 0;
+
+  useEffect(() => {
+    setSubjectSelection({});
+    setQuickPaymentAmount('');
+  }, [activePaymentStudent?.student_id]);
+
   const loadData = useCallback(async () => {
     try {
-      const [yearsData, groupsData, coursesData, studentsData, feesData] = await Promise.all([
+      const [yearsData, groupsData, coursesData, studentsData, feesData, subjectsData] = await Promise.all([
         api.listAcademicYears?.(),
         api.listGroups?.(),
         api.listCourses?.(),
         api.listStudents?.(),
-        api.listFees?.()
+        api.listFees?.(),
+        api.listSubjects?.()
       ]);
 
       const normalizedYears = (yearsData || []).filter(y => y?.active !== false);
@@ -81,6 +163,7 @@ export default function Payments() {
       setGroups(normalizedGroups);
       setCourses(normalizedCourses);
       setStudents(normalizedStudents);
+      setSubjects(subjectsData || []);
       setFeeDefinitions(feesData || []);
     } catch (e) {
       console.error("Error loading payment masters:", e);
@@ -91,21 +174,28 @@ export default function Payments() {
     loadData();
   }, [loadData]);
 
-  const save = async () => {
+  const save = async (override = {}) => {
+    const payload = { ...form };
+    Object.entries(override).forEach(([key, value]) => {
+      if (value !== undefined) {
+        payload[key] = value;
+      }
+    });
+
     if (!validateRequiredFields(
-      { Student: form.student_id, Amount: form.amount },
+      { Student: payload.student_id, Amount: payload.amount },
       { title: "Missing payment details" }
-    )) return;
+    )) return false;
 
-    const selectedCourse = courses.find(c => c.courseCode === form.courseCode);
-    const courseName = selectedCourse?.courseName || "";
+    const selectedCourse = courses.find(c => c.courseCode === payload.courseCode);
+    const courseName = selectedCourse?.courseName || payload.courseName || "";
 
-    const semesterNumber = form.semester ? Number(form.semester) : null;
-    const groupKey = form.group_code || form.group;
-    const courseKey = form.courseCode || courseName;
+    const semesterNumber = payload.semester ? Number(payload.semester) : null;
+    const groupKey = payload.group_code || payload.group;
+    const courseKey = payload.courseCode || courseName;
 
     const matchingFee = feeDefinitions.find(f => {
-      if (f.academic_year !== form.year) return false;
+      if (f.academic_year !== payload.year) return false;
       if (semesterNumber !== Number(f.semester_number ?? f.semester)) return false;
       if (groupKey) {
         const availableGroupValues = [f.group, f.group_code, f.group_name];
@@ -123,19 +213,19 @@ export default function Payments() {
         type: "warning",
         title: "Missing fee definition",
       });
-      return;
+      return false;
     }
 
     setSaving(true);
     try {
       const { error } = await supabase.from("student_payments").insert([
         {
-          student_id: form.student_id,
+          student_id: payload.student_id,
           fee_id: matchingFee.id,
-          amount_paid: Number(form.amount),
+          amount_paid: Number(payload.amount),
           payment_date: new Date().toISOString(),
-          payment_mode: form.method,
-          remarks: form.reference || null
+          payment_mode: payload.method,
+          remarks: payload.reference || null
         }
       ]);
 
@@ -150,11 +240,93 @@ export default function Payments() {
 
       showToast("Payment recorded successfully!", { type: "success" });
       await loadData();
+      return true;
     } catch (e) {
       console.error("Error saving payment:", e);
       showToast("Failed to record payment. Try again.", { type: "danger" });
+      return false;
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handlePayNowClick = (student) => {
+    setActivePaymentStudent(prev =>
+      prev?.student_id === student.student_id ? null : student
+    );
+  };
+
+  const toggleSubjectSelection = (subjectId) => {
+    setSubjectSelection(prev => ({
+      ...prev,
+      [subjectId]: !prev[subjectId]
+    }));
+  };
+
+  const handleQuickPayment = async () => {
+    if (!activePaymentStudent) return;
+    if (!hasSelectedSubjects) {
+      showToast("Select at least one subject before paying.", { type: "warning" });
+      return;
+    }
+    if (!quickPaymentAmount || Number(quickPaymentAmount) <= 0) {
+      showToast("Enter a valid payment amount.", { type: "warning" });
+      return;
+    }
+
+    const selectedSubjectNames = subjectsForActiveStudent
+      .filter(subject => subjectSelection[subject.id])
+      .map(subject => subject.subjectName)
+      .filter(Boolean);
+
+    const matchedGroup = getMatchedGroup(activePaymentStudent);
+    const matchedCourse = getMatchedCourse(activePaymentStudent);
+    const resolvedYear = firstDefined(form.year, activePaymentStudent.academic_year, activePaymentStudent.year);
+    const resolvedGroupCode = firstDefined(
+      form.group_code,
+      activePaymentStudent.group_code,
+      matchedGroup?.code
+    );
+    const resolvedGroupName = firstDefined(
+      form.group,
+      activePaymentStudent.group_name,
+      activePaymentStudent.group,
+      matchedGroup?.name
+    );
+    const resolvedCourseCode = firstDefined(
+      form.courseCode,
+      activePaymentStudent.course_code,
+      activePaymentStudent.courseCode,
+      matchedCourse?.courseCode
+    );
+    const resolvedCourseName = firstDefined(
+      activePaymentStudent.course_name,
+      activePaymentStudent.courseName,
+      matchedCourse?.courseName
+    );
+    const resolvedSemester = firstDefined(
+      form.semester,
+      activePaymentStudent.semester
+    );
+
+    const override = {
+      student_id: activePaymentStudent.student_id,
+      amount: quickPaymentAmount,
+      ...(resolvedYear ? { year: resolvedYear } : {}),
+      ...(resolvedGroupCode ? { group_code: resolvedGroupCode } : {}),
+      ...(resolvedGroupName ? { group: resolvedGroupName } : {}),
+      ...(resolvedCourseCode ? { courseCode: resolvedCourseCode } : {}),
+      ...(resolvedCourseName ? { courseName: resolvedCourseName } : {}),
+      ...(resolvedSemester !== undefined ? { semester: String(resolvedSemester) } : {}),
+      ...(selectedSubjectNames.length ? { reference: `Subjects: ${selectedSubjectNames.join(', ')}` } : {})
+    };
+
+    const success = await save(override);
+
+    if (success) {
+      setActivePaymentStudent(null);
+      setSubjectSelection({});
+      setQuickPaymentAmount('');
     }
   };
 
@@ -280,35 +452,130 @@ export default function Payments() {
           ) : filteredStudents.length === 0 ? (
             <div className="text-muted small">No students match the selected filters yet.</div>
           ) : (
-            <div className="list-group list-group-flush">
-              {filteredStudents.map(s => {
-                const studentName = s.full_name || s.name || 'Unnamed student';
-                const matchedGroup = groups.find(
-                  g =>
-                    g.code === s.group_code ||
-                    g.code === s.group ||
-                    g.code === s.group_name ||
-                    g.name === s.group ||
-                    g.name === s.group_name
-                );
-                const departmentLabel =
-                  matchedGroup?.name ||
-                  s.department ||
-                  s.department_name ||
-                  s.group_name ||
-                  s.group ||
-                  'Department unknown';
-                const semesterLabel = s.semester ? `Sem ${s.semester}` : 'Semester n/a';
+            <div className="table-responsive">
+              <table className="table table-hover align-middle mb-0">
+                <thead className="table-light">
+                  <tr>
+                    <th scope="col">Student ID</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Department</th>
+                    <th scope="col">Year / Group</th>
+                    <th scope="col">Course</th>
+                    <th scope="col">Semester</th>
+                    <th scope="col" className="text-end">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredStudents.map(s => {
+                    const studentName = s.full_name || s.name || 'Unnamed student';
+                    const academicYear = s.academic_year || 'Year not set';
+                    const groupLabel = s.group_name || s.group || s.group_code || 'Group unknown';
+                    const matchedGroup = getMatchedGroup(s);
+                    const matchedCourse = getMatchedCourse(s);
+                    const courseLabel =
+                      matchedCourse?.courseName ||
+                      s.course_name ||
+                      s.course_code ||
+                      s.course_id ||
+                      'Course unknown';
+                    const departmentLabel =
+                      matchedGroup?.name ||
+                      s.department ||
+                      s.department_name ||
+                      s.group_name ||
+                      s.group ||
+                      'Department unknown';
+                    const semesterLabel = s.semester ? `Sem ${s.semester}` : 'Semester n/a';
 
-                return (
-                  <div key={`filtered-${s.student_id}`} className="list-group-item border rounded mb-2">
-                    <div className="mb-1"><strong>ID:</strong> {s.student_id}</div>
-                    <div className="mb-1"><strong>Name:</strong> {studentName}</div>
-                    <div className="mb-1"><strong>Department:</strong> {departmentLabel}</div>
-                    <div className="mb-0"><strong>Semester:</strong> {semesterLabel}</div>
-                  </div>
-                );
-              })}
+                    const isActive = activePaymentStudent?.student_id === s.student_id;
+
+                    return (
+                      <Fragment key={`${s.student_id}-row`}>
+                        <tr className={isActive ? 'table-primary' : undefined}>
+                          <td className="fw-semibold">{s.student_id}</td>
+                          <td>{studentName}</td>
+                          <td>{departmentLabel}</td>
+                          <td>{academicYear} · {groupLabel}</td>
+                          <td>{courseLabel}</td>
+                          <td>{semesterLabel}</td>
+                          <td className="text-end">
+                            <button
+                              className={`btn btn-sm ${isActive ? 'btn-outline-secondary' : 'btn-outline-primary'}`}
+                              onClick={() => handlePayNowClick(s)}
+                            >
+                              Pay now
+                            </button>
+                          </td>
+                        </tr>
+                        {isActive && (
+                          <tr>
+                            <td colSpan="7">
+                              <div className="bg-white border rounded-3 p-3 shadow-sm">
+                                <div className="d-flex justify-content-between align-items-center mb-3">
+                                  <div>
+                                    <div className="fw-semibold">Subjects</div>
+                                    <div className="text-muted small">{selectedSubjectCount} selected</div>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted small">Select subjects to pay</span>
+                                  </div>
+                                </div>
+                                {subjectsForActiveStudent.length === 0 ? (
+                                  <div className="alert alert-light py-2 mb-3">
+                                    No subjects configured for this course or semester yet.
+                                  </div>
+                                ) : (
+                                  <div className="row g-3">
+                                    {subjectsForActiveStudent.map(subject => (
+                                      <div key={`subject-${subject.id}`} className="col-md-6">
+                                        <label className="form-check w-100">
+                                          <input
+                                            type="checkbox"
+                                            className="form-check-input"
+                                            checked={!!subjectSelection[subject.id]}
+                                            onChange={() => toggleSubjectSelection(subject.id)}
+                                          />
+                                          <span className="form-check-label ms-2">
+                                            <strong>{subject.subjectName || subject.subjectCode}</strong>
+                                            <span className="text-muted small ms-2">({subject.subjectCode})</span>
+                                          </span>
+                                        </label>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                <div className="row g-2 align-items-end mt-3">
+                                  <div className="col-md-6">
+                                    <label className="form-label fw-semibold">Amount (INR)</label>
+                                    <input
+                                      type="number"
+                                      className="form-control"
+                                      min="0"
+                                      value={quickPaymentAmount}
+                                      onChange={e => setQuickPaymentAmount(e.target.value)}
+                                      placeholder="Enter amount"
+                                    />
+                                  </div>
+                                  <div className="col-md-6">
+                                    <button
+                                      type="button"
+                                      className="btn btn-brand w-100"
+                                      disabled={!hasSelectedSubjects || !quickPaymentAmount || saving}
+                                      onClick={handleQuickPayment}
+                                    >
+                                      {saving ? "Processing..." : "Pay selected subjects"}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
