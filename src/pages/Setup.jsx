@@ -731,13 +731,12 @@ export default function Setup() {
       return row
     })
     const existingCombos = new Set(subjects.map(buildComboKey))
-    for (const item of pendingSnapshot) {
-      const key = buildComboKey(item)
+    const pendingCombos = new Set(pendingSnapshot.map(buildComboKey))
+    for (const key of pendingCombos) {
       if (existingCombos.has(key)) {
         showToast('These subjects already exist for the selected year/group/course/semester. Use edit to update them.', { type: 'warning', title: 'Duplicate combination' })
         return
       }
-      existingCombos.add(key)
     }
     try {
       await api.addSubjects?.(payload)
