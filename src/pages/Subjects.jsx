@@ -1,3 +1,5 @@
+import { useMemo } from 'react'
+
 const resolveSubjectBatchKey = (subject = {}) => {
   if (!subject) return ''
   if (subject.batchId) return subject.batchId
@@ -54,6 +56,13 @@ export default function SubjectsSection({
     return Number.isNaN(numeric) ? raw : numeric
   }
   const extraNames = subjectForm.extraSubjectNames || []
+  const groupNameByCode = useMemo(() => groups.reduce((acc, group) => {
+    const code = group.groupCode || group.code || group.group_code || ''
+    if (!code) return acc
+    acc[code] = group.name || group.group_name || group.groupName || code
+    return acc
+  }, {}), [groups])
+  const displayGroupName = (code) => groupNameByCode[code] || code || '-'
   const groupedPending = (() => {
     const order = []
     const map = new Map()
@@ -262,7 +271,7 @@ export default function SubjectsSection({
                   return (
                     <tr key={rowKey}>
                       <td>{getDisplayYear(item)}</td>
-                      <td>{item.groupCode}</td>
+                    <td>{displayGroupName(item.groupCode)}</td>
                       <td>{item.courseCode}</td>
                       <td>{getSemesterLabel(item)}</td>
                       <td>{item.category}</td>
@@ -289,7 +298,7 @@ export default function SubjectsSection({
                 return (
                   <tr key={rowKey}>
                     <td>{getDisplayYear(group)}</td>
-                    <td>{group.groupCode}</td>
+                  <td>{displayGroupName(group.groupCode)}</td>
                     <td>{group.courseCode}</td>
                     <td>{getSemesterLabel(group)}</td>
                     <td>{group.category}</td>
@@ -303,40 +312,6 @@ export default function SubjectsSection({
               })}
             </tbody>
           </table>
-        </div>
-      )}
-      {subjects.length > 0 && (
-        <div className="card card-soft p-3 mt-3">
-          <h6 className="section-title">By Category (Preview)</h6>
-          <div className="row g-3">
-            {categories.map(cat => {
-              const items = subjects.filter(s =>
-                (!subjectForm.academicYearId ||
-                  s.academicYearId === subjectForm.academicYearId ||
-                  (!!selectedYearName && s.academicYearName === selectedYearName)) &&
-                (!subjectForm.groupCode || s.groupCode === subjectForm.groupCode) &&
-                (!subjectForm.courseCode || s.courseCode === subjectForm.courseCode) &&
-                (!subjectForm.semester || Number(s.semester) === Number(subjectForm.semester)) &&
-                s.category === cat
-              )
-              if (items.length === 0) return null
-              return (
-                <div className="col-md-6" key={cat}>
-                  <div className="card p-3 bg-ice">
-                    <div className="fw-600 mb-2">{cat}</div>
-                    <ul className="list-unstyled mb-0">
-                      {items.map(it => (
-                        <li key={it.id} className="d-flex justify-content-between align-items-center py-1">
-                          <span>{it.subjectName}</span>
-                          <span className="small text-muted">Sem {getSemesterLabel(it)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
         </div>
       )}
     </section>
