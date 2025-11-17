@@ -22,11 +22,15 @@ export default function SubCategoriesSection({
         <h5 className="section-title">Sub-categories</h5>
         <div className="subcat-input-panel">
           <div className="flex-grow-1">
+            <label className="form-label fw-bold mb-1">
+              Sub-category Name <span className="text-danger">*</span>
+            </label>
             <p className="text-uppercase text-muted small mb-1">{editingCategory ? 'Update existing sub-category' : 'Add a new sub-category'}</p>
             <div className="d-flex gap-2 flex-wrap">
               <input
                 className="form-control flex-grow-1"
                 placeholder="e.g., English"
+                required
                 value={categoryName}
                 onChange={e => setCategoryName(e.target.value)}
                 onKeyDown={e => {

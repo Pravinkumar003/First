@@ -32,6 +32,48 @@ export default function SubjectsSection({
     return Number.isNaN(numeric) ? raw : numeric
   }
   const extraNames = subjectForm.extraSubjectNames || []
+  const groupedPending = (() => {
+    const order = []
+    const map = new Map()
+    pendingSubjects.forEach(item => {
+      const key = item.batchId || item.id
+      if (!map.has(key)) {
+        const initialNames = []
+        if (item.subjectName) initialNames.push(item.subjectName)
+        const group = { ...item, batchId: key, subjectNames: initialNames }
+        order.push(group)
+        map.set(key, group)
+      } else {
+        const group = map.get(key)
+        if (item.subjectName) group.subjectNames.push(item.subjectName)
+      }
+    })
+    return order
+  })()
+  const groupedSubjects = (() => {
+    const order = []
+    const map = new Map()
+    subjects.forEach(item => {
+      const key = item.batchId || item.id
+      if (!map.has(key)) {
+        const initialNames = []
+        if (item.subjectName) initialNames.push(item.subjectName)
+        const group = {
+          ...item,
+          batchId: key,
+          subjectNames: initialNames,
+          subjectIds: [item.subjectId || item.id]
+        }
+        order.push(group)
+        map.set(key, group)
+      } else {
+        const group = map.get(key)
+        if (item.subjectName) group.subjectNames.push(item.subjectName)
+        group.subjectIds.push(item.subjectId || item.id)
+      }
+    })
+    return order
+  })()
   const updateExtraName = (idx, value) => {
     setSubjectForm(prev => {
       const list = [...(prev.extraSubjectNames || [])]
@@ -81,9 +123,10 @@ export default function SubjectsSection({
       <h5 className="section-title">Subjects</h5>
       <div className="row g-3">
         <div className="col-12 col-sm-6 col-xl-3">
-          <label className="form-label fw-bold mb-1">Academic Year</label>
+          <label className="form-label fw-bold mb-1">Academic Year <span className="text-danger">*</span></label>
           <select
             className="form-select"
+            required
             value={subjectForm.academicYearId}
             onChange={e => {
               const value = e.target.value
@@ -96,16 +139,17 @@ export default function SubjectsSection({
           </select>
         </div>
         <div className="col-12 col-sm-6 col-xl-3">
-          <label className="form-label fw-bold mb-1">Group</label>
-          <select className="form-select" value={subjectForm.groupCode} onChange={e => setSubjectForm({ ...subjectForm, groupCode: e.target.value, courseCode: '', semester: '' })}>
+          <label className="form-label fw-bold mb-1">Group <span className="text-danger">*</span></label>
+          <select className="form-select" required value={subjectForm.groupCode} onChange={e => setSubjectForm({ ...subjectForm, groupCode: e.target.value, courseCode: '', semester: '' })}>
             <option value="">Select Group</option>
             {groups.map(g => <option key={g.id} value={g.code}>{g.name || g.code}</option>)}
           </select>
         </div>
         <div className="col-12 col-sm-6 col-xl-3">
-          <label className="form-label fw-bold mb-1">Course</label>
+          <label className="form-label fw-bold mb-1">Course <span className="text-danger">*</span></label>
           <select
             className="form-select"
+            required
             value={subjectForm.courseCode}
             onChange={e => {
               const value = e.target.value
@@ -123,8 +167,8 @@ export default function SubjectsSection({
           </select>
         </div>
         <div className="col-12 col-sm-6 col-xl-3">
-          <label className="form-label fw-bold mb-1">Semester</label>
-          <select className="form-select" value={subjectForm.semester} onChange={e => setSubjectForm({ ...subjectForm, semester: e.target.value })}>
+          <label className="form-label fw-bold mb-1">Semester <span className="text-danger">*</span></label>
+          <select className="form-select" required value={subjectForm.semester} onChange={e => setSubjectForm({ ...subjectForm, semester: e.target.value })}>
             <option value="">Select Semester</option>
             {semForCourse.map(s => (
               <option key={s.id} value={s.number}>Semester {s.number}</option>
@@ -132,14 +176,14 @@ export default function SubjectsSection({
           </select>
         </div>
         <div className="col-12 col-sm-6 col-xl-3">
-          <label className="form-label fw-bold mb-1">Sub-category</label>
-          <select className="form-select" value={subjectForm.category} onChange={e => setSubjectForm({ ...subjectForm, category: e.target.value, subjectSelections: [], subjectName: '' })}>
+          <label className="form-label fw-bold mb-1">Sub-category <span className="text-danger">*</span></label>
+          <select className="form-select" required value={subjectForm.category} onChange={e => setSubjectForm({ ...subjectForm, category: e.target.value, subjectSelections: [], subjectName: '' })}>
             <option value="">Select Sub-category</option>
             {categories.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
         </div>
         <div className="col-12 col-sm-6 col-xl-3">
-          <label className="form-label fw-bold mb-1">Subject Name</label>
+          <label className="form-label fw-bold mb-1">Subject Name <span className="text-danger">*</span></label>
           {(catItems[subjectForm.category] || []).length ? (
             <div className="subject-checkbox-group">
               {catItems[subjectForm.category].map(item => {
@@ -179,27 +223,27 @@ export default function SubjectsSection({
           <button type="button" className="btn btn-outline-secondary ms-2" onClick={onCancelSubjectEdit}>Cancel</button>
         )}
       </div>
-      {pendingSubjects.length > 0 && (
+      {groupedPending.length > 0 && (
         <div className="card card-soft p-3 mt-3">
           <div className="d-flex justify-content-between align-items-center mb-2">
-            <h6 className="section-title mb-0">Pending Subjects ({pendingSubjects.length})</h6>
+            <h6 className="section-title mb-0">Pending Subjects ({groupedPending.length})</h6>
             <button type="button" className="btn btn-brand" onClick={submitPendingSubjects}>Submit All</button>
           </div>
           <div className="table-responsive">
             <table className="table mb-0">
               <thead><tr><th>Year</th><th>Group</th><th>Course</th><th>Sem</th><th>Category</th><th>Subject</th><th>Actions</th></tr></thead>
               <tbody>
-                {pendingSubjects.map(item => (
-                  <tr key={item.id}>
+                {groupedPending.map(item => (
+                  <tr key={item.batchId || item.id}>
                     <td>{getDisplayYear(item)}</td>
                     <td>{item.groupCode}</td>
                     <td>{item.courseCode}</td>
                     <td>{getSemesterLabel(item)}</td>
                     <td>{item.category}</td>
-                    <td>{item.subjectName}</td>
+                    <td>{item.subjectNames?.length ? item.subjectNames.join(', ') : item.subjectName}</td>
                     <td>
                       <button type="button" className="btn btn-sm btn-outline-primary me-2" onClick={() => editPendingSubject(item)}>Edit</button>
-                      <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => deletePendingSubject(item.id)}>Remove</button>
+                      <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => deletePendingSubject(item)}>Remove</button>
                     </td>
                   </tr>
                 ))}
@@ -208,22 +252,22 @@ export default function SubjectsSection({
           </div>
         </div>
       )}
-      {subjects.length > 0 && (
+      {groupedSubjects.length > 0 && (
         <div className="table-responsive mt-3">
           <table className="table mb-0">
             <thead><tr><th>Year</th><th>Group</th><th>Course</th><th>Sem</th><th>Category</th><th>Subject Name</th><th>Actions</th></tr></thead>
             <tbody>
-             {subjects.map(s => (
-                <tr key={s.id}>
-                  <td>{getDisplayYear(s)}</td>
-                  <td>{s.groupCode}</td>
-                  <td>{s.courseCode}</td>
-                  <td>{getSemesterLabel(s)}</td>
-                  <td>{s.category}</td>
-                  <td>{s.subjectName}</td>
+             {groupedSubjects.map(group => (
+                <tr key={group.batchId || group.id}>
+                  <td>{getDisplayYear(group)}</td>
+                  <td>{group.groupCode}</td>
+                  <td>{group.courseCode}</td>
+                  <td>{getSemesterLabel(group)}</td>
+                  <td>{group.category}</td>
+                  <td>{group.subjectNames?.length ? group.subjectNames.join(', ') : group.subjectName}</td>
                   <td>
-                    <button className="btn btn-sm btn-outline-primary me-2" onClick={() => editSubject(s)}>Edit</button>
-                    <button className="btn btn-sm btn-outline-danger" onClick={() => deleteSubject(s.id)}>Delete</button>
+                    <button className="btn btn-sm btn-outline-primary me-2" onClick={() => editSubject(group)}>Edit</button>
+                    <button className="btn btn-sm btn-outline-danger" onClick={() => deleteSubject(group)}>Delete</button>
                   </td>
                 </tr>
               ))}

@@ -7,6 +7,7 @@ import GroupsCoursesSection from './GroupsCourses'
 import SubCategoriesSection from './SubCategories'
 import SubjectsSection from './Subjects'
 import crestPrimary from '../assets/media/images.png'
+import { showToast } from '../store/ui'
 
 // Utility
 const uid = () => Math.random().toString(36).slice(2)
@@ -392,9 +393,15 @@ export default function Setup() {
   }, [])
   const saveFeeCategory = async () => {
     const trimmed = feeCategoryName.trim()
-    if (!trimmed) return
+    if (!trimmed) {
+      showToast('Enter a fee category name.', { type: 'warning', title: 'Required field' })
+      return
+    }
     const duplicate = feeCategories.some(cat => cat.name.trim().toLowerCase() === trimmed.toLowerCase() && cat.id !== editingFeeCategoryId)
-    if (duplicate) return
+    if (duplicate) {
+      showToast('That fee category already exists.', { type: 'danger', title: 'Duplicate entry' })
+      return
+    }
     let next = []
     if (editingFeeCategoryId) {
       next = feeCategories.map(cat => cat.id === editingFeeCategoryId ? { ...cat, name: trimmed } : cat)
@@ -402,9 +409,15 @@ export default function Setup() {
       next = [...feeCategories, { id: randomId(), name: trimmed, fees: [] }]
     }
     setFeeCategories(next)
-    await persistFeeCategoryList(next)
-    setFeeCategoryName('')
-    setEditingFeeCategoryId('')
+    try {
+      await persistFeeCategoryList(next)
+      showToast(editingFeeCategoryId ? 'Fee category updated.' : 'Fee category added.', { type: 'success' })
+      setFeeCategoryName('')
+      setEditingFeeCategoryId('')
+    } catch (error) {
+      console.error('Failed to save fee category', error)
+      showToast('Unable to save fee category.', { type: 'danger' })
+    }
   }
   const editFeeCategory = (cat) => {
     setFeeCategoryName(cat.name)
@@ -413,11 +426,17 @@ export default function Setup() {
   const deleteFeeCategory = async (id) => {
     const next = feeCategories.filter(cat => cat.id !== id)
     setFeeCategories(next)
-    await persistFeeCategoryList(next)
-    setFeeDrafts(prev => deleteKey(prev, id))
-    if (editingFeeCategoryId === id) {
-      setFeeCategoryName('')
-      setEditingFeeCategoryId('')
+    try {
+      await persistFeeCategoryList(next)
+      setFeeDrafts(prev => deleteKey(prev, id))
+      if (editingFeeCategoryId === id) {
+        setFeeCategoryName('')
+        setEditingFeeCategoryId('')
+      }
+      showToast('Fee category deleted.', { type: 'info' })
+    } catch (error) {
+      console.error('Failed to delete fee category', error)
+      showToast('Unable to delete fee category.', { type: 'danger' })
     }
   }
   const updateFeeDraft = (catId, field, value) => {
@@ -439,9 +458,15 @@ export default function Setup() {
   }
   const saveCategory = async () => {
     const trimmed = categoryName.trim()
-    if (!trimmed) return
+    if (!trimmed) {
+      showToast('Enter a sub-category name before saving.', { type: 'warning', title: 'Required field' })
+      return
+    }
     const duplicate = categories.some(c => c.toLowerCase() === trimmed.toLowerCase() && c !== editingCategory)
-    if (duplicate) return
+    if (duplicate) {
+      showToast('That sub-category already exists.', { type: 'danger', title: 'Duplicate entry' })
+      return
+    }
     if (editingCategory) {
       setCategories(categories.map(c => c === editingCategory ? trimmed : c))
       setCatItems(prev => renameKey(prev, editingCategory, trimmed, []))
@@ -454,8 +479,10 @@ export default function Setup() {
       if (catId) {
         try {
           await api.updateSubCategory?.(catId, { name: trimmed, subjects: itemsToNames(currentItems) })
+          showToast('Sub-category updated successfully.', { type: 'success' })
         } catch (error) {
           console.error('Failed to rename sub-category', error)
+          showToast('Failed to update sub-category.', { type: 'danger' })
         }
         setCategoryIdMap(prev => {
           const next = { ...prev }
@@ -473,8 +500,10 @@ export default function Setup() {
         if (id) {
           setCategoryIdMap(prev => ({ ...prev, [label]: id }))
         }
+        showToast('Sub-category added successfully.', { type: 'success' })
       } catch (error) {
         console.error('Failed to add sub-category', error)
+        showToast('Unable to add sub-category.', { type: 'danger' })
         return
       }
     }
@@ -487,6 +516,7 @@ export default function Setup() {
         await api.deleteSubCategory?.(id)
       } catch (error) {
         console.error('Failed to delete sub-category', error)
+        showToast('Unable to delete sub-category.', { type: 'danger' })
         return
       }
     }
@@ -513,6 +543,7 @@ export default function Setup() {
       setCategoryName('')
       setEditingCategory('')
     }
+    showToast('Sub-category deleted.', { type: 'info' })
   }
 
   // Languages (special under Language category)
@@ -552,6 +583,7 @@ export default function Setup() {
     })
   }, [categories])
   const [editingSubjectId, setEditingSubjectId] = useState('')
+  const [editingBatchId, setEditingBatchId] = useState('')
 
   const coursesForGroup = courses.filter(c => {
     const groupCode = c.groupCode || c.group_code
@@ -578,16 +610,24 @@ export default function Setup() {
     const manualNames = [subjectName, ...(Array.isArray(extraSubjectNames) ? extraSubjectNames : [])]
       .map(name => (name || '').trim())
       .filter(Boolean)
-    if (!academicYearId || !groupCode || !courseCode || !semester || !category) return
-    if (!hasSelection && manualNames.length === 0) return
+    if (!academicYearId || !groupCode || !courseCode || !semester || !category) {
+      showToast('Fill in academic year, group, course, semester and sub-category before adding a subject.', { type: 'warning', title: 'Missing details' })
+      return
+    }
+    if (!hasSelection && manualNames.length === 0) {
+      showToast('Enter at least one subject name.', { type: 'warning', title: 'Subject name required' })
+      return
+    }
     const names = hasSelection ? selectedNames : manualNames
     const academicYearName = resolveYearName(academicYearId)
     const categoryId = categoryIdMap[category] || ''
     const courseMeta = courses.find(c => c.courseCode === courseCode || c.code === courseCode)
     const courseName = courseMeta?.courseName || courseCode
+    const batchId = editingBatchId || randomId()
     const entries = names.map((name, idx) => ({
       id: editingSubjectId && idx === 0 ? editingSubjectId : randomId(),
       subjectId: editingSubjectId && idx === 0 ? editingSubjectId : '',
+      batchId,
       academicYearId,
       academicYearName,
       groupCode,
@@ -607,6 +647,8 @@ export default function Setup() {
     } else {
       setPendingSubjects(prev => [...prev, ...entries])
     }
+    const verb = editingSubjectId ? 'updated' : 'added'
+    showToast(`${names.length} subject${names.length === 1 ? '' : 's'} ${verb} to pending list.`, { type: 'success', title: 'Subjects queued' })
     setSubjectForm(prev => ({
       ...prev,
       subjectName: '',
@@ -618,7 +660,8 @@ export default function Setup() {
   }
   const submitPendingSubjects = async () => {
     if (!pendingSubjects.length) return
-    const payload = pendingSubjects.map(item => {
+    const pendingSnapshot = pendingSubjects.map(item => ({ ...item }))
+    const payload = pendingSnapshot.map(item => {
       const academicYearName = item.academicYearName || resolveYearName(item.academicYearId)
       const courseMeta = courseLookup[item.courseCode] || courseLookup[item.courseName] || {}
       const categoryId = item.categoryId || categoryIdMap[item.category] || null
@@ -645,7 +688,13 @@ export default function Setup() {
     })
     try {
       const saved = await api.addSubjects?.(payload)
-      const normalized = (Array.isArray(saved) && saved.length ? saved : payload).map(rec => normalizeSubjectRecord(rec, subjectContext))
+      const normalized = (Array.isArray(saved) && saved.length ? saved : payload)
+        .map((rec, idx) => {
+          const result = normalizeSubjectRecord(rec, subjectContext)
+          const source = pendingSnapshot[idx]
+          if (source?.batchId) result.batchId = source.batchId
+          return result
+        })
       setSubjects(prev => {
         const incomingIds = new Set(normalized.map(item => item.id))
         const remaining = prev.filter(item => !incomingIds.has(item.id))
@@ -657,37 +706,54 @@ export default function Setup() {
     }
   }
   const editPendingSubject = (rec) => {
-    setPendingSubjects(prev => prev.filter(s => s.id !== rec.id))
+    const batchRef = rec.batchId || rec.id
+    setPendingSubjects(prev => prev.filter(s => (s.batchId || s.id) !== batchRef))
     const options = catItems[rec.category] || []
-    const isPreset = options.some(item => item.name === rec.subjectName)
+    const names = rec.subjectNames?.length ? rec.subjectNames : [rec.subjectName].filter(Boolean)
+    const allPreset = names.length > 0 && names.every(name => options.some(item => item.name === name))
     setSubjectForm({
       ...rec,
       semester: rec.semester === undefined || rec.semester === null ? '' : rec.semester.toString(),
       feeCategory: rec.feeCategory || '',
       feeAmount: rec.feeAmount?.toString() || '',
-      subjectName: isPreset ? '' : rec.subjectName,
-      extraSubjectNames: [],
-      subjectSelections: isPreset ? [rec.subjectName] : []
+      subjectName: allPreset ? '' : (names[0] || ''),
+      extraSubjectNames: allPreset ? [] : names.slice(1),
+      subjectSelections: allPreset ? names : []
     })
-    setEditingSubjectId(rec.subjectId || rec.id)
+    setEditingSubjectId(rec.subjectId || rec.id || '')
+    setEditingBatchId(batchRef || '')
   }
   const editSubject = async (rec) => {
-
+    setSubjects(prev => prev.filter(s => (s.batchId || s.id) !== (rec.batchId || rec.id)))
     editPendingSubject(rec)
   }
-  const deletePendingSubject = (id) => {
-    setPendingSubjects(prev => prev.filter(s => s.id !== id))
-    if (editingSubjectId === id) {
+  const deletePendingSubject = (item) => {
+    const batchRef = item.batchId || item.id
+    setPendingSubjects(prev => prev.filter(s => (s.batchId || s.id) !== batchRef))
+    if (editingSubjectId === (item.subjectId || item.id)) {
       setSubjectForm(buildSubjectForm(categories[0] || ''))
       setEditingSubjectId('')
     }
+    if (editingBatchId === batchRef) {
+      setSubjectForm(buildSubjectForm(categories[0] || ''))
+      setEditingBatchId('')
+    }
   }
-  const deleteSubject = async (id) => {
-    setSubjects(prev => prev.filter(s => s.id !== id))
-    try { await api.deleteSubject?.(id) } catch (error) { console.error('Failed to delete subject', error) }
+  const deleteSubject = async (group) => {
+    const batchRef = group.batchId || group.id
+    const ids = (group.subjectIds?.length ? group.subjectIds : [group.subjectId || group.id]).filter(Boolean)
+    setSubjects(prev => prev.filter(s => (s.batchId || s.id) !== batchRef))
+    try {
+      await Promise.all(ids.map(id => api.deleteSubject?.(id)))
+      showToast('Subject entries deleted.', { type: 'info' })
+    } catch (error) {
+      console.error('Failed to delete subject', error)
+      showToast('Unable to delete subject.', { type: 'danger' })
+    }
   }
   const cancelSubjectEdit = () => {
     setEditingSubjectId('')
+    setEditingBatchId('')
     setSubjectForm(buildSubjectForm(categories[0] || ''))
   }
 

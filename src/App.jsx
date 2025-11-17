@@ -18,6 +18,7 @@ import Setup from './pages/Setup.jsx'
 import Departments from './pages/Departments.jsx'
 import GuardedRoute from './components/GuardedRoute.jsx'
 import Preloader from './components/Preloader.jsx'
+import ToastStack from './components/ToastStack.jsx'
 
 export default function App() {
   const { user, signOut } = useAuth()
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="/admin/applications" element={<GuardedRoute isAuthed={isAuthed}><AdminApplications /></GuardedRoute>} />
       </Routes>
       <Preloader />
+      <ToastStack />
     </>
   )
 }
