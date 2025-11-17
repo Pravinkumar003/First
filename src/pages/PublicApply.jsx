@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../lib/mockApi'
+import { validateRequiredFields } from '../lib/validation'
+import { showToast } from '../store/ui'
 
 export default function PublicApply() {
   // dropdown option masters (can be moved to Setup later)
@@ -41,18 +43,6 @@ export default function PublicApply() {
   }
 
   const isDigits = (val, len) => new RegExp(`^\\d{${len}}$`).test(val)
-  const isValid = useMemo(()=>{
-    return !!(
-      form.admission_no && form.academic_year &&
-      form.full_name && form.gender && form.dob &&
-      form.mobile && isDigits(form.mobile,10) &&
-      form.postal_code && isDigits(form.postal_code,6) &&
-      (!form.aadhar_no || isDigits(form.aadhar_no,12)) &&
-      form.address &&
-      form.group && form.course_id
-    )
-  },[form])
-
   const onNumericChange = (key, max) => (e) => {
     const v = (e.target.value || '').replace(/\D/g, '').slice(0, max)
     handle(key, v)
@@ -60,6 +50,35 @@ export default function PublicApply() {
 
   const submit = async (e) => {
     e.preventDefault(); setMsg(''); setLoading(true)
+    const requiredFields = {
+      'Admission No': form.admission_no,
+      'Academic Year': form.academic_year,
+      'Full Name': form.full_name,
+      'Gender': form.gender,
+      'Date of Birth': form.dob,
+      'Mobile Number': form.mobile,
+      'Postal Code': form.postal_code,
+      'Address': form.address,
+      'Group': form.group,
+      'Course': form.course_id
+    }
+    if (!validateRequiredFields(requiredFields, { title: 'Incomplete application' })) { setLoading(false); return }
+    if (!isDigits(form.mobile, 10)) {
+      showToast('Enter a valid 10-digit mobile number.', { type: 'warning', title: 'Invalid mobile' })
+      setLoading(false)
+      return
+    }
+    if (!isDigits(form.postal_code, 6)) {
+      showToast('Postal code must be 6 digits.', { type: 'warning', title: 'Invalid postal code' })
+      setLoading(false)
+      return
+    }
+    if (form.aadhar_no && !isDigits(form.aadhar_no, 12)) {
+      showToast('Aadhar number must contain 12 digits.', { type: 'warning', title: 'Invalid Aadhar' })
+      setLoading(false)
+      return
+    }
+
     try {
       const uploads = {}
       if (photo) uploads.photo_url = URL.createObjectURL(photo)
@@ -134,7 +153,7 @@ export default function PublicApply() {
 
                 <div className="col-12 d-flex justify-content-end gap-2 mt-2">
                   <button type="button" className="btn btn-outline-secondary" onClick={resetAll}>Clear</button>
-                  <button className="btn btn-brand" disabled={loading || !isValid}>{loading?'Submitting...':'Submit'}</button>
+              <button className="btn btn-brand" disabled={loading}>{loading?'Submitting...':'Submit'}</button>
                 </div>
               </div>
             </form>

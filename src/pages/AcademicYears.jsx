@@ -13,9 +13,11 @@ export default function AcademicYearsSection({
       <h5 className="section-title">Academic Years</h5>
       <div className="row g-2">
         <div className="col-md-5">
+          <label className="form-label fw-bold mb-1">Academic Year Name</label>
           <input
             className="form-control"
             placeholder="e.g., 2022-2025"
+            required
             value={yearForm.name}
             onChange={e => setYearForm({ ...yearForm, name: e.target.value })}
           />

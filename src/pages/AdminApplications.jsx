@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../lib/mockApi'
 import { supabase } from '../../supabaseClient'
 import AdminShell from '../components/AdminShell'
 import crestPrimary from '../assets/media/images.png'
+import { validateRequiredFields } from '../lib/validation'
+import { showToast } from '../store/ui'
 
 export default function AdminApplications() {
   const GENDERS = ['Male', 'Female', 'Other']
@@ -79,25 +81,33 @@ export default function AdminApplications() {
 
   const isDigits = (value, len) => new RegExp(`^\\d{${len}}$`).test(value)
 
-  const isValid = useMemo(() => {
-    return !!(
-      form.academic_year &&
-      form.group &&
-      form.course_id &&
-      form.full_name &&
-      form.gender &&
-      form.dob &&
-      form.mobile && isDigits(form.mobile, 10) &&
-      form.postal_code && isDigits(form.postal_code, 6) &&
-      (!form.aadhar_no || isDigits(form.aadhar_no, 12)) &&
-      form.address
-    )
-  }, [form])
-
   const submit = async (event) => {
     event.preventDefault()
     setMsg('')
-    if (!isValid) return
+    const requiredFields = {
+      'Academic Year': form.academic_year,
+      'Group': form.group,
+      'Course': form.course_id,
+      'Full Name': form.full_name,
+      'Gender': form.gender,
+      'Date of Birth': form.dob,
+      'Mobile Number': form.mobile,
+      'Postal Code': form.postal_code,
+      'Address': form.address
+    }
+    if (!validateRequiredFields(requiredFields, { title: 'Incomplete application' })) return
+    if (!isDigits(form.mobile, 10)) {
+      showToast('Enter a valid 10-digit mobile number.', { type: 'warning', title: 'Invalid mobile' })
+      return
+    }
+    if (!isDigits(form.postal_code, 6)) {
+      showToast('Postal code must be 6 digits.', { type: 'warning', title: 'Invalid postal code' })
+      return
+    }
+    if (form.aadhar_no && !isDigits(form.aadhar_no, 12)) {
+      showToast('Aadhar number must contain 12 digits.', { type: 'warning', title: 'Invalid Aadhar' })
+      return
+    }
 
     setLoading(true)
     try {
@@ -331,7 +341,7 @@ export default function AdminApplications() {
 
                 <div className="d-flex justify-content-end gap-2 mt-4">
                   <button type="button" className="btn btn-outline-secondary" onClick={resetAll}>Clear</button>
-                  <button className="btn btn-brand" disabled={loading || !isValid}>{loading ? 'Submitting...' : 'Submit Application'}</button>
+                  <button className="btn btn-brand" disabled={loading}>{loading ? 'Submitting...' : 'Submit Application'}</button>
                 </div>
               </form>
 

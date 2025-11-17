@@ -2,6 +2,8 @@ import AdminShell from "../components/AdminShell";
 import { useEffect, useState } from "react";
 import { api } from "../lib/mockApi";
 import { supabase } from "../../supabaseClient";
+import { validateRequiredFields } from "../lib/validation";
+import { showToast } from "../store/ui";
 
 export default function Departments() {
   const [years, setYears] = useState([]);
@@ -65,7 +67,7 @@ export default function Departments() {
         setFeeCats(data || []);
       } catch (error) {
         console.error('Error loading fee categories:', error);
-        alert('Failed to load fee categories');
+        showToast('Failed to load fee categories.', { type: 'danger' });
       }
     };
     loadCats();
@@ -87,10 +89,13 @@ export default function Departments() {
   // ---------------- SUBJECT FEES ----------------
   const handleSubjectOK = (sub) => {
     const amt = amounts[sub.id];
-    if (!amt) return alert("Enter amount");
-
-    if (!form.year || !form.group || !form.courseCode || !form.semester)
-      return alert("Select Academic Year, Group, Course & Semester");
+    if (!validateRequiredFields({ Amount: amt }, { title: 'Enter amount' })) return;
+    if (!validateRequiredFields({
+      'Academic Year': form.year,
+      Group: form.group,
+      Course: form.courseCode,
+      Semester: form.semester
+    }, { title: 'Select academic details' })) return;
 
     const subjectName =
       sub.name ||
@@ -116,7 +121,7 @@ export default function Departments() {
 
   const submitAllSubjects = () => {
     if (subjectFees.length === 0) {
-      alert("No subject fees added!");
+      showToast('No subject fees added!', { type: 'warning', title: 'Nothing to submit' });
       return;
     }
 
@@ -127,7 +132,7 @@ export default function Departments() {
       semester: form.semester,
     });
 
-    alert("Subject Fees Submitted!");
+    showToast('Subject fees submitted!', { type: 'success' });
   };
 
   const deleteSubjectFee = (id) => {
@@ -145,10 +150,17 @@ export default function Departments() {
   };
 
   const handleCategoryOK = () => {
-    if (selectedCategories.length === 0) return alert("Select at least one fee category");
-    if (!categoryAmount) return alert("Enter amount");
-    if (!form.year || !form.group || !form.courseCode || !form.semester)
-      return alert("Select Academic Year, Group, Course & Semester");
+    if (selectedCategories.length === 0) {
+      showToast('Select at least one fee category.', { type: 'warning', title: 'No categories selected' });
+      return;
+    }
+    if (!validateRequiredFields({ Amount: categoryAmount }, { title: 'Enter amount' })) return;
+    if (!validateRequiredFields({
+      'Academic Year': form.year,
+      Group: form.group,
+      Course: form.courseCode,
+      Semester: form.semester
+    }, { title: 'Select academic details' })) return;
 
     const newRecords = selectedCategories.map((catId) => {
       const cat = feeCats.find((c) => String(c.id) === String(catId));
@@ -173,7 +185,7 @@ export default function Departments() {
 
   const submitAllCategories = () => {
     if (categoryFees.length === 0) {
-      alert("No fee category entries added!");
+      showToast('No fee category entries added!', { type: 'warning', title: 'Nothing to submit' });
       return;
     }
 
@@ -184,7 +196,7 @@ export default function Departments() {
       semester: form.semester,
     });
 
-    alert("Fee Categories Submitted!");
+    showToast('Fee categories submitted!', { type: 'success' });
   };
 
   const deleteCategoryFee = (id) => {
@@ -216,8 +228,11 @@ export default function Departments() {
   const handleSupplementarySubmit = (e) => {
     e.preventDefault();
     
-    if (!paper1 || !paper2 || !paper3Plus) {
-      alert('Please fill in all fee amounts');
+    if (!validateRequiredFields({
+      'Paper 1 Fee': paper1,
+      'Paper 2 Fee': paper2,
+      '3+ Papers Fee': paper3Plus
+    }, { title: 'Enter fee amounts' })) {
       return;
     }
 

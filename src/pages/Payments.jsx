@@ -1,6 +1,8 @@
 import AdminShell from '../components/AdminShell';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../supabaseClient';
+import { validateRequiredFields } from '../lib/validation';
+import { showToast } from '../store/ui';
 
 export default function Payments() {
   // Master data states
@@ -84,7 +86,10 @@ export default function Payments() {
   }, []);
 
   const save = async () => {
-    if (!form.student_id || !form.amount) return;
+    if (!validateRequiredFields({
+      Student: form.student_id,
+      Amount: form.amount
+    }, { title: 'Missing payment details' })) return;
     setSaving(true);
     
     try {
@@ -113,10 +118,10 @@ export default function Payments() {
       });
       
       // Show success message or update UI as needed
-      alert('Payment recorded successfully!');
+      showToast('Payment recorded successfully!', { type: 'success' });
     } catch (error) {
       console.error('Error saving payment:', error);
-      alert('Failed to record payment. Please try again.');
+      showToast('Failed to record payment. Please try again.', { type: 'danger' });
     } finally {
       setSaving(false);
     }
@@ -230,6 +235,7 @@ export default function Payments() {
             <label className="form-label fw-bold">Student</label>
             <select 
               className="form-select" 
+              required
               value={form.student_id} 
               onChange={e => setForm({...form, student_id: e.target.value})}
             >
@@ -253,10 +259,11 @@ export default function Payments() {
           </div>
           
           <div className="col-md-2">
-            <label className="form-label fw-bold">Amount (₹)</label>
+            <label className="form-label fw-bold">Amount (INR)</label>
             <input 
               type="number" 
               className="form-control" 
+              required
               placeholder="Amount" 
               value={form.amount} 
               onChange={e => setForm({...form, amount: e.target.value})} 

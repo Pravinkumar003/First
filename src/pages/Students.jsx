@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../../supabaseClient'
 import { trackPromise } from '../store/ui'
 import { toast } from 'react-toastify'
+import { validateRequiredFields } from '../lib/validation'
 
 export default function Students() {
   const [students, setStudents] = useState([])
@@ -164,6 +165,17 @@ export default function Students() {
 
   const handleUpdateStudent = async () => {
     if (!editingStudent) return
+    const essentialFields = {
+      'Student ID': editForm.student_id,
+      'Full Name': editForm.full_name,
+      'Academic Year': editForm.academic_year,
+      'Group': editForm.group_name,
+      'Course': editForm.course_name
+    }
+    const valid = validateRequiredFields(essentialFields, {
+      notify: ({ message }) => toast.warn(message)
+    })
+    if (!valid) return
     
     try {
       setLoading(true)
@@ -350,11 +362,11 @@ export default function Students() {
                     </div>
                     <div className="mb-3">
                       <label className="form-label">Date of Birth</label>
-                      <input type="date" className="form-control" name="date_of_birth" value={editForm.date_of_birth} onChange={handleEditChange} />
+                      <input type="date" className="form-control" name="date_of_birth" value={editForm.date_of_birth} onChange={handleEditChange} required />
                     </div>
                     <div className="mb-3">
                       <label className="form-label">Gender</label>
-                      <select className="form-select" name="gender" value={editForm.gender} onChange={handleEditChange}>
+                      <select className="form-select" name="gender" value={editForm.gender} onChange={handleEditChange} required>
                         <option value="">Select Gender</option>
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
@@ -366,7 +378,7 @@ export default function Students() {
                     <h6>Academic Information</h6>
                     <div className="mb-3">
                       <label className="form-label">Academic Year</label>
-                      <select className="form-select" name="academic_year" value={editForm.academic_year} onChange={handleEditChange}>
+                      <select className="form-select" name="academic_year" value={editForm.academic_year} onChange={handleEditChange} required>
                         <option value="">Select Year</option>
                         {years.map(year => (
                           <option key={year.id} value={year.academic_year}>{year.academic_year}</option>
@@ -375,7 +387,7 @@ export default function Students() {
                     </div>
                     <div className="mb-3">
                       <label className="form-label">Group</label>
-                      <select className="form-select" name="group_name" value={editForm.group_name} onChange={handleEditChange}>
+                      <select className="form-select" name="group_name" value={editForm.group_name} onChange={handleEditChange} required>
                         <option value="">Select Group</option>
                         {groups.map(group => (
                           <option key={group.group_id} value={group.group_code}>{group.group_name}</option>
@@ -384,7 +396,7 @@ export default function Students() {
                     </div>
                     <div className="mb-3">
                       <label className="form-label">Course</label>
-                      <select className="form-select" name="course_name" value={editForm.course_name} onChange={handleEditChange}>
+                      <select className="form-select" name="course_name" value={editForm.course_name} onChange={handleEditChange} required>
                         <option value="">Select Course</option>
                         {courses.map(course => (
                           <option key={course.course_id} value={course.course_code}>{course.course_name}</option>
@@ -393,7 +405,7 @@ export default function Students() {
                     </div>
                     <div className="mb-3">
                       <label className="form-label">Status</label>
-                      <select className="form-select" name="status" value={editForm.status} onChange={handleEditChange}>
+                      <select className="form-select" name="status" value={editForm.status} onChange={handleEditChange} required>
                         <option value="ACTIVE">Active</option>
                         <option value="INACTIVE">Inactive</option>
                         <option value="GRADUATED">Graduated</option>

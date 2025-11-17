@@ -98717,3 +98717,20 @@ body {
   border-color: var(--brand);
 }
 
+label.form-label:not(:has(.text-danger)):has(+ input[required])::after,
+label.form-label:not(:has(.text-danger)):has(+ input.form-control[required])::after,
+label.form-label:not(:has(.text-danger)):has(+ select[required])::after,
+label.form-label:not(:has(.text-danger)):has(+ textarea[required])::after {
+  content: ' *';
+  color: #dc3545;
+  font-weight: 600;
+  margin-left: 0.25rem;
+}
+
+.form-check-input[required] + .form-check-label:not(:has(.text-danger))::after {
+  content: ' *';
+  color: #dc3545;
+  font-weight: 600;
+  margin-left: 0.25rem;
+}
+

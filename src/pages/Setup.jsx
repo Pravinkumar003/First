@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import AdminShell from '../components/AdminShell'
 import { api } from '../lib/mockApi'
+import { validateRequiredFields } from '../lib/validation'
 import AcademicYearsSection from './AcademicYears'
 import GroupsCoursesSection from './GroupsCourses'
 import SubCategoriesSection from './SubCategories'
@@ -206,7 +207,7 @@ export default function Setup() {
     return match?.name || ''
   }
   const addYear = async () => {
-    if (!yearForm.name.trim()) return
+    if (!validateRequiredFields({ 'Academic year name': yearForm.name })) return
     try {
       if (editingYearId) {
         const updated = await api.updateAcademicYear?.(editingYearId, { name: yearForm.name, active: yearForm.active })
@@ -247,7 +248,7 @@ export default function Setup() {
   const [groupForm, setGroupForm] = useState({ id: '', code: '', name: '', years: 0, semesters: 0 })
   const [editingGroupId, setEditingGroupId] = useState('')
   const saveGroup = async () => {
-    if (!groupForm.code || !groupForm.name) return
+    if (!validateRequiredFields({ 'Group code': groupForm.code, 'Group name': groupForm.name })) return
     const code = groupForm.code.toUpperCase()
     const payload = {
       code,
@@ -266,7 +267,10 @@ export default function Setup() {
       }
       setEditingGroupId('')
     } else {
-      if (groups.some(g => g.code === code)) return
+      if (groups.some(g => g.code === code)) {
+        showToast('Group code already exists.', { type: 'danger', title: 'Duplicate code' })
+        return
+      }
       try {
         const created = await api.addGroup(payload)
         if (created) setGroups(prev => [...prev, created])
@@ -301,7 +305,12 @@ export default function Setup() {
   }, [courses])
   const saveCourse = async () => {
     const { groupCode, courseCode, courseName, semesters: semCount } = courseForm
-    if (!groupCode || !courseCode || !courseName || !semCount) return
+    if (!validateRequiredFields({
+      'Group code': groupCode,
+      'Course code': courseCode,
+      'Course name': courseName,
+      'Number of semesters': semCount
+    })) return
     const code = courseCode.toUpperCase()
     const payload = {
       code,

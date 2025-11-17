@@ -59,11 +59,11 @@ export default function GroupsCoursesSection({
             <div className="row g-2">
               <div className="col-md-4">
                 <label className="form-label fw-bold mb-1">Group Name</label>
-                <input className="form-control" placeholder="Group Name" value={groupForm.name} onChange={e => setGroupForm({ ...groupForm, name: e.target.value })} />
+                <input className="form-control" placeholder="Group Name" required value={groupForm.name} onChange={e => setGroupForm({ ...groupForm, name: e.target.value })} />
               </div>
               <div className="col-md-4">
                 <label className="form-label fw-bold mb-1">Group Code</label>
-                <input className="form-control" placeholder="Group Code" value={groupForm.code} onChange={e => setGroupForm({ ...groupForm, code: e.target.value.toUpperCase() })} />
+                <input className="form-control" placeholder="Group Code" required value={groupForm.code} onChange={e => setGroupForm({ ...groupForm, code: e.target.value.toUpperCase() })} />
               </div>
               <div className="col-md-4 col-lg-3">
                 <label className="form-label fw-bold mb-1">Duration (years)</label>
@@ -167,6 +167,7 @@ export default function GroupsCoursesSection({
                 <label className="form-label fw-bold mb-1">Select Group</label>
                 <select
                   className="form-select"
+                  required
                   value={courseForm.groupCode}
                   onChange={e => setCourseForm({ ...courseForm, groupCode: e.target.value })}
                 >
@@ -181,6 +182,7 @@ export default function GroupsCoursesSection({
                 <input
                   className="form-control"
                   placeholder="Enter Course Name"
+                  required
                   value={courseForm.courseName}
                   onChange={e => setCourseForm({ ...courseForm, courseName: e.target.value })}
                 />
@@ -190,6 +192,7 @@ export default function GroupsCoursesSection({
                 <input
                   className="form-control"
                   placeholder="Enter Course Code"
+                  required
                   value={courseForm.courseCode}
                   onChange={e => setCourseForm({ ...courseForm, courseCode: e.target.value.toUpperCase() })}
                 />
