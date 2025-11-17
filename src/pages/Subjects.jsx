@@ -196,7 +196,11 @@ export default function SubjectsSection({
             }}
           >
             <option value="">Select Course</option>
-            {coursesForGroup.map(c => <option key={c.id} value={c.courseCode}>{c.courseCode} - {c.courseName}</option>)}
+            {coursesForGroup.map(c => (
+              <option key={c.id} value={c.courseCode}>
+                {c.courseName || c.name || c.courseCode}
+              </option>
+            ))}
           </select>
         </div>
         <div className="col-12 col-sm-6 col-xl-3">
