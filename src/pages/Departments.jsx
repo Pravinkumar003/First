@@ -188,7 +188,7 @@ export default function Departments() {
       setCategoryFees(formattedData);
     } catch (error) {
       console.error('Error fetching category fees:', error);
-      alert('Error loading category fees');
+      showToast('Error loading category fees. Please try again.', { type: 'danger', title: 'Category fees' });
     }
   };
 
@@ -314,7 +314,7 @@ export default function Departments() {
         errorMessage += `: ${error.message}`;
       }
       
-      alert(errorMessage);
+      showToast(errorMessage, { type: 'danger', title: 'Category fees' });
     }
   };
 
@@ -349,7 +349,7 @@ export default function Departments() {
       await fetchCategoryFees();
     } catch (error) {
       console.error('Error deleting category fee:', error);
-      alert('Error deleting category fee');
+      showToast('Error deleting category fee. Please try again.', { type: 'danger', title: 'Category fees' });
     }
   };
 
@@ -385,7 +385,7 @@ export default function Departments() {
       setSupplementaryFees(data || []);
     } catch (error) {
       console.error('Error fetching supplementary fees:', error);
-      alert('Error loading supplementary fees');
+      showToast('Error loading supplementary fees. Please try again.', { type: 'danger', title: 'Supplementary fees' });
     }
   };
 
@@ -407,7 +407,7 @@ export default function Departments() {
     const paper3Value = parseFloat(paper3Plus);
 
     if (isNaN(paper1Value) || isNaN(paper2Value) || isNaN(paper3Value)) {
-      alert('Please enter valid numbers for all fields');
+      showToast('Please enter valid numbers for all fields.', { type: 'warning', title: 'Supplementary fees' });
       return;
     }
 
@@ -490,7 +490,7 @@ export default function Departments() {
         errorMessage += `: ${error.message}`;
       }
       
-      alert(errorMessage);
+      showToast(errorMessage, { type: 'danger', title: 'Supplementary fees' });
     }
   };
 
@@ -523,8 +523,8 @@ export default function Departments() {
         
         setSupplementaryFees(supplementaryFees.filter(fee => fee.id !== id));
       } catch (error) {
-        console.error('Error deleting supplementary fee:', error);
-        alert('Error deleting supplementary fee');
+      console.error('Error deleting supplementary fee:', error);
+      showToast('Error deleting supplementary fee. Please try again.', { type: 'danger', title: 'Supplementary fees' });
       }
     }
   };
@@ -556,7 +556,7 @@ export default function Departments() {
       if (tableExists) {
         await fetchSupplementaryFees();
       } else {
-        alert('The Supplementary table does not exist in your Supabase database. Please create it with the required columns: id, Paper-1, Paper-2, Paper-3, created_at');
+      showToast('The Supplementary table does not exist in your Supabase database. Please create it with columns id, Paper-1, Paper-2, Paper-3, created_at.', { type: 'warning', title: 'Supplementary fees' });
       }
       
       // Check and load category fees

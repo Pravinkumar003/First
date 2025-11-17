@@ -623,7 +623,7 @@ export const api = {
   listStudents: async () => {
     const rows = await runQuery(
       supabase.from(TABLES.students)
-        .select('id, student_id, hall_ticket_no, hallticket_no, academic_year, group_name, course_name, full_name, gender, date_of_birth, phone_number, email, address, father_name, mother_name, nationality, state, aadhar_number, pincode, religion, caste, sub_caste, photo_url, cert_url, status, created_at')
+        .select('id, student_id, hall_ticket_no, academic_year, group_name, course_name, full_name, gender, date_of_birth, phone_number, email, address, father_name, mother_name, nationality, state, aadhar_number, pincode, religion, caste, sub_caste, photo_url, cert_url, status, created_at')
         .order('created_at', { ascending: false }),
       'Unable to fetch students'
     )
