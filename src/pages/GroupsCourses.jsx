@@ -58,12 +58,12 @@ export default function GroupsCoursesSection({
           <div className="col-12">
             <div className="row g-2">
               <div className="col-md-4">
-                <label className="form-label fw-bold mb-1">Group Name</label>
-                <input className="form-control" placeholder="Group Name" required value={groupForm.name} onChange={e => setGroupForm({ ...groupForm, name: e.target.value })} />
-              </div>
-              <div className="col-md-4">
                 <label className="form-label fw-bold mb-1">Group Code</label>
                 <input className="form-control" placeholder="Group Code" required value={groupForm.code} onChange={e => setGroupForm({ ...groupForm, code: e.target.value.toUpperCase() })} />
+              </div>
+              <div className="col-md-4">
+                <label className="form-label fw-bold mb-1">Group Name</label>
+                <input className="form-control" placeholder="Group Name" required value={groupForm.name} onChange={e => setGroupForm({ ...groupForm, name: e.target.value })} />
               </div>
               <div className="col-md-4 col-lg-3">
                 <label className="form-label fw-bold mb-1">Duration (years)</label>
@@ -178,16 +178,6 @@ export default function GroupsCoursesSection({
                 </select>
               </div>
               <div className="col-md-4">
-                <label className="form-label fw-bold mb-1">Course Name</label>
-                <input
-                  className="form-control"
-                  placeholder="Enter Course Name"
-                  required
-                  value={courseForm.courseName}
-                  onChange={e => setCourseForm({ ...courseForm, courseName: e.target.value })}
-                />
-              </div>
-              <div className="col-md-4">
                 <label className="form-label fw-bold mb-1">Course Code</label>
                 <input
                   className="form-control"
@@ -195,6 +185,16 @@ export default function GroupsCoursesSection({
                   required
                   value={courseForm.courseCode}
                   onChange={e => setCourseForm({ ...courseForm, courseCode: e.target.value.toUpperCase() })}
+                />
+              </div>
+              <div className="col-md-4">
+                <label className="form-label fw-bold mb-1">Course Name</label>
+                <input
+                  className="form-control"
+                  placeholder="Enter Course Name"
+                  required
+                  value={courseForm.courseName}
+                  onChange={e => setCourseForm({ ...courseForm, courseName: e.target.value })}
                 />
               </div>
             </div>
