@@ -1,5 +1,5 @@
 import AdminShell from '../components/AdminShell';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../supabaseClient';
 import { validateRequiredFields } from '../lib/validation';
 import { showToast } from '../store/ui';
@@ -10,6 +10,7 @@ export default function Payments() {
   const [groups, setGroups] = useState([]);
   const [courses, setCourses] = useState([]);
   const [students, setStudents] = useState([]);
+  const [feeDefinitions, setFeeDefinitions] = useState([]);
   
   // Form state
   const [form, setForm] = useState({
@@ -25,100 +26,89 @@ export default function Payments() {
   
   const [saving, setSaving] = useState(false);
 
-  // Load master data from Supabase
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        // Fetch academic years
-        const { data: yearsData, error: yearsError } = await supabase
-          .from('academic_year')
-          .select('*')
-          .order('academic_year', { ascending: false });
-
-        // Fetch groups
-        const { data: groupsData, error: groupsError } = await supabase
-          .from('groups')
-          .select('*')
-          .order('code');
-
-        // Fetch courses with group data
-        const { data: coursesData, error: coursesError } = await supabase
-          .from('courses')
-          .select('*')
-          .order('name');
-
-        // Fetch students with related data
-        const { data: studentsData, error: studentsError } = await supabase
-          .from('students')
-          .select(`
-            *,
-            course:course_code (code, name),
-            group:group_code (code)
-          `);
-
-        if (yearsError) throw yearsError;
-        if (groupsError) throw groupsError;
-        if (coursesError) throw coursesError;
-        if (studentsError) throw studentsError;
-
-        // Transform data to match expected format
-        const formattedStudents = (studentsData || []).map(student => ({
-          ...student,
-          course_code: student.course?.code || student.course_code || '',
-          group: student.group?.code || student.group || '',
-          academic_year: student.academic_year || '',
-          semester: student.semester || ''
-        }));
-
-        const activeYears = (yearsData || []).filter((year) =>
-          year.status === undefined ? true : Boolean(year.status)
-        );
-        setYears(activeYears);
-        setGroups(groupsData || []);
-        setCourses(coursesData || []);
-        setStudents(formattedStudents);
-      } catch (error) {
-        console.error('Error loading data from Supabase:', error);
-      }
-    };
-
-    loadData();
+  const loadData = useCallback(async () => {
+    try {
+      const [{ data: yearsData }, { data: groupsData }, { data: coursesData }, { data: studentsData }, { data: feesData }] =
+        await Promise.all([
+          supabase.from('academic_year').select('id, academic_year, status').order('academic_year', { ascending: false }),
+          supabase.from('groups').select('group_id, group_name, group_code').order('group_code'),
+          supabase.from('courses').select('course_id, course_code, course_name, group_name').order('course_code'),
+          supabase.from('students').select('student_id, academic_year, group_name, course_name, semester, full_name'),
+          supabase.from('fee_structure').select('fee_id, academic_year, group_name, course_name, semester_number')
+        ]);
+      const normalizedYears = (yearsData || []).filter(year => year?.status !== 0);
+      const normalizedGroups = (groupsData || []).map(group => ({
+        id: group.group_id ?? group.id,
+        code: group.group_code,
+        name: group.group_name
+      }));
+      const normalizedCourses = (coursesData || []).map(course => ({
+        id: course.course_id ?? course.id,
+        code: course.course_code || course.code,
+        name: course.course_name || course.name,
+        group_code: course.group_name || course.group_code || course.group_name,
+        courseCode: course.course_code || course.code,
+        courseName: course.course_name || course.name
+      }));
+      const normalizedStudents = (studentsData || []).map(student => ({
+        ...student,
+        academic_year: student.academic_year || '',
+        group: student.group_name || '',
+        course_code: student.course_name || '',
+        semester: student.semester === undefined || student.semester === null ? '' : student.semester
+      }));
+      setYears(normalizedYears);
+      setGroups(normalizedGroups);
+      setCourses(normalizedCourses);
+      setFeeDefinitions(feesData || []);
+      setStudents(normalizedStudents);
+    } catch (error) {
+      console.error('Error loading payment masters:', error);
+    }
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const save = async () => {
     if (!validateRequiredFields({
       Student: form.student_id,
       Amount: form.amount
     }, { title: 'Missing payment details' })) return;
+    const semesterNumber = form.semester ? Number(form.semester) : null;
+    const selectedCourse = courses.find(c => (c.course_code || c.code) === form.courseCode);
+    const courseName = selectedCourse?.course_name || selectedCourse?.courseName || '';
+    const matchingFee = feeDefinitions.find(f =>
+      f.academic_year === form.year &&
+      f.group_name === form.group &&
+      f.course_name === courseName &&
+      Number(f.semester_number ?? f.semester) === semesterNumber
+    );
+    if (!matchingFee) {
+      showToast('Define a fee structure first for this year/group/course/semester.', { type: 'warning', title: 'Missing fee definition' });
+      return;
+    }
     setSaving(true);
-    
     try {
-      const { data, error } = await supabase
-        .from('payments')
-        .insert([
-          {
-            student_id: form.student_id,
-            amount: Number(form.amount),
-            payment_method: form.method,
-            reference: form.reference || null,
-            academic_year: form.year,
-            semester: form.semester,
-            payment_date: new Date().toISOString()
-          }
-        ]);
-
+      const amountValue = Number(form.amount)
+      const { error } = await supabase.from('student_payments').insert([{
+        student_id: form.student_id,
+        fee_id: matchingFee.id,
+        amount_paid: amountValue,
+        payment_date: new Date().toISOString(),
+        payment_mode: form.method,
+        remarks: form.reference || null
+      }]);
       if (error) throw error;
-
-      // Reset form
       setForm({
         ...form,
         amount: '',
         reference: '',
         student_id: ''
       });
-      
-      // Show success message or update UI as needed
       showToast('Payment recorded successfully!', { type: 'success' });
+      await loadData();
     } catch (error) {
       console.error('Error saving payment:', error);
       showToast('Failed to record payment. Please try again.', { type: 'danger' });
@@ -150,8 +140,8 @@ export default function Payments() {
             >
               <option value="">Select Year</option>
               {years.map((y) => (
-                <option key={y.id} value={y.academic_year}>
-                  {y.academic_year}
+              <option key={y.id} value={y.academic_year || y.name}>
+                {y.academic_year || y.name}
                 </option>
               ))}
             </select>
@@ -175,8 +165,8 @@ export default function Payments() {
             >
               <option value="">Select Group</option>
               {groups.map((g) => (
-                <option key={g.id} value={g.code}>
-                  {g.code}
+                <option key={g.id} value={g.code || g.group_code}>
+                  {g.name || g.groupName || g.code || g.group_code}
                 </option>
               ))}
             </select>
@@ -198,13 +188,13 @@ export default function Payments() {
               disabled={!form.group}
             >
               <option value="">Select Course</option>
-              {courses
-                .filter((c) => !form.group || c.group_code === form.group)
-                .map((c) => (
-                  <option key={c.id} value={c.code}>
-                    {c.code} - {c.name}
-                  </option>
-                ))}
+                {courses
+                  .filter((c) => !form.group || c.group_code === form.group || c.groupCode === form.group)
+                  .map((c) => (
+                    <option key={c.id} value={c.code || c.courseCode}>
+                      {c.courseName || c.name}
+                    </option>
+                  ))}
             </select>
           </div>
 
@@ -252,7 +242,7 @@ export default function Payments() {
                 })
                 .map(s => (
                   <option key={s.student_id} value={s.student_id}>
-                    {s.student_id} — {s.full_name}
+                    {s.student_id} - {s.full_name}
                   </option>
                 ))}
             </select>

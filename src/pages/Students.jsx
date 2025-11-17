@@ -22,7 +22,9 @@ export default function Students() {
     hall_ticket_no: '',
     academic_year: '',
     group_name: '',
+    group_code: '',
     course_name: '',
+    course_code: '',
     full_name: '',
     gender: '',
     date_of_birth: '',
@@ -132,8 +134,10 @@ export default function Students() {
       student_id: student.student_id || '',
       hall_ticket_no: student.hall_ticket_no || '',
       academic_year: student.academic_year || '',
-      group_name: student.group_name || '',
-      course_name: student.course_name || '',
+      group_name: (student.group?.group_name || student.group_name || student.group || ''),
+      group_code: (student.group?.group_code || student.group_code || ''),
+      course_name: (student.course?.course_name || student.course_name || student.course || ''),
+      course_code: (student.course?.course_code || student.course_code || ''),
       full_name: student.full_name || '',
       gender: student.gender || '',
       date_of_birth: student.date_of_birth || '',
@@ -157,10 +161,28 @@ export default function Students() {
 
   const handleEditChange = (e) => {
     const { name, value } = e.target
-    setEditForm(prev => ({
-      ...prev,
-      [name]: value
-    }))
+    setEditForm(prev => {
+      if (name === 'group_code') {
+        const match = groups.find(g => g.group_code === value)
+        return {
+          ...prev,
+          group_code: value,
+          group_name: match?.group_name || ''
+        }
+      }
+      if (name === 'course_code') {
+        const match = courses.find(c => c.course_code === value)
+        return {
+          ...prev,
+          course_code: value,
+          course_name: match?.course_name || ''
+        }
+      }
+      return {
+        ...prev,
+        [name]: value
+      }
+    })
   }
 
   const handleUpdateStudent = async () => {
@@ -304,8 +326,8 @@ export default function Students() {
                   <tr key={student.id}>
                     <td>{student.student_id}</td>
                     <td>{student.full_name}</td>
-                    <td>{student.course?.course_name || student.course_name} ({student.course_code})</td>
-                    <td>{student.group?.group_name || student.group_name} ({student.group_code})</td>
+                    <td>{student.course?.course_name || student.course_name}</td>
+                    <td>{student.group?.group_name || student.group_name}</td>
                     <td>{student.academic_year}</td>
                     <td>
                       <button 
@@ -340,8 +362,8 @@ export default function Students() {
         <div className="modal d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content">
-              <div className="modal-header bg-light">
-                <h5 className="modal-title">Edit Student: {editingStudent.student_id}</h5>
+        <div className="modal-header bg-light">
+          <h5 className="modal-title">Edit Student: {editingStudent.student_id} · {editingStudent.full_name}</h5>
                 <button type="button" className="btn-close" onClick={handleCancelEdit}></button>
               </div>
               <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
@@ -387,7 +409,7 @@ export default function Students() {
                     </div>
                     <div className="mb-3">
                       <label className="form-label">Group</label>
-                      <select className="form-select" name="group_name" value={editForm.group_name} onChange={handleEditChange} required>
+                      <select className="form-select" name="group_code" value={editForm.group_code} onChange={handleEditChange} required>
                         <option value="">Select Group</option>
                         {groups.map(group => (
                           <option key={group.group_id} value={group.group_code}>{group.group_name}</option>
@@ -396,7 +418,7 @@ export default function Students() {
                     </div>
                     <div className="mb-3">
                       <label className="form-label">Course</label>
-                      <select className="form-select" name="course_name" value={editForm.course_name} onChange={handleEditChange} required>
+                      <select className="form-select" name="course_code" value={editForm.course_code} onChange={handleEditChange} required>
                         <option value="">Select Course</option>
                         {courses.map(course => (
                           <option key={course.course_id} value={course.course_code}>{course.course_name}</option>

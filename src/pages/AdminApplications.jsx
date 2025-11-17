@@ -17,6 +17,7 @@ export default function AdminApplications() {
     ht_no: '',
     academic_year: '',
     group: '',
+    group_code: '',
     course_id: '',
     full_name: '',
     gender: '',
@@ -35,7 +36,7 @@ export default function AdminApplications() {
     sub_caste: ''
   }
 
-  const [form, setForm] = useState(initialForm)
+  const [form, setForm] = useState({ ...initialForm, course_name: '' })
   const [photo, setPhoto] = useState(null)
   const [cert, setCert] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -111,19 +112,19 @@ export default function AdminApplications() {
 
     setLoading(true)
     try {
-      const selectedCourse = courses.find((course) => course.id == form.course_id)
+      const selectedCourse = courses.find((course) => String(course.id || course.course_id) === String(form.course_id))
       if (!selectedCourse) throw new Error('Select a valid course')
 
       const courseCode = selectedCourse.courseCode || selectedCourse.code
       if (!courseCode) throw new Error('Selected course is missing a course code reference')
+      const courseLabel = form.course_name || selectedCourse.courseName || selectedCourse.course_name || ''
 
       const payload = {
         student_id: form.student_id || `STU${Date.now().toString().slice(-6)}`,
         hall_ticket_no: form.ht_no || null,
         academic_year: form.academic_year,
-        group_name: form.group,
-        course_name: courseCode,
-        Student_name: form.full_name,
+          group_name: form.group_code || form.group,
+          course_name: courseCode,
         full_name: form.full_name,
         gender: form.gender,
         date_of_birth: form.dob,
@@ -204,22 +205,48 @@ export default function AdminApplications() {
                     </div>
                     <div className="col-md-4">
                       <label className="form-label">Group</label>
-                      <select className="form-select" value={form.group} onChange={(e) => handle('group', e.target.value)} required>
+                      <select
+                        className="form-select"
+                        value={form.group_code || form.group}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          const selected = groups.find(group => group.code === value || group.group_code === value)
+                          handle('group', selected?.name || selected?.group_name || selected?.code || value)
+                          setForm(prev => ({ ...prev, group_code: value }))
+                        }}
+                        required
+                      >
                         <option value="">Select</option>
                         {groups.map((group) => (
-                          <option key={group.group_id} value={group.group_code}>{group.group_name}</option>
+                          <option key={group.id || group.group_id} value={group.code || group.group_code}>
+                            {group.name || group.group_name || 'Group'}
+                          </option>
                         ))}
                       </select>
                     </div>
                     <div className="col-md-4">
                       <label className="form-label">Course</label>
-                      <select className="form-select" value={form.course_id} onChange={(e) => handle('course_id', e.target.value)} required>
+                      <select
+                        className="form-select"
+                        value={form.course_id}
+                        onChange={(e) => {
+                          const selected = courses.find(course => String(course.id || course.course_id) === String(e.target.value))
+                          setForm(prev => ({
+                            ...prev,
+                            course_id: e.target.value,
+                            course_name: selected?.courseName || selected?.course_name || selected?.name || ''
+                          }))
+                        }}
+                        required
+                      >
                         <option value="">Select</option>
-                        {courses.map((course) => (
-                          <option key={course.id || course.course_id} value={course.id || course.course_id}>
-                            {course.courseName || course.course_name}
-                          </option>
-                        ))}
+                        {courses
+                          .filter(course => !form.group_code || String(course.group_code) === String(form.group_code))
+                          .map((course) => (
+                            <option key={course.id || course.course_id} value={course.id || course.course_id}>
+                              {course.name || course.courseName || course.course_name}
+                            </option>
+                          ))}
                       </select>
                     </div>
                   </div>
