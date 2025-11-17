@@ -118,6 +118,26 @@ const normalizeSubjectRecord = (subject = {}, context = {}) => {
     feeAmount: feeAmountValue === undefined || feeAmountValue === null || feeAmountValue === '' ? '' : Number(feeAmountValue)
   }
 }
+const buildSubjectBatchKey = (subject = {}) => {
+  if (!subject) return ''
+  if (subject.batchId) return subject.batchId
+  const parts = [
+    subject.academicYearId || subject.academicYearName || '',
+    subject.groupCode || '',
+    subject.courseCode || '',
+    subject.semester === undefined || subject.semester === null ? '' : subject.semester,
+    subject.categoryId || subject.category || ''
+  ]
+  const derived = parts.map(part => part === undefined || part === null ? '' : String(part)).join('__')
+  return derived || subject.subjectId || subject.id || ''
+}
+const ensureSubjectBatchKey = (subject = {}) => {
+  if (!subject) return subject
+  if (subject.batchId) return subject
+  const batchKey = buildSubjectBatchKey(subject)
+  return batchKey ? { ...subject, batchId: batchKey } : subject
+}
+
 const TAB_CONFIG = [
   { key: 'years', label: 'Academic Years', tagline: 'Define academic timelines and activation status.' },
   { key: 'groups', label: 'Groups & Courses', tagline: 'Manage programme structures and duration.' },
@@ -382,7 +402,7 @@ export default function Setup() {
           yearNameToId: buildYearNameLookup(yrs)
         }
         if (subs?.length) {
-          setSubjects(subs.map(rec => normalizeSubjectRecord(rec, initialSubjectContext)))
+          setSubjects(subs.map(rec => ensureSubjectBatchKey(normalizeSubjectRecord(rec, initialSubjectContext))))
         } else {
           setSubjects([])
         }
@@ -692,8 +712,8 @@ export default function Setup() {
         .map((rec, idx) => {
           const result = normalizeSubjectRecord(rec, subjectContext)
           const source = pendingSnapshot[idx]
-          if (source?.batchId) result.batchId = source.batchId
-          return result
+          const merged = source?.batchId ? { ...result, batchId: source.batchId } : result
+          return ensureSubjectBatchKey(merged)
         })
       setSubjects(prev => {
         const incomingIds = new Set(normalized.map(item => item.id))
@@ -706,8 +726,8 @@ export default function Setup() {
     }
   }
   const editPendingSubject = (rec) => {
-    const batchRef = rec.batchId || rec.id
-    setPendingSubjects(prev => prev.filter(s => (s.batchId || s.id) !== batchRef))
+    const batchRef = buildSubjectBatchKey(rec)
+    setPendingSubjects(prev => prev.filter(s => buildSubjectBatchKey(s) !== batchRef))
     const options = catItems[rec.category] || []
     const names = rec.subjectNames?.length ? rec.subjectNames : [rec.subjectName].filter(Boolean)
     const allPreset = names.length > 0 && names.every(name => options.some(item => item.name === name))
@@ -724,12 +744,13 @@ export default function Setup() {
     setEditingBatchId(batchRef || '')
   }
   const editSubject = async (rec) => {
-    setSubjects(prev => prev.filter(s => (s.batchId || s.id) !== (rec.batchId || rec.id)))
+    const batchRef = buildSubjectBatchKey(rec)
+    setSubjects(prev => prev.filter(s => buildSubjectBatchKey(s) !== batchRef))
     editPendingSubject(rec)
   }
   const deletePendingSubject = (item) => {
-    const batchRef = item.batchId || item.id
-    setPendingSubjects(prev => prev.filter(s => (s.batchId || s.id) !== batchRef))
+    const batchRef = buildSubjectBatchKey(item)
+    setPendingSubjects(prev => prev.filter(s => buildSubjectBatchKey(s) !== batchRef))
     if (editingSubjectId === (item.subjectId || item.id)) {
       setSubjectForm(buildSubjectForm(categories[0] || ''))
       setEditingSubjectId('')
@@ -740,9 +761,9 @@ export default function Setup() {
     }
   }
   const deleteSubject = async (group) => {
-    const batchRef = group.batchId || group.id
+    const batchRef = buildSubjectBatchKey(group)
     const ids = (group.subjectIds?.length ? group.subjectIds : [group.subjectId || group.id]).filter(Boolean)
-    setSubjects(prev => prev.filter(s => (s.batchId || s.id) !== batchRef))
+    setSubjects(prev => prev.filter(s => buildSubjectBatchKey(s) !== batchRef))
     try {
       await Promise.all(ids.map(id => api.deleteSubject?.(id)))
       showToast('Subject entries deleted.', { type: 'info' })

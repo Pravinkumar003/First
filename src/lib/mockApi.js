@@ -548,6 +548,11 @@ export const api = {
   },
 
   deleteSubCategory: async (id) => {
+    if (!id) return
+    await runQuery(
+      supabase.from(TABLES.subjects).delete().eq('category_id', id),
+      'Unable to delete linked subjects for sub-category'
+    )
     await runQuery(
       supabase.from(TABLES.subCategories).delete().eq('category_id', id),
       'Unable to delete sub-category'

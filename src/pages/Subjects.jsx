@@ -1,3 +1,17 @@
+const resolveSubjectBatchKey = (subject = {}) => {
+  if (!subject) return ''
+  if (subject.batchId) return subject.batchId
+  const parts = [
+    subject.academicYearId || subject.academicYearName || '',
+    subject.groupCode || '',
+    subject.courseCode || '',
+    subject.semester === undefined || subject.semester === null ? '' : subject.semester,
+    subject.categoryId || subject.category || ''
+  ]
+  const derived = parts.map(part => part === undefined || part === null ? '' : String(part)).join('__')
+  return derived || subject.subjectId || subject.id || ''
+}
+
 export default function SubjectsSection({
   subjectForm,
   setSubjectForm,
@@ -44,7 +58,7 @@ export default function SubjectsSection({
     const order = []
     const map = new Map()
     pendingSubjects.forEach(item => {
-      const key = item.batchId || item.id
+      const key = resolveSubjectBatchKey(item) || item.id
       if (!map.has(key)) {
         const initialNames = []
         if (item.subjectName) initialNames.push(item.subjectName)
@@ -62,7 +76,7 @@ export default function SubjectsSection({
     const order = []
     const map = new Map()
     subjects.forEach(item => {
-      const key = item.batchId || item.id
+      const key = resolveSubjectBatchKey(item) || item.id
       if (!map.has(key)) {
         const initialNames = []
         if (item.subjectName) initialNames.push(item.subjectName)
@@ -243,20 +257,23 @@ export default function SubjectsSection({
             <table className="table mb-0">
               <thead><tr><th>Year</th><th>Group</th><th>Course</th><th>Sem</th><th>Category</th><th>Subject</th><th>Actions</th></tr></thead>
               <tbody>
-                {groupedPending.map(item => (
-                  <tr key={item.batchId || item.id}>
-                    <td>{getDisplayYear(item)}</td>
-                    <td>{item.groupCode}</td>
-                    <td>{item.courseCode}</td>
-                    <td>{getSemesterLabel(item)}</td>
-                    <td>{item.category}</td>
-                    <td>{item.subjectNames?.length ? item.subjectNames.join(', ') : item.subjectName}</td>
-                    <td>
-                      <button type="button" className="btn btn-sm btn-outline-primary me-2" onClick={() => editPendingSubject(item)}>Edit</button>
-                      <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => deletePendingSubject(item)}>Remove</button>
-                    </td>
-                  </tr>
-                ))}
+                {groupedPending.map(item => {
+                  const rowKey = resolveSubjectBatchKey(item) || item.id
+                  return (
+                    <tr key={rowKey}>
+                      <td>{getDisplayYear(item)}</td>
+                      <td>{item.groupCode}</td>
+                      <td>{item.courseCode}</td>
+                      <td>{getSemesterLabel(item)}</td>
+                      <td>{item.category}</td>
+                      <td>{item.subjectNames?.length ? item.subjectNames.join(', ') : item.subjectName}</td>
+                      <td>
+                        <button type="button" className="btn btn-sm btn-outline-primary me-2" onClick={() => editPendingSubject(item)}>Edit</button>
+                        <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => deletePendingSubject(item)}>Remove</button>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -267,20 +284,23 @@ export default function SubjectsSection({
           <table className="table mb-0">
             <thead><tr><th>Year</th><th>Group</th><th>Course</th><th>Sem</th><th>Category</th><th>Subject Name</th><th>Actions</th></tr></thead>
             <tbody>
-             {groupedSubjects.map(group => (
-                <tr key={group.batchId || group.id}>
-                  <td>{getDisplayYear(group)}</td>
-                  <td>{group.groupCode}</td>
-                  <td>{group.courseCode}</td>
-                  <td>{getSemesterLabel(group)}</td>
-                  <td>{group.category}</td>
-                  <td>{group.subjectNames?.length ? group.subjectNames.join(', ') : group.subjectName}</td>
-                  <td>
-                    <button className="btn btn-sm btn-outline-primary me-2" onClick={() => editSubject(group)}>Edit</button>
-                    <button className="btn btn-sm btn-outline-danger" onClick={() => deleteSubject(group)}>Delete</button>
-                  </td>
-                </tr>
-              ))}
+             {groupedSubjects.map(group => {
+                const rowKey = resolveSubjectBatchKey(group) || group.id
+                return (
+                  <tr key={rowKey}>
+                    <td>{getDisplayYear(group)}</td>
+                    <td>{group.groupCode}</td>
+                    <td>{group.courseCode}</td>
+                    <td>{getSemesterLabel(group)}</td>
+                    <td>{group.category}</td>
+                    <td>{group.subjectNames?.length ? group.subjectNames.join(', ') : group.subjectName}</td>
+                    <td>
+                      <button className="btn btn-sm btn-outline-primary me-2" onClick={() => editSubject(group)}>Edit</button>
+                      <button className="btn btn-sm btn-outline-danger" onClick={() => deleteSubject(group)}>Delete</button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
