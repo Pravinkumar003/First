@@ -25,6 +25,14 @@ export default function SubjectsSection({
   }, {})
   const selectedYearName = yearNameById[subjectForm.academicYearId] || ''
   const getDisplayYear = (subject) => subject.academicYearName || yearNameById[subject.academicYearId] || subject.academicYearId || '-'
+  const yearOptions = (() => {
+    const activeList = academicYears.filter(year => year?.active !== false)
+    if (!subjectForm.academicYearId) return activeList
+    const hasSelected = activeList.some(year => String(year.id) === String(subjectForm.academicYearId))
+    if (hasSelected) return activeList
+    const selectedYear = academicYears.find(year => String(year.id) === String(subjectForm.academicYearId))
+    return selectedYear ? [...activeList, selectedYear] : activeList
+  })()
   const getSemesterLabel = (subject) => {
     const raw = subject?.semester ?? subject?.semester_number ?? subject?.semesterNumber ?? ''
     if (raw === undefined || raw === null || raw === '') return '-'
@@ -135,7 +143,9 @@ export default function SubjectsSection({
             }}
           >
             <option value="">Select Year</option>
-            {academicYears.map(y => <option key={y.id} value={y.id}>{y.name}</option>)}
+            {yearOptions.map(y => (
+              <option key={y.id} value={y.id}>{y.name}</option>
+            ))}
           </select>
         </div>
         <div className="col-12 col-sm-6 col-xl-3">

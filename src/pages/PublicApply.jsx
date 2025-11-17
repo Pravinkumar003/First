@@ -31,7 +31,7 @@ export default function PublicApply() {
         api.listGroups?.() || [],
         api.listAcademicYears?.() || []
       ])
-      setCourses(cs||[]); setGroups(gs||[]); setYears(ys||[])
+      setCourses(cs||[]); setGroups(gs||[]); setYears((ys||[]).filter(year => year?.active !== false))
     } catch { setCourses([]); setGroups([]); setYears([]) }
   })() }, [])
 
@@ -87,7 +87,16 @@ export default function PublicApply() {
                 <div className="col-md-3"><label className="form-label">Student ID</label><input className="form-control" value={form.student_id} onChange={e=>handle('student_id',e.target.value)} placeholder="Auto/Optional" /></div>
                 <div className="col-md-3"><label className="form-label">Admission No</label><input className="form-control" value={form.admission_no} onChange={e=>handle('admission_no',e.target.value)} required /></div>
                 <div className="col-md-3"><label className="form-label">HT No</label><input className="form-control" value={form.ht_no} onChange={e=>handle('ht_no',e.target.value)} /></div>
-                <div className="col-md-3"><label className="form-label">Academic Year</label><select className="form-select" value={form.academic_year} onChange={e=>handle('academic_year',e.target.value)} required><option value="">Select</option>{years.map(y=> (<option key={y.id} value={y.name}>{y.name}{y.active? ' (Active)':''}</option>))}</select></div>
+                <div className="col-md-3">
+                  <label className="form-label">Academic Year</label>
+                  <select className="form-select" value={form.academic_year} onChange={e=>handle('academic_year',e.target.value)} required>
+                    <option value="">Select</option>
+                    {years.map(y=> {
+                      const label = y.name || y.academic_year
+                      return (<option key={y.id} value={label}>{label}</option>)
+                    })}
+                  </select>
+                </div>
 
                 <div className="col-12"><h6 className="fw-bold mb-1">Group & Course</h6><hr className="hr-soft" /></div>
                 <div className="col-md-4"><label className="form-label">Group Code</label><select className="form-select" value={form.group} onChange={e=>handle('group',e.target.value)} required><option value="">Select Group</option>{groups.map(g=> (<option key={g.id} value={g.code}>{g.code} — {g.name}</option>))}</select></div>

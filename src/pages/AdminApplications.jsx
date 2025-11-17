@@ -54,7 +54,7 @@ export default function AdminApplications() {
         ])
         setCourses(cs || [])
         setGroups(gs || [])
-        setYears(ys || [])
+        setYears((ys || []).filter(year => year?.active !== false))
       } catch (error) {
         console.error('Failed to load masters', error)
         setCourses([])
@@ -186,7 +186,9 @@ export default function AdminApplications() {
                       <select className="form-select" value={form.academic_year} onChange={(e) => handle('academic_year', e.target.value)} required>
                         <option value="">Select</option>
                         {years.map((year) => (
-                          <option key={year.id} value={year.academic_year}>{year.academic_year}</option>
+                          <option key={year.id} value={year.academic_year || year.name}>
+                            {year.academic_year || year.name}
+                          </option>
                         ))}
                       </select>
                     </div>

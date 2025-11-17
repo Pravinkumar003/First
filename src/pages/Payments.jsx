@@ -68,7 +68,10 @@ export default function Payments() {
           semester: student.semester || ''
         }));
 
-        setYears(yearsData || []);
+        const activeYears = (yearsData || []).filter((year) =>
+          year.status === undefined ? true : Boolean(year.status)
+        );
+        setYears(activeYears);
         setGroups(groupsData || []);
         setCourses(coursesData || []);
         setStudents(formattedStudents);

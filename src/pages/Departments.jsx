@@ -45,7 +45,7 @@ export default function Departments() {
         api.listGroups(),
         api.listCourses(),
       ]);
-      setYears(ys || []);
+      setYears((ys || []).filter((y) => y?.active !== false));
       setGroups(gs || []);
       setCourses(cs || []);
     };
@@ -268,11 +268,14 @@ export default function Departments() {
               onChange={(e) => setForm({ ...form, year: e.target.value })}
             >
               <option value="">Academic Year</option>
-              {years.map((y) => (
-                <option key={y.id} value={y.name}>
-                  {y.name}
-                </option>
-              ))}
+              {years.map((y) => {
+                const label = y.name || y.academic_year;
+                return (
+                  <option key={y.id} value={label}>
+                    {label}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -478,11 +481,14 @@ export default function Departments() {
                                   onChange={(e) => setForm({...form, year: e.target.value})}
                                 >
                                   <option value="">Select Year</option>
-                                  {years.map((y) => (
-                                    <option key={y.id} value={y.name}>
-                                      {y.name}
-                                    </option>
-                                  ))}
+                                  {years.map((y) => {
+                                    const label = y.name || y.academic_year;
+                                    return (
+                                      <option key={y.id} value={label}>
+                                        {label}
+                                      </option>
+                                    );
+                                  })}
                                 </select>
                               </div>
                               <div className="col-md-3">

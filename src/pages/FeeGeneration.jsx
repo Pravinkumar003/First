@@ -13,7 +13,7 @@ export default function FeeGeneration(){
     const [ys,gs,cs,fs]=await Promise.all([
       api.listAcademicYears?.()||[], api.listGroups?.()||[], api.listCourses()||[], api.listFees()||[]
     ])
-    setYears(ys); setGroups(gs); setCourses(cs); setFees(fs)
+    setYears((ys||[]).filter(y=>y?.active !== false)); setGroups(gs); setCourses(cs); setFees(fs)
   }
   useEffect(()=>{ load() },[])
 
@@ -45,7 +45,10 @@ export default function FeeGeneration(){
           <div className="col-md-3">
             <select className="form-select" value={form.year} onChange={e=>setForm({...form,year:e.target.value})}>
               <option value="">Academic Year</option>
-              {years.map(y=> (<option key={y.id} value={y.name}>{y.name}</option>))}
+              {years.map(y=> {
+                const label = y.name || y.academic_year
+                return (<option key={y.id} value={label}>{label}</option>)
+              })}
             </select>
           </div>
           <div className="col-md-2">
@@ -95,4 +98,3 @@ export default function FeeGeneration(){
     </AdminShell>
   )
 }
-
