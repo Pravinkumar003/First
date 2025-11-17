@@ -1,6 +1,7 @@
 import AdminShell from '../components/AdminShell';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../supabaseClient';
+import { api } from '../lib/mockApi';
 import { validateRequiredFields } from '../lib/validation';
 import { showToast } from '../store/ui';
 
@@ -16,6 +17,7 @@ export default function Payments() {
   const [form, setForm] = useState({
     year: '',
     group: '',
+    group_code: '',
     courseCode: '',
     semester: '',
     student_id: '',
@@ -28,15 +30,14 @@ export default function Payments() {
 
   const loadData = useCallback(async () => {
     try {
-      const [{ data: yearsData }, { data: groupsData }, { data: coursesData }, { data: studentsData }, { data: feesData }] =
-        await Promise.all([
-          supabase.from('academic_year').select('id, academic_year, status').order('academic_year', { ascending: false }),
-          supabase.from('groups').select('group_id, group_name, group_code').order('group_code'),
-          supabase.from('courses').select('course_id, course_code, course_name, group_name').order('course_code'),
-          supabase.from('students').select('student_id, academic_year, group_name, course_name, semester, full_name'),
-          supabase.from('fee_structure').select('fee_id, academic_year, group_name, course_name, semester_number')
-        ]);
-      const normalizedYears = (yearsData || []).filter(year => year?.status !== 0);
+      const [yearsData, groupsData, coursesData, studentsData, feesData] = await Promise.all([
+        api.listAcademicYears?.(),
+        api.listGroups?.(),
+        api.listCourses?.(),
+        api.listStudents?.(),
+        api.listFees?.()
+      ]);
+      const normalizedYears = (yearsData || []).filter(year => year?.active !== false);
       const normalizedGroups = (groupsData || []).map(group => ({
         id: group.group_id ?? group.id,
         code: group.group_code,
@@ -54,6 +55,7 @@ export default function Payments() {
         ...student,
         academic_year: student.academic_year || '',
         group: student.group_name || '',
+        group_code: student.group_code || student.group_name || '',
         course_code: student.course_name || '',
         semester: student.semester === undefined || student.semester === null ? '' : student.semester
       }));
@@ -81,7 +83,7 @@ export default function Payments() {
     const courseName = selectedCourse?.course_name || selectedCourse?.courseName || '';
     const matchingFee = feeDefinitions.find(f =>
       f.academic_year === form.year &&
-      f.group_name === form.group &&
+      f.group_name === form.group && f.group_name === (form.group || form.group_code) &&
       f.course_name === courseName &&
       Number(f.semester_number ?? f.semester) === semesterNumber
     );
@@ -152,15 +154,18 @@ export default function Payments() {
             <label className="form-label fw-bold">Group</label>
             <select
               className="form-select"
-              value={form.group}
-              onChange={(e) =>
-                setForm({ 
-                  ...form, 
-                  group: e.target.value, 
-                  courseCode: '', 
-                  semester: '' 
-                })
-              }
+              value={form.group_code}
+              onChange={(e) => {
+                const value = e.target.value
+                const row = groups.find(g => String(g.code) === String(value) || String(g.group_code) === String(value))
+                setForm(prev => ({
+                  ...prev,
+                  group: row?.name || row?.groupName || row?.group_name || value,
+                  group_code: value,
+                  courseCode: '',
+                  semester: ''
+                }))
+              }}
               disabled={!form.year}
             >
               <option value="">Select Group</option>
@@ -185,11 +190,11 @@ export default function Payments() {
                   semester: '' 
                 })
               }
-              disabled={!form.group}
-            >
+                disabled={!form.group_code}
+              >
               <option value="">Select Course</option>
                 {courses
-                  .filter((c) => !form.group || c.group_code === form.group || c.groupCode === form.group)
+                  .filter((c) => !form.group_code || c.group_code === form.group_code || c.groupCode === form.group_code)
                   .map((c) => (
                     <option key={c.id} value={c.code || c.courseCode}>
                       {c.courseName || c.name}
@@ -230,21 +235,21 @@ export default function Payments() {
               onChange={e => setForm({...form, student_id: e.target.value})}
             >
               <option value="">Select Student</option>
-              {students
-                .filter(s => {
-                  if (!form.year && !form.group && !form.courseCode && !form.semester) return true;
-                  return (
-                    (!form.year || s.academic_year === form.year) &&
-                    (!form.group || s.group === form.group) &&
-                    (!form.courseCode || s.course_code === form.courseCode) &&
-                    (!form.semester || s.semester === form.semester)
-                  );
-                })
-                .map(s => (
-                  <option key={s.student_id} value={s.student_id}>
-                    {s.student_id} - {s.full_name}
-                  </option>
-                ))}
+                  {students
+                    .filter(s => {
+                      if (!form.year && !form.group_code && !form.courseCode && !form.semester) return true;
+                      return (
+                        (!form.year || s.academic_year === form.year) &&
+                        (!form.group_code || s.group_code === form.group_code) &&
+                        (!form.courseCode || s.course_code === form.courseCode) &&
+                        (!form.semester || String(s.semester) === String(form.semester))
+                      );
+                    })
+                    .map(s => (
+                      <option key={s.student_id} value={s.student_id}>
+                        {s.student_id} - {s.full_name}
+                      </option>
+                    ))}
             </select>
           </div>
           

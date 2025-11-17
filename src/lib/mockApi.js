@@ -14,7 +14,7 @@ const TABLES = {
   payments: 'payments',
   hallTickets: 'hall_tickets',
   results: 'results',
-  feeDefinitions: 'fee_definitions',
+  feeDefinitions: 'fee_structure',
   feeCategories: 'fee_categories',
   adminUsers: 'admin_users'
 }
@@ -37,11 +37,17 @@ const runMaybeSingle = async (query, label) => {
   return data ?? null
 }
 
-const mapYear = (row = {}) => ({
-  id: row.id,
-  name: row.academic_year,
-  active: row.status === undefined ? true : Boolean(row.status)
-})
+const mapYear = (row = {}) => {
+  const statusValue = row.status
+  const isInactive = statusValue === 0 || statusValue === '0' || statusValue === false
+  const academicYear = row.academic_year ?? row.name ?? ''
+  return {
+    id: row.id,
+    academic_year: academicYear,
+    name: academicYear,
+    active: !isInactive
+  }
+}
 
 const toYearRow = ({ name, active }) => ({
   academic_year: name,
@@ -310,23 +316,31 @@ const toExamRow = ({ title, date, time, venue, course_id }) => ({
   course_id: course_id || null
 })
 
-const mapFeeDefinition = (row = {}) => ({
-  id: row.id ?? row.fee_id,
-  academic_year: row.academic_year,
-  group: row.group_code || row.group,
-  group_code: row.group_code,
-  course_code: row.course_code,
-  semester: row.semester_number ?? row.semester,
-  payment_type: row.payment_type,
-  amount: row.amount
-})
+const mapFeeDefinition = (row = {}) => {
+  const groupValue = row.group ?? row.group_code ?? row.group_name
+  const courseValue = row.course ?? row.course_code ?? row.course_name
+  const semesterValue = row.semester ?? row.semester_number
+  return {
+    id: row.id ?? row.fee_id,
+    academic_year: row.academic_year,
+    group: groupValue,
+    group_code: groupValue,
+    group_name: row.group_name ?? groupValue,
+    course_code: courseValue,
+    course_name: row.course_name ?? courseValue,
+    semester: semesterValue,
+    semester_number: semesterValue,
+    payment_type: row.payment_type ?? row.fee_cat,
+    amount: row.amount
+  }
+}
 
 const toFeeDefinitionRow = (fee = {}) => ({
   academic_year: fee.academic_year,
-  group_code: fee.group || fee.group_code,
-  course_code: fee.course_code,
-  semester_number: fee.semester,
-  payment_type: fee.payment_type,
+  group: fee.group || fee.group_code,
+  course: fee.course_code || fee.course,
+  semester: fee.semester ?? fee.semester_number,
+  fee_cat: fee.payment_type ?? fee.fee_cat,
   amount: fee.amount
 })
 
@@ -684,7 +698,7 @@ export const api = {
   listFees: async () => {
     const rows = await runQuery(
       supabase.from(TABLES.feeDefinitions)
-        .select('id, academic_year, group_code, course_code, semester_number, payment_type, amount')
+        .select('id, academic_year, "group", course, semester, fee_cat, amount')
         .order('academic_year', { ascending: false }),
       'Unable to fetch fee definitions'
     )
