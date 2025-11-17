@@ -3,7 +3,6 @@ import { useState } from 'react'
 import { useAuth } from '../store/auth'
 import logo from '../assets/media/images.png'
 const nav = [
-  // { to: '/application', label: 'Application Form', icon: 'bi-file-earmark-arrow-down' },
   { to: '/admin/applications', label: 'Exam Applications', icon: 'bi-inboxes' },
   { to: '/admin/setup/years', label: 'Create Academic Years', icon: 'bi-calendar3' },
   { to: '/admin/setup/groups', label: 'Create Groups & Courses', icon: 'bi-diagram-3' },
@@ -18,6 +17,7 @@ const nav = [
   { to: '/admin/hall-tickets', label: 'Hall Tickets', icon: 'bi-ticket-perforated' },
   { to: '/admin/results', label: 'Results', icon: 'bi-award' }
 ]
+
 export default function AdminShell({ children, onSignOut }) {
   const { pathname } = useLocation()
   const navTo = useNavigate()
@@ -31,30 +31,51 @@ export default function AdminShell({ children, onSignOut }) {
     }
     navTo('/')
   }
+
   return (
-    <div className="admin-shell d-grid" style={{ gridTemplateColumns: collapsed ? '88px 1fr' : '280px 1fr' }}>
-      <aside className={`sidebar-modern p-3 ${collapsed ? 'collapsed' : ''}`}>
-        <div className="d-flex align-items-center justify-content-between mb-3 brand-row">
-          <div className="d-flex align-items-center gap-2">
-            <img src={logo} alt="Vijayam Logo" className="brand-logo rounded-circle border" />
-            <div className="brand-text">
-              <div className="heading-font fw-800">Vijayam College of Arts & Science</div>
-              <div className="small text-white fw-bold">Chittor</div>
+    <div className="admin-shell d-grid" style={{ gridTemplateColumns: collapsed ? '92px 1fr' : '280px 1fr' }}>
+      <aside className={`sidebar-modern d-flex flex-column ${collapsed ? 'collapsed' : ''}`}>
+        <div className="sidebar-header">
+          <div className="sidebar-brand d-flex align-items-center gap-2">
+            <img src={logo} alt="Vijayam Logo" className="brand-logo shadow-sm" />
+            <div className="sidebar-brand-info">
+              <div className="heading-font fw-600">Vijayam College</div>
+              <small className="sidebar-brand-subtitle text-uppercase">Arts & Science · Chittor</small>
             </div>
           </div>
-          <button className="btn btn-sm btn-toggle" onClick={() => setCollapsed(!collapsed)} title={collapsed ? 'Expand' : 'Collapse'}>
+          <button
+            className="btn btn-sm btn-toggle"
+            onClick={() => setCollapsed(!collapsed)}
+            title={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+          >
             <i className={`bi ${collapsed ? 'bi-chevron-double-right' : 'bi-chevron-double-left'}`}></i>
           </button>
         </div>
-        <nav className="d-flex flex-column gap-1 modern-nav">
-          {nav.map(n => (
-            <Link key={n.to} to={n.to} title={n.label} className={`nav-item-modern ${pathname === n.to ? 'active' : ''}`}>
-              <i className={`bi ${n.icon}`}></i>
-              <span className="label">{n.label}</span>
+
+        <div className="sidebar-divider" />
+
+        <nav className="sidebar-nav flex-grow-1 d-flex flex-column gap-1">
+          {nav.map(item => (
+            <Link
+              key={item.to}
+              to={item.to}
+              title={item.label}
+              className={`nav-item-modern ${pathname === item.to ? 'active' : ''}`}
+            >
+              <span className="icon">
+                <i className={`bi ${item.icon}`}></i>
+              </span>
+              <span className="label">{item.label}</span>
             </Link>
           ))}
         </nav>
+
+        <div className="sidebar-footer text-center small text-muted mt-auto">
+          <div>Exam Management Studio</div>
+          <div>Crafted for Vijayam College</div>
+        </div>
       </aside>
+
       <main className="admin-main p-4">
         <div className="brandbar rounded px-3 py-2 mb-3 d-flex align-items-center justify-content-between header-shadow">
           <div className="brandbar-title">Exam Management System</div>
