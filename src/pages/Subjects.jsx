@@ -1,19 +1,5 @@
 import { useMemo } from 'react'
 
-const resolveSubjectBatchKey = (subject = {}) => {
-  if (!subject) return ''
-  if (subject.batchId) return subject.batchId
-  const parts = [
-    subject.academicYearId || subject.academicYearName || '',
-    subject.groupCode || '',
-    subject.courseCode || '',
-    subject.semester === undefined || subject.semester === null ? '' : subject.semester,
-    subject.categoryId || subject.category || ''
-  ]
-  const derived = parts.map(part => part === undefined || part === null ? '' : String(part)).join('__')
-  return derived || subject.subjectId || subject.id || ''
-}
-
 export default function SubjectsSection({
   subjectForm,
   setSubjectForm,
@@ -63,48 +49,42 @@ export default function SubjectsSection({
     return acc
   }, {}), [groups])
   const displayGroupName = (code) => groupNameByCode[code] || code || '-'
-  const groupedPending = (() => {
-    const order = []
-    const map = new Map()
-    pendingSubjects.forEach(item => {
-      const key = resolveSubjectBatchKey(item) || item.id
-      if (!map.has(key)) {
-        const initialNames = []
-        if (item.subjectName) initialNames.push(item.subjectName)
-        const group = { ...item, batchId: key, subjectNames: initialNames }
-        order.push(group)
-        map.set(key, group)
-      } else {
-        const group = map.get(key)
-        if (item.subjectName) group.subjectNames.push(item.subjectName)
+  const buildComboRows = (items = []) => {
+    const comboMap = new Map()
+    items.forEach(item => {
+      const comboKey = [
+        item.academicYearId || item.academicYearName || '',
+        item.groupCode || '',
+        item.courseCode || '',
+        item.semester === undefined || item.semester === null ? '' : item.semester
+      ].join('::')
+      const base = comboMap.get(comboKey) || {
+        comboKey,
+        academicYear: getDisplayYear(item),
+        groupCode: item.groupCode,
+        courseCode: item.courseCode,
+        courseName: item.courseName,
+        semester: getSemesterLabel(item),
+        categories: []
       }
-    })
-    return order
-  })()
-  const groupedSubjects = (() => {
-    const order = []
-    const map = new Map()
-    subjects.forEach(item => {
-      const key = resolveSubjectBatchKey(item) || item.id
-      if (!map.has(key)) {
-        const initialNames = []
-        if (item.subjectName) initialNames.push(item.subjectName)
-        const group = {
-          ...item,
-          batchId: key,
-          subjectNames: initialNames,
-          subjectIds: [item.subjectId || item.id]
+      const categoryName = item.category || 'Uncategorised'
+      let catEntry = base.categories.find(cat => cat.name === categoryName)
+      if (!catEntry) {
+        catEntry = {
+          name: categoryName,
+          subjects: [],
+          source: item
         }
-        order.push(group)
-        map.set(key, group)
-      } else {
-        const group = map.get(key)
-        if (item.subjectName) group.subjectNames.push(item.subjectName)
-        group.subjectIds.push(item.subjectId || item.id)
+        base.categories.push(catEntry)
       }
+      const itemSubjects = item.subjectNames?.length ? item.subjectNames : [item.subjectName].filter(Boolean)
+      catEntry.subjects.push(...itemSubjects)
+      comboMap.set(comboKey, base)
     })
-    return order
-  })()
+    return Array.from(comboMap.values())
+  }
+  const pendingCombos = buildComboRows(pendingSubjects)
+  const savedCombos = buildComboRows(subjects)
   const updateExtraName = (idx, value) => {
     setSubjectForm(prev => {
       const list = [...(prev.extraSubjectNames || [])]
@@ -260,60 +240,76 @@ export default function SubjectsSection({
           <button type="button" className="btn btn-outline-secondary ms-2" onClick={onCancelSubjectEdit}>Cancel</button>
         )}
       </div>
-      {groupedPending.length > 0 && (
+      {pendingCombos.length > 0 && (
         <div className="card card-soft p-3 mt-3">
           <div className="d-flex justify-content-between align-items-center mb-2">
-            <h6 className="section-title mb-0">Pending Subjects ({groupedPending.length})</h6>
+            <h6 className="section-title mb-0">Pending Subjects ({pendingCombos.length})</h6>
             <button type="button" className="btn btn-brand" onClick={submitPendingSubjects}>Submit All</button>
           </div>
           <div className="table-responsive">
             <table className="table mb-0">
-              <thead><tr><th>Year</th><th>Group</th><th>Course</th><th>Sem</th><th>Category</th><th>Subject</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Year</th><th>Group</th><th>Course</th><th>Sem</th><th>Details</th></tr></thead>
               <tbody>
-                {groupedPending.map(item => {
-                  const rowKey = resolveSubjectBatchKey(item) || item.id
-                  return (
-                    <tr key={rowKey}>
-                      <td>{getDisplayYear(item)}</td>
-                    <td>{displayGroupName(item.groupCode)}</td>
-                      <td>{item.courseCode}</td>
-                      <td>{getSemesterLabel(item)}</td>
-                      <td>{item.category}</td>
-                      <td>{item.subjectNames?.length ? item.subjectNames.join(', ') : item.subjectName}</td>
-                      <td>
-                        <button type="button" className="btn btn-sm btn-outline-primary me-2" onClick={() => editPendingSubject(item)}>Edit</button>
-                        <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => deletePendingSubject(item)}>Remove</button>
-                      </td>
-                    </tr>
-                  )
-                })}
+                {pendingCombos.map(combo => (
+                  <tr key={combo.comboKey}>
+                    <td>{combo.academicYear}</td>
+                    <td>{displayGroupName(combo.groupCode)}</td>
+                    <td>{combo.courseName || combo.courseCode || '-'}</td>
+                    <td>{combo.semester}</td>
+                    <td>
+                      {combo.categories.map(cat => {
+                        const subjectText = cat.subjects.filter(Boolean).join(', ') || '-'
+                        return (
+                          <div key={`${combo.comboKey}-${cat.name}`} className="mb-2">
+                            <div className="d-flex justify-content-between align-items-center">
+                              <span className="fw-semibold">{cat.name}</span>
+                              <div className="d-flex gap-2">
+                                <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => editPendingSubject(cat.source)}>Edit</button>
+                                <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => deletePendingSubject(cat.source)}>Remove</button>
+                              </div>
+                            </div>
+                            <div className="small text-muted">{subjectText}</div>
+                          </div>
+                        )
+                      })}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         </div>
       )}
-      {groupedSubjects.length > 0 && (
+      {savedCombos.length > 0 && (
         <div className="table-responsive mt-3">
           <table className="table mb-0">
-            <thead><tr><th>Year</th><th>Group</th><th>Course</th><th>Sem</th><th>Category</th><th>Subject Name</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Year</th><th>Group</th><th>Course</th><th>Sem</th><th>Details</th></tr></thead>
             <tbody>
-             {groupedSubjects.map(group => {
-                const rowKey = resolveSubjectBatchKey(group) || group.id
-                return (
-                  <tr key={rowKey}>
-                    <td>{getDisplayYear(group)}</td>
-                  <td>{displayGroupName(group.groupCode)}</td>
-                    <td>{group.courseCode}</td>
-                    <td>{getSemesterLabel(group)}</td>
-                    <td>{group.category}</td>
-                    <td>{group.subjectNames?.length ? group.subjectNames.join(', ') : group.subjectName}</td>
+              {savedCombos.map(combo => (
+                <tr key={combo.comboKey}>
+                  <td>{combo.academicYear}</td>
+                  <td>{displayGroupName(combo.groupCode)}</td>
+                  <td>{combo.courseName || combo.courseCode || '-'}</td>
+                  <td>{combo.semester}</td>
                     <td>
-                      <button className="btn btn-sm btn-outline-primary me-2" onClick={() => editSubject(group)}>Edit</button>
-                      <button className="btn btn-sm btn-outline-danger" onClick={() => deleteSubject(group)}>Delete</button>
+                      {combo.categories.map(cat => {
+                        const subjectText = cat.subjects.filter(Boolean).join(', ') || '-'
+                        return (
+                          <div key={`${combo.comboKey}-${cat.name}`} className="mb-2">
+                            <div className="d-flex justify-content-between align-items-center">
+                              <span className="fw-semibold">{cat.name}</span>
+                              <div className="d-flex gap-2">
+                                <button className="btn btn-sm btn-outline-primary" onClick={() => editSubject(cat.source)}>Edit</button>
+                                <button className="btn btn-sm btn-outline-danger" onClick={() => deleteSubject(cat.source)}>Delete</button>
+                              </div>
+                            </div>
+                            <div className="small text-muted">{subjectText}</div>
+                          </div>
+                        )
+                      })}
                     </td>
-                  </tr>
-                )
-              })}
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

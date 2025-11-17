@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import AdminShell from '../components/AdminShell'
 import { api } from '../lib/mockApi'
@@ -21,6 +21,13 @@ const deleteKey = (map, key) => {
   if (!Object.prototype.hasOwnProperty.call(map, key)) return map
   const { [key]: _omit, ...rest } = map
   return rest
+}
+const buildComboKey = (item = {}) => {
+  const year = item.academicYearId || item.academicYearName || item.academic_year || ''
+  const group = item.groupCode || item.group || item.group_name || ''
+  const course = item.courseCode || item.courseName || item.course_code || item.course_name || ''
+  const semester = item.semester ?? item.semester_number ?? item.semesterNumber ?? ''
+  return [year, group, course, semester].map(part => part === undefined || part === null ? '' : String(part)).join('|')
 }
 const randomId = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -598,6 +605,14 @@ export default function Setup() {
     categoryNameById,
     yearNameToId
   }), [courseLookup, categoryNameById, yearNameToId])
+  const loadSubjects = useCallback(async () => {
+    try {
+      const rows = await api.listSubjects?.() || []
+      setSubjects(rows.map(rec => ensureSubjectBatchKey(normalizeSubjectRecord(rec, subjectContext))))
+    } catch (error) {
+      console.error('Failed to reload subjects', error)
+    }
+  }, [subjectContext])
   const [subjects, setSubjects] = useState([])
   const [pendingSubjects, setPendingSubjects] = useState([])
   const [subjectForm, setSubjectForm] = useState(() => buildSubjectForm(''))
@@ -715,21 +730,19 @@ export default function Setup() {
       }
       return row
     })
+    const existingCombos = new Set(subjects.map(buildComboKey))
+    for (const item of pendingSnapshot) {
+      const key = buildComboKey(item)
+      if (existingCombos.has(key)) {
+        showToast('These subjects already exist for the selected year/group/course/semester. Use edit to update them.', { type: 'warning', title: 'Duplicate combination' })
+        return
+      }
+      existingCombos.add(key)
+    }
     try {
-      const saved = await api.addSubjects?.(payload)
-      const normalized = (Array.isArray(saved) && saved.length ? saved : payload)
-        .map((rec, idx) => {
-          const result = normalizeSubjectRecord(rec, subjectContext)
-          const source = pendingSnapshot[idx]
-          const merged = source?.batchId ? { ...result, batchId: source.batchId } : result
-          return ensureSubjectBatchKey(merged)
-        })
-      setSubjects(prev => {
-        const incomingIds = new Set(normalized.map(item => item.id))
-        const remaining = prev.filter(item => !incomingIds.has(item.id))
-        return [...remaining, ...normalized]
-      })
+      await api.addSubjects?.(payload)
       setPendingSubjects([])
+      await loadSubjects()
     } catch (error) {
       console.error('Failed to save subjects', error)
     }
