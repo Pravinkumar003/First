@@ -404,6 +404,13 @@ export default function Payments() {
     setDisplayCount(String(Math.floor(numeric)));
   };
 
+  const getInitials = (name) => {
+    if (!name) return "S";
+    const parts = name.trim().split(" ");
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+
   return (
     <AdminShell>
       <h2 className="fw-bold mb-3">Record Payment</h2>
@@ -567,12 +574,13 @@ export default function Payments() {
               <table className="table table-hover align-middle mb-0">
                 <thead className="table-light">
                   <tr>
+                    <th scope="col">Photo</th>
+                    <th scope="col">Academic year</th>
                     <th scope="col">Student ID</th>
+                    <th scope="col">Hall ticket</th>
                     <th scope="col">Name</th>
-                    <th scope="col">Department</th>
-                    <th scope="col">Year / Group</th>
+                    <th scope="col">Group</th>
                     <th scope="col">Course</th>
-                    <th scope="col">Semester</th>
                     <th scope="col" className="text-end">
                       Action
                     </th>
@@ -606,6 +614,14 @@ export default function Payments() {
                     const semesterLabel = s.semester
                       ? `Sem ${s.semester}`
                       : "Semester n/a";
+                    const hallTicketNumber =
+                      s.hall_ticket_number ||
+                      s.hall_ticket ||
+                      s.hallTicketNo ||
+                      s.hall_ticket_no ||
+                      "N/A";
+                    const photoUrl = s.photo_url || s.photo || s.avatar;
+                    const initials = getInitials(studentName);
 
                     const isActive =
                       activePaymentStudent?.student_id === s.student_id;
@@ -613,14 +629,33 @@ export default function Payments() {
                     return (
                       <Fragment key={`${s.student_id}-row`}>
                         <tr className={isActive ? "table-primary" : undefined}>
-                          <td className="fw-semibold">{s.student_id}</td>
-                          <td>{studentName}</td>
-                          <td>{departmentLabel}</td>
                           <td>
-                            {academicYear} · {groupLabel}
+                            {photoUrl ? (
+                              <img
+                                src={photoUrl}
+                                alt={studentName}
+                                className="rounded-circle"
+                                style={{
+                                  width: 40,
+                                  height: 40,
+                                  objectFit: "cover",
+                                }}
+                              />
+                            ) : (
+                              <div
+                                className="bg-secondary text-white rounded-circle d-inline-flex align-items-center justify-content-center"
+                                style={{ width: 40, height: 40, fontSize: 12 }}
+                              >
+                                {initials}
+                              </div>
+                            )}
                           </td>
+                          <td>{academicYear}</td>
+                          <td className="fw-semibold">{s.student_id}</td>
+                          <td>{hallTicketNumber}</td>
+                          <td>{studentName}</td>
+                          <td>{groupLabel}</td>
                           <td>{courseLabel}</td>
-                          <td>{semesterLabel}</td>
                           <td className="text-end">
                             <button
                               className={`btn btn-sm ${
