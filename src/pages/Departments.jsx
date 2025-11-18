@@ -18,6 +18,8 @@ export default function Departments() {
   const [editingSubjectId, setEditingSubjectId] = useState(null);
 
   const [feeCats, setFeeCats] = useState([]);
+  const [feeCategoryName, setFeeCategoryName] = useState('');
+  const [editingFeeCategoryId, setEditingFeeCategoryId] = useState(null);
   const [categoryFees, setCategoryFees] = useState([]);
   const [editingCategoryFeeId, setEditingCategoryFeeId] = useState(null);
 
@@ -57,22 +59,103 @@ export default function Departments() {
 
   // load fee categories from Supabase
   useEffect(() => {
-    const loadCats = async () => {
-      try {
-        const { data, error } = await supabase
+    loadFeeCategories();
+  }, []);
+
+  const loadFeeCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('fee_categories')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setFeeCats(data || []);
+    } catch (error) {
+      console.error('Error loading fee categories:', error);
+      showToast('Failed to load fee categories.', { type: 'danger' });
+    }
+  };
+
+  // Save or update fee category
+  const saveFeeCategory = async () => {
+    if (!feeCategoryName.trim()) {
+      showToast('Please enter a category name', { type: 'warning' });
+      return;
+    }
+
+    try {
+      if (editingFeeCategoryId) {
+        // Update existing category
+        const { error } = await supabase
           .from('fee_categories')
-          .select('*')
-          .order('name', { ascending: true });
+          .update({ name: feeCategoryName })
+          .eq('id', editingFeeCategoryId);
 
         if (error) throw error;
-        setFeeCats(data || []);
-      } catch (error) {
-        console.error('Error loading fee categories:', error);
-        showToast('Failed to load fee categories.', { type: 'danger' });
+        showToast('Category updated successfully', { type: 'success' });
+      } else {
+        // Create new category
+        const { error } = await supabase
+          .from('fee_categories')
+          .insert([{ name: feeCategoryName }]);
+
+        if (error) throw error;
+        showToast('Category added successfully', { type: 'success' });
       }
-    };
-    loadCats();
-  }, []);
+
+      // Refresh categories
+      await loadFeeCategories();
+      setFeeCategoryName('');
+      setEditingFeeCategoryId(null);
+    } catch (error) {
+      console.error('Error saving fee category:', error);
+      showToast('Failed to save category', { type: 'danger' });
+    }
+  };
+
+  // Edit fee category
+  const editFeeCategory = (category) => {
+    setFeeCategoryName(category.name);
+    setEditingFeeCategoryId(category.id);
+  };
+
+  // Delete fee category
+  const deleteFeeCategory = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this category? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      // First check if this category is in use
+      const { data: inUse, error: checkError } = await supabase
+        .from('fee_structure')
+        .select('id')
+        .ilike('fee_cat', `%${feeCats.find(c => c.id === id)?.name}%`)
+        .limit(1);
+
+      if (checkError) throw checkError;
+
+      if (inUse && inUse.length > 0) {
+        showToast('Cannot delete: This category is in use', { type: 'danger' });
+        return;
+      }
+
+      // Delete the category
+      const { error } = await supabase
+        .from('fee_categories')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      showToast('Category deleted successfully', { type: 'success' });
+      loadFeeCategories();
+    } catch (error) {
+      console.error('Error deleting fee category:', error);
+      showToast('Failed to delete category', { type: 'danger' });
+    }
+  };
 
   // load subjects for selected course + semester
   useEffect(() => {
@@ -193,130 +276,60 @@ export default function Departments() {
   };
 
   const handleCategoryOK = async () => {
-    if (selectedCategories.length === 0) {
-      showToast('Select at least one fee category.', { type: 'warning', title: 'No categories selected' });
-      return;
-    }
-    if (!validateRequiredFields({ Amount: categoryAmount }, { title: 'Enter amount' })) return;
-    if (!validateRequiredFields({
-      'Academic Year': form.year,
-      Group: form.group,
-      Course: form.courseCode,
-      Semester: form.semester
-    }, { title: 'Select academic details' })) return;
+  if (selectedCategories.length === 0)
+    return alert("Select at least one fee category");
 
-    try {
-      const amountValue = parseFloat(categoryAmount);
-      if (isNaN(amountValue)) {
-        throw new Error('Please enter a valid amount');
-      }
+  if (!categoryAmount)
+    return alert("Enter amount");
 
-      // First, check if we already have fees for this semester
-      const { data: existingFees, error: fetchError } = await supabase
-        .from('fee_structure')
-        .select('*')
-        .eq('academic_year', String(form.year))
-        .eq('group', form.group)
-        .eq('course', form.courseCode)
-        .eq('semester', form.semester);
+  if (!form.year || !form.group || !form.courseCode || !form.semester)
+    return alert("Select Academic Year, Group, Course & Semester");
 
-      if (fetchError) throw fetchError;
+  try {
+    // Convert selected IDs into category names
+    const selectedNames = feeCats
+      .filter(cat => selectedCategories.includes(cat.id))
+      .map(cat => cat.name);
 
-      // Prepare the fee data
-      const feeData = {};
-      selectedCategories.forEach(catId => {
-        const cat = feeCats.find(c => String(c.id) === String(catId));
-        if (cat) {
-          feeData[cat.name] = amountValue;
-        }
-      });
+    const categoryString = selectedNames.join(", ");
+    const amountValue = Number(categoryAmount);
 
-      if (existingFees && existingFees.length > 0) {
-        // Update existing record
-        const existingData = {};
-        existingFees.forEach(item => {
-          if (item.fee_cat) {
-            existingData[item.fee_cat] = item.amount;
-          }
-        });
+    // Delete old row (if any)
+    await supabase
+      .from("fee_structure")
+      .delete()
+      .eq("academic_year", form.year)
+      .eq("group", form.group)
+      .eq("course", form.courseCode)
+      .eq("semester", form.semester);
 
-        // Merge existing data with new data
-        const updatedData = { ...existingData, ...feeData };
+    // Insert ONE new row
+    const { error } = await supabase
+      .from("fee_structure")
+      .insert([{
+        academic_year: form.year,
+        group: form.group,
+        course: form.courseCode,
+        semester: form.semester,
+        fee_cat: categoryString,   // all categories in one string
+        amount: amountValue,       // one common amount
+        created_at: new Date().toISOString()
+      }]);
 
-        // First, delete existing records for this semester
-        const { error: deleteError } = await supabase
-          .from('fee_structure')
-          .delete()
-          .eq('academic_year', String(form.year))
-          .eq('group', form.group)
-          .eq('course', form.courseCode)
-          .eq('semester', form.semester);
+    if (error) throw error;
 
-        if (deleteError) throw deleteError;
+    await fetchCategoryFees(); // refresh table
+    setSelectedCategories([]);
+    setCategoryAmount("");
 
-        // Then insert new records
-        const insertData = Object.entries(updatedData).map(([feeCat, amount]) => ({
-          academic_year: String(form.year),
-          group: form.group,
-          course: form.courseCode,
-          semester: form.semester,
-          fee_cat: feeCat,
-          amount: amount,
-          created_at: new Date().toISOString()
-        }));
+    alert("Fee saved successfully");
 
-        const { error: insertError } = await supabase
-          .from('fee_structure')
-          .insert(insertData);
+  } catch (error) {
+    console.error("Error:", error);
+    alert("Failed to save fees");
+  }
+};
 
-        if (insertError) throw insertError;
-      } else {
-        // Insert new records
-        const insertData = Object.entries(feeData).map(([feeCat, amount]) => ({
-          academic_year: String(form.year),
-          group: form.group,
-          course: form.courseCode,
-          semester: form.semester,
-          fee_cat: feeCat,
-          amount: amount,
-          created_at: new Date().toISOString()
-        }));
-
-        const { error: insertError } = await supabase
-          .from('fee_structure')
-          .insert(insertData);
-
-        if (insertError) throw insertError;
-      }
-
-      // Refresh the list
-      await fetchCategoryFees();
-      
-      // Clear the form
-      setSelectedCategories([]);
-      setCategoryAmount("");
-      
-    } catch (error) {
-      console.error('Error saving category fee:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        error: error
-      });
-      
-      // More user-friendly error message
-      let errorMessage = 'Error saving category fee';
-      if (error.code === '42P01') {
-        errorMessage = 'The Supplementary table does not exist in the database. Please create it first.';
-      } else if (error.code === '42501') {
-        errorMessage = 'Permission denied. Please check your database permissions.';
-      } else if (error.message) {
-        errorMessage += `: ${error.message}`;
-      }
-      
-      alert(errorMessage);
-    }
-  };
 
   const submitAllCategories = async () => {
     if (categoryFees.length === 0) {
@@ -577,9 +590,108 @@ export default function Departments() {
 
   return (
     <AdminShell>
-      <h2 className="fw-bold mb-4">Fees Semester wise</h2>
+      <h2 className="fw-bold mb-4">Fees Management</h2>
 
       {/* ---------------- MAIN FILTER PANEL ---------------- */}
+      <div className="tab-pane fade show active" id="fee-structure" role="tabpanel">
+        <div className="card mb-4">
+          <div className="card-header">
+            <h5 className="mb-0">Fee Categories</h5>
+          </div>
+          <div className="card-body">
+            <div className="row g-2 align-items-end mb-3">
+              <div className="col-md-5 col-lg-4">
+                <label className="form-label text-muted fw-600">
+                  {editingFeeCategoryId ? 'Edit fee category' : 'Add a fee category'}
+                </label>
+                <input
+                  className="form-control"
+                  placeholder="e.g., Tuition"
+                  value={feeCategoryName}
+                  onChange={e => setFeeCategoryName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      saveFeeCategory();
+                    }
+                  }}
+                />
+              </div>
+              <div className="col-md-3 col-lg-2">
+                <button 
+                  type="button" 
+                  className="btn btn-primary w-100 mt-md-4" 
+                  onClick={saveFeeCategory}
+                >
+                  {editingFeeCategoryId ? 'Update Category' : 'Add Category'}
+                </button>
+              </div>
+              {editingFeeCategoryId && (
+                <div className="col-md-3 col-lg-2">
+                  <button 
+                    type="button" 
+                    className="btn btn-outline-secondary w-100 mt-md-4" 
+                    onClick={() => { 
+                      setFeeCategoryName(''); 
+                      setEditingFeeCategoryId(null); 
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+            
+            <div className="row g-3">
+              {feeCats.map(cat => (
+                <div key={cat.id} className="col-md-6 col-lg-4">
+                  <div className="card h-100">
+                    <div className="card-body">
+                      <div className="d-flex justify-content-between align-items-center">
+                        <div>
+                          <h6 className="mb-0">{cat.name}</h6>
+                        </div>
+                        <div className="btn-group">
+                          <button 
+                            type="button" 
+                            className="btn btn-sm btn-outline-primary" 
+                            onClick={() => editFeeCategory(cat)}
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            type="button" 
+                            className="btn btn-sm btn-outline-danger" 
+                            onClick={() => deleteFeeCategory(cat.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              {feeCats.length === 0 && (
+                <div className="col-12">
+                  <div className="alert alert-info mb-0">No fee categories found. Add one to get started.</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        {/* Existing fee structure content */}
+        <div className="card">
+          <div className="card-header">
+            <h5 className="mb-0">Fee Structure</h5>
+          </div>
+          <div className="card-body">
+            {/* Existing fee structure content */}
+          </div>
+        </div>
+      </div>
       <div className="card card-soft p-3 mb-4">
         <div className="row g-3">
           {/* Academic Year */}
