@@ -227,6 +227,11 @@ const TAB_CONFIG = [
     label: "Subjects",
     tagline: "Control curriculum details semester by semester.",
   },
+  {
+    key: "students",
+    label: "Students",
+    tagline: "Manage student records and information.",
+  },
 ];
 
 const PLACEHOLDER_FEE_NAMES = new Set([
@@ -291,7 +296,7 @@ const normalizeFeeCategories = (data) => {
 export default function Setup() {
   // Route-driven tab from sidebar
   const { tab: tabParam } = useParams();
-  const tab = ["years", "groups", "subjects"].includes(tabParam)
+  const tab = ["years", "groups", "subjects", "students"].includes(tabParam)
     ? tabParam
     : "years";
 
@@ -536,6 +541,7 @@ export default function Setup() {
   const [feeCategoryName, setFeeCategoryName] = useState("");
   const [editingFeeCategoryId, setEditingFeeCategoryId] = useState("");
   const [feeDrafts, setFeeDrafts] = useState({});
+  const [students, setStudents] = useState([]);
   const persistFeeCategoryList = async (list) => {
     try {
       await api.setFeeTypes?.(list);
@@ -546,13 +552,14 @@ export default function Setup() {
   useEffect(() => {
     (async () => {
       try {
-        const [yrs, grps, crs, ft, subcats, subs] = await Promise.all([
+        const [yrs, grps, crs, ft, subcats, subs, studs] = await Promise.all([
           api.listAcademicYears?.() || [],
           api.listGroups?.() || [],
           api.listCourses?.() || [],
           api.getFeeTypes?.() || [],
           api.listSubCategories?.() || [],
           api.listSubjects?.() || [],
+          api.listStudents?.() || [],
         ]);
         if (yrs.length) setAcademicYears(yrs);
         if (grps.length) setGroups(grps);
@@ -595,6 +602,11 @@ export default function Setup() {
           );
         } else {
           setSubjects([]);
+        }
+        if (studs?.length) {
+          setStudents(studs);
+        } else {
+          setStudents([]);
         }
       } catch (error) {
         console.error("Failed to load setup data", error);
@@ -1082,8 +1094,6 @@ export default function Setup() {
     setSubjectForm(buildSubjectForm(categories[0] || ""));
   };
 
-  const currentTabMeta =
-    TAB_CONFIG.find((cfg) => cfg.key === tab) || TAB_CONFIG[0];
   const heroStats = [
     {
       key: "years",
@@ -1094,19 +1104,27 @@ export default function Setup() {
     },
     {
       key: "groups",
-      label: "Groups & Courses",
+      label: "Groups",
       value: groups.length || 0,
       meta: "active",
       route: "/admin/setup/groups",
     },
     {
-      key: "subjects",
-      label: "Subjects",
-      value: subjects.length || 0,
-      meta: "published",
-      route: "/admin/setup/subjects",
+      key: "courses",
+      label: "Courses",
+      value: courses.length || 0,
+      meta: "active",
+      route: "/admin/setup/groups",
+    },
+    {
+      key: "students",
+      label: "Students",
+      value: students.length || 0,
+      meta: "records",
+      route: "/admin/students",
     },
   ];
+  const heroTagline = "Manage programme structures and duration.";
 
   return (
     <AdminShell>
@@ -1121,10 +1139,10 @@ export default function Setup() {
               <h3 className="setup-hero-title mb-2">
                 Vijayam Arts & Science College
               </h3>
-              <p className="setup-hero-copy mb-3">{currentTabMeta.tagline}</p>
+              <p className="setup-hero-copy mb-3">{heroTagline}</p>
               <div className="setup-hero-chips d-flex flex-wrap gap-2">
                 <span className="setup-hero-chip">
-                  Smart Examination Platform
+                  SMART EXAMINATION PLATFORM
                 </span>
               </div>
               <p className="setup-hero-eyebrow text-uppercase mt-3">
