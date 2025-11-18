@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
+import { supabase } from '../../supabaseClient'
 
 export default function SubjectsSection({
   subjectForm,
@@ -7,9 +8,18 @@ export default function SubjectsSection({
   groups,
   coursesForGroup,
   semForCourse,
-  feeCategories,
-  categories,
+  // Sub-categories props
+  categories: subCategories,
+  setCategories,
   catItems,
+  setCatItems,
+  categoryName,
+  setCategoryName,
+  editingCategory,
+  setEditingCategory,
+  deleteCategory,
+  saveCategory,
+  // Subjects props
   pendingSubjects,
   subjects,
   editingSubjectId,
@@ -130,7 +140,73 @@ export default function SubjectsSection({
     </>
   )
   return (
-    <section className="setup-section mb-4">
+    <>
+      {/* Sub-categories Section */}
+      <section className="setup-section mb-4">
+        <h5 className="section-title">Sub-categories</h5>
+        <div className="subcat-input-panel">
+          <div className="flex-grow-1">
+            <label className="form-label fw-bold mb-1">
+              Sub-category Name <span className="text-danger">*</span>
+            </label>
+            <p className="text-uppercase text-muted small mb-1">{editingCategory ? 'Update existing sub-category' : 'Add a new sub-category'}</p>
+            <div className="d-flex gap-2 flex-wrap">
+              <input
+                className="form-control flex-grow-1"
+                placeholder="e.g., English"
+                required
+                value={categoryName}
+                onChange={e => setCategoryName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    saveCategory()
+                  }
+                }}
+              />
+              <button type="button" className="btn btn-brand" onClick={saveCategory}>
+                {editingCategory ? 'Update' : 'Add'}
+              </button>
+              {editingCategory && (
+                <button type="button" className="btn btn-outline-secondary" onClick={() => { setCategoryName(''); setEditingCategory('') }}>
+                  Cancel
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="subcat-input-copy text-muted">
+            <div className="fw-semibold text-dark">Organise subjects into sub-categories</div>
+            <div className="small">Create descriptive buckets (e.g., Languages, Labs) to streamline subject assignment.</div>
+          </div>
+        </div>
+
+        {subCategories.length === 0 && <div className="alert alert-info mb-0">Add a sub-category to begin creating subjects.</div>}
+        <div className="subcat-grid">
+          {subCategories.map(cat => {
+            const subjectCount = (catItems[cat] || []).length
+            return (
+              <div key={cat} className="subcat-panel">
+                <div className="subcat-panel-header">
+                  <div>
+                    <div className="subcat-panel-title">{cat}</div>
+                    <div className="subcat-panel-meta">{subjectCount} subject{subjectCount === 1 ? '' : 's'} configured</div>
+                  </div>
+                  <div className="subcat-panel-actions">
+                    <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => { setCategoryName(cat); setEditingCategory(cat) }}>Rename</button>
+                    <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => deleteCategory(cat)}>Delete</button>
+                  </div>
+                </div>
+                <div className="mt-3 text-muted small">
+                  Subjects for this category can be added directly from the Subjects tab.
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
+      {/* Subjects Section */}
+      <section className="setup-section mb-4">
       <h5 className="section-title">Subjects</h5>
       <div className="row g-3">
         <div className="col-12 col-sm-6 col-xl-3">
@@ -196,7 +272,7 @@ export default function SubjectsSection({
           <label className="form-label fw-bold mb-1">Sub-category <span className="text-danger">*</span></label>
           <select className="form-select" required value={subjectForm.category} onChange={e => setSubjectForm({ ...subjectForm, category: e.target.value, subjectSelections: [], subjectName: '' })}>
             <option value="">Select Sub-category</option>
-            {categories.map(o => <option key={o} value={o}>{o}</option>)}
+            {subCategories.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
         </div>
         <div className="col-12 col-sm-6 col-xl-3">
@@ -314,6 +390,7 @@ export default function SubjectsSection({
           </table>
         </div>
       )}
-    </section>
+      </section>
+    </>
   )
 }

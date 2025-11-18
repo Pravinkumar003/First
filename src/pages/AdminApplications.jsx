@@ -30,13 +30,17 @@ export default function AdminApplications() {
     postal_code: '',
     address: '',
     mobile: '',
+    Parent_no: '',
     email: '',
     religion: '',
     caste: '',
     sub_caste: ''
   }
 
-  const [form, setForm] = useState({ ...initialForm, course_name: '' })
+  const [form, setForm] = useState({ 
+    ...initialForm, 
+    course_name: ''
+  })
   const [photo, setPhoto] = useState(null)
   const [cert, setCert] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -93,6 +97,7 @@ export default function AdminApplications() {
       'Gender': form.gender,
       'Date of Birth': form.dob,
       'Mobile Number': form.mobile,
+      'Parent Mobile': form.Parent_no,
       'Postal Code': form.postal_code,
       'Address': form.address
     }
@@ -136,6 +141,7 @@ export default function AdminApplications() {
         pincode: form.postal_code,
         address: form.address,
         phone_number: form.mobile,
+        Parent_no: form.Parent_no,
         email: form.email || null,
         religion: form.religion || null,
         caste: form.caste || null,
@@ -295,8 +301,12 @@ export default function AdminApplications() {
                   <h6 className="text-uppercase text-muted fw-bold small">Contact & Address</h6>
                   <div className="row g-3 mt-1">
                     <div className="col-md-4">
-                      <label className="form-label">Mobile</label>
-                      <input className="form-control" inputMode="tel" value={form.mobile} onChange={onNumericChange('mobile', 10)} placeholder="10-digit" required />
+                      <label className="form-label">Mobile Number</label>
+                      <input type="tel" className="form-control" value={form.mobile} onChange={onNumericChange('mobile', 10)} required maxLength={10} placeholder="10-digit mobile number" />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">Parent Mobile</label>
+                      <input type="tel" className="form-control" value={form.Parent_no} onChange={onNumericChange('Parent_no', 10)} required maxLength={10} placeholder="Parent's 10-digit mobile" />
                     </div>
                     <div className="col-md-4">
                       <label className="form-label">Email</label>
