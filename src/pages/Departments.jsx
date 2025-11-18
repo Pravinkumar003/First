@@ -1,5 +1,5 @@
 import AdminShell from "../components/AdminShell";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/mockApi";
 import { supabase } from "../../supabaseClient";
 import { validateRequiredFields } from "../lib/validation";
@@ -31,6 +31,8 @@ export default function Departments() {
 
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [categoryAmount, setCategoryAmount] = useState("");
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const categoryDropdownRef = useRef(null);
 
   const [appliedFilter, setAppliedFilter] = useState(null);
 
@@ -59,6 +61,20 @@ export default function Departments() {
   // load fee categories from Supabase
   useEffect(() => {
     loadFeeCategories();
+  }, []);
+
+  useEffect(() => {
+    const handleDocumentClick = (event) => {
+      if (
+        categoryDropdownRef.current &&
+        !categoryDropdownRef.current.contains(event.target)
+      ) {
+        setCategoryDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleDocumentClick);
+    return () => document.removeEventListener("mousedown", handleDocumentClick);
   }, []);
 
   const loadFeeCategories = async () => {
@@ -292,13 +308,22 @@ export default function Departments() {
   };
 
   const handleCategoryOK = async () => {
-    if (selectedCategories.length === 0)
-      return alert("Select at least one fee category");
+    if (selectedCategories.length === 0) {
+      showToast("Select at least one fee category", { type: "warning" });
+      return;
+    }
 
-    if (!categoryAmount) return alert("Enter amount");
+    if (!categoryAmount) {
+      showToast("Enter amount", { type: "warning" });
+      return;
+    }
 
-    if (!form.year || !form.group || !form.courseCode || !form.semester)
-      return alert("Select Academic Year, Group, Course & Semester");
+    if (!form.year || !form.group || !form.courseCode || !form.semester) {
+      showToast("Select Academic Year, Group, Course & Semester", {
+        type: "warning",
+      });
+      return;
+    }
 
     try {
       // Convert selected IDs into category names
@@ -337,10 +362,13 @@ export default function Departments() {
       setSelectedCategories([]);
       setCategoryAmount("");
 
-      alert("Fee saved successfully");
+      showToast("Fee saved successfully", { type: "success" });
     } catch (error) {
       console.error("Error:", error);
-      alert("Failed to save fees");
+      showToast("Failed to save fees", {
+        type: "danger",
+        title: "Category fees",
+      });
     }
   };
 
@@ -406,6 +434,16 @@ export default function Departments() {
 
   const filteredSubjectFees = filterRecords(subjectFees);
   const filteredCategoryFees = filterRecords(categoryFees);
+
+  const selectedCategoryNames = feeCats
+    .filter((cat) => selectedCategories.includes(cat.id))
+    .map((cat) => cat.name);
+
+  const categoryButtonLabel = selectedCategoryNames.length
+    ? selectedCategoryNames.length > 2
+      ? `${selectedCategoryNames.length} categories selected`
+      : selectedCategoryNames.join(", ")
+    : "Select fee categories";
 
   // Fetch Supplementary Fees from Supabase
   const fetchSupplementaryFees = async () => {
@@ -825,30 +863,58 @@ export default function Departments() {
             </select>
           </div>
 
-          {/* Fee Categories Checkbox Group - Single Column */}
-          <div className="col-md-3">
-            <div className="card p-2">
-              <label className="form-label fw-bold mb-2">Fee Categories</label>
-              <div className="d-flex flex-column gap-2">
-                {feeCats.map((cat) => (
-                  <div key={cat.id} className="form-check">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      id={`cat-${cat.id}`}
-                      checked={selectedCategories.includes(cat.id)}
-                      onChange={() => toggleCategory(cat.id)}
-                    />
-                    <label
-                      className="form-check-label"
-                      htmlFor={`cat-${cat.id}`}
-                    >
-                      {cat.name}
-                    </label>
-                  </div>
-                ))}
+          {/* Fee Categories Dropdown Selector */}
+          <div className="col-md-3 position-relative" ref={categoryDropdownRef}>
+            <label className="form-label fw-bold">Fee Categories</label>
+            <button
+              type="button"
+              className="btn btn-outline-secondary w-100 text-start d-flex justify-content-between align-items-center"
+              onClick={(e) => {
+                e.stopPropagation();
+                setCategoryDropdownOpen((prev) => !prev);
+              }}
+              aria-haspopup="true"
+              aria-expanded={categoryDropdownOpen}
+            >
+              <span className="me-2">{categoryButtonLabel}</span>
+              <span className="text-muted">▾</span>
+            </button>
+            {categoryDropdownOpen && (
+              <div
+                className="bg-white border rounded mt-2 shadow-sm"
+                style={{
+                  position: "absolute",
+                  zIndex: 50,
+                  width: "100%",
+                  maxHeight: "300px",
+                  overflowY: "auto",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-3 d-flex flex-column gap-2">
+                  {feeCats.map((cat) => (
+                    <div key={cat.id} className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id={`cat-dropdown-${cat.id}`}
+                        checked={selectedCategories.includes(cat.id)}
+                        onChange={() => toggleCategory(cat.id)}
+                      />
+                      <label
+                        className="form-check-label"
+                        htmlFor={`cat-dropdown-${cat.id}`}
+                      >
+                        {cat.name}
+                      </label>
+                    </div>
+                  ))}
+                  {feeCats.length === 0 && (
+                    <div className="text-muted">No categories available</div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Amount Input with Submit Button */}
