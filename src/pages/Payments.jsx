@@ -1,9 +1,9 @@
-import AdminShell from '../components/AdminShell';
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { supabase } from '../../supabaseClient';
-import { api } from '../lib/mockApi';
-import { validateRequiredFields } from '../lib/validation';
-import { showToast } from '../store/ui';
+import AdminShell from "../components/AdminShell";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { supabase } from "../../supabaseClient";
+import { api } from "../lib/mockApi";
+import { validateRequiredFields } from "../lib/validation";
+import { showToast } from "../store/ui";
 
 export default function Payments() {
   // Master data
@@ -16,30 +16,37 @@ export default function Payments() {
 
   // Form
   const [form, setForm] = useState({
-    year: '',
-    group: '',
-    group_code: '',
-    courseCode: '',
-    semester: '',
-    student_id: '',
-    amount: '',
-    method: 'CASH',
-    reference: ''
+    year: "",
+    group: "",
+    group_code: "",
+    courseCode: "",
+    semester: "",
+    student_id: "",
+    amount: "",
+    method: "CASH",
+    reference: "",
   });
+  const [displayCount, setDisplayCount] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [saving, setSaving] = useState(false);
 
   const [activePaymentStudent, setActivePaymentStudent] = useState(null);
   const [subjectSelection, setSubjectSelection] = useState({});
-  const [quickPaymentAmount, setQuickPaymentAmount] = useState('');
+  const [quickPaymentAmount, setQuickPaymentAmount] = useState("");
 
-  const hasActiveFilters = Boolean(form.year || form.group_code || form.courseCode || form.semester);
+  const hasActiveFilters = Boolean(
+    form.year || form.group_code || form.courseCode || form.semester
+  );
 
-  const firstDefined = (...values) => values.find(value => value !== undefined && value !== null && value !== '');
+  const firstDefined = (...values) =>
+    values.find(
+      (value) => value !== undefined && value !== null && value !== ""
+    );
 
-  const getMatchedGroup = student =>
+  const getMatchedGroup = (student) =>
     groups.find(
-      g =>
+      (g) =>
         g.code === student.group_code ||
         g.code === student.group ||
         g.code === student.group_name ||
@@ -47,9 +54,9 @@ export default function Payments() {
         g.name === student.group_name
     );
 
-  const getMatchedCourse = student =>
+  const getMatchedCourse = (student) =>
     courses.find(
-      c =>
+      (c) =>
         c.courseCode === student.course_code ||
         c.courseCode === student.course_name ||
         c.courseCode === student.courseCode ||
@@ -58,49 +65,49 @@ export default function Payments() {
     );
 
   const filteredStudents = useMemo(() => {
-    return students.filter(s => {
+    return students.filter((s) => {
       const matchesYear = !form.year || s.academic_year === form.year;
-      const matchesGroup = !form.group_code || [s.group_code, s.group, s.group_name].includes(form.group_code);
-      const matchesCourse = !form.courseCode || [s.course_code, s.course_name, s.course_id].includes(form.courseCode);
-      const matchesSemester = !form.semester || !s.semester || String(s.semester) === String(form.semester);
+      const matchesGroup =
+        !form.group_code ||
+        [s.group_code, s.group, s.group_name].includes(form.group_code);
+      const matchesCourse =
+        !form.courseCode ||
+        [s.course_code, s.course_name, s.course_id].includes(form.courseCode);
+      const matchesSemester =
+        !form.semester ||
+        !s.semester ||
+        String(s.semester) === String(form.semester);
       return matchesYear && matchesGroup && matchesCourse && matchesSemester;
     });
   }, [students, form.year, form.group_code, form.courseCode, form.semester]);
 
   const subjectsForActiveStudent = useMemo(() => {
     if (!activePaymentStudent) return [];
-    const {
-      course_code,
-      course_name,
-      courseCode,
-      course,
-      semester
-    } = activePaymentStudent;
+    const { course_code, course_name, courseCode, course, semester } =
+      activePaymentStudent;
     const courseValues = new Set(
-      [
-        course_code,
-        course_name,
-        courseCode,
-        course,
-      ].filter(Boolean)
+      [course_code, course_name, courseCode, course].filter(Boolean)
     );
     const semesterValue =
-      semester === '' ||
-      semester === undefined ||
-      semester === null
+      semester === "" || semester === undefined || semester === null
         ? null
         : Number(semester);
 
-    return subjects.filter(subject => {
+    return subjects.filter((subject) => {
       const matchesCourse =
         courseValues.size === 0 ||
         courseValues.has(subject.courseCode) ||
         courseValues.has(subject.courseName);
       const subjectSemester =
-        subject.semester === '' || subject.semester === undefined || subject.semester === null
+        subject.semester === "" ||
+        subject.semester === undefined ||
+        subject.semester === null
           ? null
           : Number(subject.semester);
-      const matchesSemester = semesterValue === null || subjectSemester === null || semesterValue === subjectSemester;
+      const matchesSemester =
+        semesterValue === null ||
+        subjectSemester === null ||
+        semesterValue === subjectSemester;
       return matchesCourse && matchesSemester;
     });
   }, [
@@ -110,53 +117,64 @@ export default function Payments() {
     activePaymentStudent?.course_name,
     activePaymentStudent?.courseCode,
     activePaymentStudent?.course,
-    activePaymentStudent?.semester
+    activePaymentStudent?.semester,
   ]);
 
-  const selectedSubjectCount = Object.values(subjectSelection || {}).filter(Boolean).length;
+  const selectedSubjectCount = Object.values(subjectSelection || {}).filter(
+    Boolean
+  ).length;
   const hasSelectedSubjects = selectedSubjectCount > 0;
 
   useEffect(() => {
     setSubjectSelection({});
-    setQuickPaymentAmount('');
+    setQuickPaymentAmount("");
   }, [activePaymentStudent?.student_id]);
 
   const loadData = useCallback(async () => {
     try {
-      const [yearsData, groupsData, coursesData, studentsData, feesData, subjectsData] = await Promise.all([
+      const [
+        yearsData,
+        groupsData,
+        coursesData,
+        studentsData,
+        feesData,
+        subjectsData,
+      ] = await Promise.all([
         api.listAcademicYears?.(),
         api.listGroups?.(),
         api.listCourses?.(),
         api.listStudents?.(),
         api.listFees?.(),
-        api.listSubjects?.()
+        api.listSubjects?.(),
       ]);
 
-      const normalizedYears = (yearsData || []).filter(y => y?.active !== false);
+      const normalizedYears = (yearsData || []).filter(
+        (y) => y?.active !== false
+      );
 
-      const normalizedGroups = (groupsData || []).map(g => ({
+      const normalizedGroups = (groupsData || []).map((g) => ({
         id: g.group_id ?? g.id,
         code: g.group_code ?? g.code,
-        name: g.group_name ?? g.name
+        name: g.group_name ?? g.name,
       }));
 
-      const normalizedCourses = (coursesData || []).map(c => ({
+      const normalizedCourses = (coursesData || []).map((c) => ({
         id: c.course_id ?? c.id,
         courseCode: c.course_code || c.code,
         courseName: c.course_name || c.name,
         group_code: c.group_code || c.group_name || c.groupCode,
-        group_name: c.group_name || c.groupCode
+        group_name: c.group_name || c.groupCode,
       }));
 
-      const normalizedStudents = (studentsData || []).map(s => ({
+      const normalizedStudents = (studentsData || []).map((s) => ({
         ...s,
-        academic_year: s.academic_year || '',
-        group_name: s.group_name || s.group || s.group_code || '',
-        group: s.group_name || s.group || s.group_code || '',
-        group_code: s.group_code || s.group || s.group_name || '',
-        course_name: s.course_name || s.course_id || s.courseCode || '',
-        course_code: s.course_code || s.course_name || s.course_id || '',
-        semester: s.semester ?? s.semester_number ?? ''
+        academic_year: s.academic_year || "",
+        group_name: s.group_name || s.group || s.group_code || "",
+        group: s.group_name || s.group || s.group_code || "",
+        group_code: s.group_code || s.group || s.group_name || "",
+        course_name: s.course_name || s.course_id || s.courseCode || "",
+        course_code: s.course_code || s.course_name || s.course_id || "",
+        semester: s.semester ?? s.semester_number ?? "",
       }));
 
       setYears(normalizedYears);
@@ -182,37 +200,52 @@ export default function Payments() {
       }
     });
 
-    if (!validateRequiredFields(
-      { Student: payload.student_id, Amount: payload.amount },
-      { title: "Missing payment details" }
-    )) return false;
+    if (
+      !validateRequiredFields(
+        { Student: payload.student_id, Amount: payload.amount },
+        { title: "Missing payment details" }
+      )
+    )
+      return false;
 
-    const selectedCourse = courses.find(c => c.courseCode === payload.courseCode);
+    const selectedCourse = courses.find(
+      (c) => c.courseCode === payload.courseCode
+    );
     const courseName = selectedCourse?.courseName || payload.courseName || "";
 
     const semesterNumber = payload.semester ? Number(payload.semester) : null;
     const groupKey = payload.group_code || payload.group;
     const courseKey = payload.courseCode || courseName;
 
-    const matchingFee = feeDefinitions.find(f => {
+    const matchingFee = feeDefinitions.find((f) => {
       if (f.academic_year !== payload.year) return false;
-      if (semesterNumber !== Number(f.semester_number ?? f.semester)) return false;
+      if (semesterNumber !== Number(f.semester_number ?? f.semester))
+        return false;
       if (groupKey) {
         const availableGroupValues = [f.group, f.group_code, f.group_name];
-        if (!availableGroupValues.some(val => val && val === groupKey)) return false;
+        if (!availableGroupValues.some((val) => val && val === groupKey))
+          return false;
       }
       if (courseKey) {
-        const availableCourseValues = [f.course_name, f.course_code, courseName];
-        if (!availableCourseValues.some(val => val && val === courseKey)) return false;
+        const availableCourseValues = [
+          f.course_name,
+          f.course_code,
+          courseName,
+        ];
+        if (!availableCourseValues.some((val) => val && val === courseKey))
+          return false;
       }
       return true;
     });
 
     if (!matchingFee) {
-      showToast("Define fee structure first for this year/group/course/semester.", {
-        type: "warning",
-        title: "Missing fee definition",
-      });
+      showToast(
+        "Define fee structure first for this year/group/course/semester.",
+        {
+          type: "warning",
+          title: "Missing fee definition",
+        }
+      );
       return false;
     }
 
@@ -225,8 +258,8 @@ export default function Payments() {
           amount_paid: Number(payload.amount),
           payment_date: new Date().toISOString(),
           payment_mode: payload.method,
-          remarks: payload.reference || null
-        }
+          remarks: payload.reference || null,
+        },
       ]);
 
       if (error) throw error;
@@ -235,7 +268,7 @@ export default function Payments() {
         ...form,
         student_id: "",
         amount: "",
-        reference: ""
+        reference: "",
       });
 
       showToast("Payment recorded successfully!", { type: "success" });
@@ -251,22 +284,24 @@ export default function Payments() {
   };
 
   const handlePayNowClick = (student) => {
-    setActivePaymentStudent(prev =>
+    setActivePaymentStudent((prev) =>
       prev?.student_id === student.student_id ? null : student
     );
   };
 
   const toggleSubjectSelection = (subjectId) => {
-    setSubjectSelection(prev => ({
+    setSubjectSelection((prev) => ({
       ...prev,
-      [subjectId]: !prev[subjectId]
+      [subjectId]: !prev[subjectId],
     }));
   };
 
   const handleQuickPayment = async () => {
     if (!activePaymentStudent) return;
     if (!hasSelectedSubjects) {
-      showToast("Select at least one subject before paying.", { type: "warning" });
+      showToast("Select at least one subject before paying.", {
+        type: "warning",
+      });
       return;
     }
     if (!quickPaymentAmount || Number(quickPaymentAmount) <= 0) {
@@ -275,13 +310,17 @@ export default function Payments() {
     }
 
     const selectedSubjectNames = subjectsForActiveStudent
-      .filter(subject => subjectSelection[subject.id])
-      .map(subject => subject.subjectName)
+      .filter((subject) => subjectSelection[subject.id])
+      .map((subject) => subject.subjectName)
       .filter(Boolean);
 
     const matchedGroup = getMatchedGroup(activePaymentStudent);
     const matchedCourse = getMatchedCourse(activePaymentStudent);
-    const resolvedYear = firstDefined(form.year, activePaymentStudent.academic_year, activePaymentStudent.year);
+    const resolvedYear = firstDefined(
+      form.year,
+      activePaymentStudent.academic_year,
+      activePaymentStudent.year
+    );
     const resolvedGroupCode = firstDefined(
       form.group_code,
       activePaymentStudent.group_code,
@@ -317,8 +356,12 @@ export default function Payments() {
       ...(resolvedGroupName ? { group: resolvedGroupName } : {}),
       ...(resolvedCourseCode ? { courseCode: resolvedCourseCode } : {}),
       ...(resolvedCourseName ? { courseName: resolvedCourseName } : {}),
-      ...(resolvedSemester !== undefined ? { semester: String(resolvedSemester) } : {}),
-      ...(selectedSubjectNames.length ? { reference: `Subjects: ${selectedSubjectNames.join(', ')}` } : {})
+      ...(resolvedSemester !== undefined
+        ? { semester: String(resolvedSemester) }
+        : {}),
+      ...(selectedSubjectNames.length
+        ? { reference: `Subjects: ${selectedSubjectNames.join(", ")}` }
+        : {}),
     };
 
     const success = await save(override);
@@ -326,8 +369,39 @@ export default function Payments() {
     if (success) {
       setActivePaymentStudent(null);
       setSubjectSelection({});
-      setQuickPaymentAmount('');
+      setQuickPaymentAmount("");
     }
+  };
+
+  const matchedStudentCount = hasActiveFilters ? filteredStudents.length : 0;
+
+  const filteredBySearch = searchTerm
+    ? filteredStudents.filter((student) => {
+        const key = `${student.student_id} ${
+          student.full_name || student.name || ""
+        }`.toLowerCase();
+        return key.includes(searchTerm.toLowerCase());
+      })
+    : filteredStudents;
+
+  const limitedStudents = displayCount
+    ? filteredBySearch.slice(
+        0,
+        Math.min(Number(displayCount), filteredBySearch.length)
+      )
+    : filteredBySearch;
+
+  const handleDisplayCountChange = (value) => {
+    if (value === "") {
+      setDisplayCount("");
+      return;
+    }
+    const numeric = Number(value);
+    if (Number.isNaN(numeric) || numeric <= 0) {
+      setDisplayCount("");
+      return;
+    }
+    setDisplayCount(String(Math.floor(numeric)));
   };
 
   return (
@@ -339,14 +413,13 @@ export default function Payments() {
         <h4 className="fw-bold mb-3">Filter Students</h4>
 
         <div className="row g-3">
-
           {/* Academic Year */}
           <div className="col-md-3">
             <label className="form-label fw-bold">Academic Year</label>
             <select
               className="form-select"
               value={form.year}
-              onChange={e =>
+              onChange={(e) =>
                 setForm({
                   ...form,
                   year: e.target.value,
@@ -354,12 +427,12 @@ export default function Payments() {
                   group_code: "",
                   courseCode: "",
                   semester: "",
-                  student_id: ""
+                  student_id: "",
                 })
               }
             >
               <option value="">Select Year</option>
-              {years.map(y => (
+              {years.map((y) => (
                 <option key={y.id} value={y.academic_year}>
                   {y.academic_year}
                 </option>
@@ -373,22 +446,24 @@ export default function Payments() {
             <select
               className="form-select"
               value={form.group_code}
-              onChange={e => {
+              onChange={(e) => {
                 const value = e.target.value;
-                const row = groups.find(g => g.code === value || g.group_code === value);
+                const row = groups.find(
+                  (g) => g.code === value || g.group_code === value
+                );
 
-                setForm(prev => ({
+                setForm((prev) => ({
                   ...prev,
                   group: row?.name || "",
                   group_code: row?.code || value,
                   courseCode: "",
                   semester: "",
-                  student_id: ""
+                  student_id: "",
                 }));
               }}
             >
               <option value="">Select Group</option>
-              {groups.map(g => (
+              {groups.map((g) => (
                 <option key={g.id} value={g.code}>
                   {g.name}
                 </option>
@@ -403,12 +478,14 @@ export default function Payments() {
               className="form-select"
               value={form.courseCode}
               disabled={!form.group_code}
-              onChange={e => setForm({ ...form, courseCode: e.target.value, semester: "" })}
+              onChange={(e) =>
+                setForm({ ...form, courseCode: e.target.value, semester: "" })
+              }
             >
               <option value="">Select Course</option>
 
               {courses
-                .filter(c => {
+                .filter((c) => {
                   if (!form.group_code) return true;
                   return (
                     c.group_code === form.group_code ||
@@ -416,7 +493,7 @@ export default function Payments() {
                     c.groupCode === form.group_code
                   );
                 })
-                .map(c => (
+                .map((c) => (
                   <option key={c.id} value={c.courseCode}>
                     {c.courseName}
                   </option>
@@ -431,10 +508,10 @@ export default function Payments() {
               className="form-select"
               value={form.semester}
               disabled={!form.courseCode}
-              onChange={e => setForm({ ...form, semester: e.target.value })}
+              onChange={(e) => setForm({ ...form, semester: e.target.value })}
             >
               <option value="">Select Semester</option>
-              {[1, 2, 3, 4, 5, 6].map(n => (
+              {[1, 2, 3, 4, 5, 6].map((n) => (
                 <option key={n} value={n}>
                   Sem {n}
                 </option>
@@ -443,14 +520,48 @@ export default function Payments() {
           </div>
         </div>
         <div className="mt-4">
-          <div className="d-flex justify-content-between align-items-center mb-2">
-            <span className="fw-semibold">Matched students</span>
-            <span className="text-muted small">{hasActiveFilters ? filteredStudents.length : 0} found</span>
-          </div>
+          {hasActiveFilters && (
+            <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-2">
+              <div className="d-flex align-items-center gap-2">
+                <span className="fw-semibold">Matched students</span>
+                <span className="text-muted small">Show</span>
+                <input
+                  type="number"
+                  className="form-control form-control-sm"
+                  min="1"
+                  placeholder={matchedStudentCount || "0"}
+                  value={displayCount}
+                  style={{ width: "90px" }}
+                  onChange={(event) =>
+                    handleDisplayCountChange(event.target.value)
+                  }
+                  aria-label="Rows to show"
+                />
+                <span className="text-muted small">entries</span>
+              </div>
+              <div className="d-flex align-items-center gap-2 ms-auto">
+                <span className="text-muted small">Search</span>
+                <input
+                  type="search"
+                  className="form-control form-control-sm"
+                  placeholder="Student ID / Name"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  style={{ width: "200px" }}
+                  aria-label="Search students"
+                />
+              </div>
+            </div>
+          )}
           {!hasActiveFilters ? (
-            <div className="text-muted small">Select Academic Year, Group, Course, or Semester to see matching students.</div>
-          ) : filteredStudents.length === 0 ? (
-            <div className="text-muted small">No students match the selected filters yet.</div>
+            <div className="text-muted small">
+              Select Academic Year, Group, Course, or Semester to see matching
+              students.
+            </div>
+          ) : limitedStudents.length === 0 ? (
+            <div className="text-muted small">
+              No students match the selected filters yet.
+            </div>
           ) : (
             <div className="table-responsive">
               <table className="table table-hover align-middle mb-0">
@@ -462,14 +573,21 @@ export default function Payments() {
                     <th scope="col">Year / Group</th>
                     <th scope="col">Course</th>
                     <th scope="col">Semester</th>
-                    <th scope="col" className="text-end">Action</th>
+                    <th scope="col" className="text-end">
+                      Action
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredStudents.map(s => {
-                    const studentName = s.full_name || s.name || 'Unnamed student';
-                    const academicYear = s.academic_year || 'Year not set';
-                    const groupLabel = s.group_name || s.group || s.group_code || 'Group unknown';
+                  {limitedStudents.map((s) => {
+                    const studentName =
+                      s.full_name || s.name || "Unnamed student";
+                    const academicYear = s.academic_year || "Year not set";
+                    const groupLabel =
+                      s.group_name ||
+                      s.group ||
+                      s.group_code ||
+                      "Group unknown";
                     const matchedGroup = getMatchedGroup(s);
                     const matchedCourse = getMatchedCourse(s);
                     const courseLabel =
@@ -477,33 +595,42 @@ export default function Payments() {
                       s.course_name ||
                       s.course_code ||
                       s.course_id ||
-                      'Course unknown';
+                      "Course unknown";
                     const departmentLabel =
                       matchedGroup?.name ||
                       s.department ||
                       s.department_name ||
                       s.group_name ||
                       s.group ||
-                      'Department unknown';
-                    const semesterLabel = s.semester ? `Sem ${s.semester}` : 'Semester n/a';
+                      "Department unknown";
+                    const semesterLabel = s.semester
+                      ? `Sem ${s.semester}`
+                      : "Semester n/a";
 
-                    const isActive = activePaymentStudent?.student_id === s.student_id;
+                    const isActive =
+                      activePaymentStudent?.student_id === s.student_id;
 
                     return (
                       <Fragment key={`${s.student_id}-row`}>
-                        <tr className={isActive ? 'table-primary' : undefined}>
+                        <tr className={isActive ? "table-primary" : undefined}>
                           <td className="fw-semibold">{s.student_id}</td>
                           <td>{studentName}</td>
                           <td>{departmentLabel}</td>
-                          <td>{academicYear} · {groupLabel}</td>
+                          <td>
+                            {academicYear} · {groupLabel}
+                          </td>
                           <td>{courseLabel}</td>
                           <td>{semesterLabel}</td>
                           <td className="text-end">
                             <button
-                              className={`btn btn-sm ${isActive ? 'btn-outline-secondary' : 'btn-outline-primary'}`}
+                              className={`btn btn-sm ${
+                                isActive
+                                  ? "btn-outline-secondary"
+                                  : "btn-outline-primary"
+                              }`}
                               onClick={() => handlePayNowClick(s)}
                             >
-                              Pay now
+                              Apply
                             </button>
                           </td>
                         </tr>
@@ -514,30 +641,47 @@ export default function Payments() {
                                 <div className="d-flex justify-content-between align-items-center mb-3">
                                   <div>
                                     <div className="fw-semibold">Subjects</div>
-                                    <div className="text-muted small">{selectedSubjectCount} selected</div>
+                                    <div className="text-muted small">
+                                      {selectedSubjectCount} selected
+                                    </div>
                                   </div>
                                   <div>
-                                    <span className="text-muted small">Select subjects to pay</span>
+                                    <span className="text-muted small">
+                                      Select subjects to pay
+                                    </span>
                                   </div>
                                 </div>
                                 {subjectsForActiveStudent.length === 0 ? (
                                   <div className="alert alert-light py-2 mb-3">
-                                    No subjects configured for this course or semester yet.
+                                    No subjects configured for this course or
+                                    semester yet.
                                   </div>
                                 ) : (
                                   <div className="row g-3">
-                                    {subjectsForActiveStudent.map(subject => (
-                                      <div key={`subject-${subject.id}`} className="col-md-6">
+                                    {subjectsForActiveStudent.map((subject) => (
+                                      <div
+                                        key={`subject-${subject.id}`}
+                                        className="col-md-6"
+                                      >
                                         <label className="form-check w-100">
                                           <input
                                             type="checkbox"
                                             className="form-check-input"
-                                            checked={!!subjectSelection[subject.id]}
-                                            onChange={() => toggleSubjectSelection(subject.id)}
+                                            checked={
+                                              !!subjectSelection[subject.id]
+                                            }
+                                            onChange={() =>
+                                              toggleSubjectSelection(subject.id)
+                                            }
                                           />
                                           <span className="form-check-label ms-2">
-                                            <strong>{subject.subjectName || subject.subjectCode}</strong>
-                                            <span className="text-muted small ms-2">({subject.subjectCode})</span>
+                                            <strong>
+                                              {subject.subjectName ||
+                                                subject.subjectCode}
+                                            </strong>
+                                            <span className="text-muted small ms-2">
+                                              ({subject.subjectCode})
+                                            </span>
                                           </span>
                                         </label>
                                       </div>
@@ -546,13 +690,17 @@ export default function Payments() {
                                 )}
                                 <div className="row g-2 align-items-end mt-3">
                                   <div className="col-md-6">
-                                    <label className="form-label fw-semibold">Amount (INR)</label>
+                                    <label className="form-label fw-semibold">
+                                      Amount (INR)
+                                    </label>
                                     <input
                                       type="number"
                                       className="form-control"
                                       min="0"
                                       value={quickPaymentAmount}
-                                      onChange={e => setQuickPaymentAmount(e.target.value)}
+                                      onChange={(e) =>
+                                        setQuickPaymentAmount(e.target.value)
+                                      }
                                       placeholder="Enter amount"
                                     />
                                   </div>
@@ -560,10 +708,16 @@ export default function Payments() {
                                     <button
                                       type="button"
                                       className="btn btn-brand w-100"
-                                      disabled={!hasSelectedSubjects || !quickPaymentAmount || saving}
+                                      disabled={
+                                        !hasSelectedSubjects ||
+                                        !quickPaymentAmount ||
+                                        saving
+                                      }
                                       onClick={handleQuickPayment}
                                     >
-                                      {saving ? "Processing..." : "Pay selected subjects"}
+                                      {saving
+                                        ? "Processing..."
+                                        : "Pay selected subjects"}
                                     </button>
                                   </div>
                                 </div>
@@ -584,18 +738,17 @@ export default function Payments() {
       {/* Payment Form */}
       <div className="card card-soft p-3">
         <div className="row g-2">
-
           {/* Student */}
           <div className="col-md-4">
             <label className="form-label fw-bold">Student</label>
             <select
               className="form-select"
               value={form.student_id}
-              onChange={e => setForm({ ...form, student_id: e.target.value })}
+              onChange={(e) => setForm({ ...form, student_id: e.target.value })}
             >
               <option value="">Select Student</option>
 
-              {filteredStudents.map(s => (
+              {filteredStudents.map((s) => (
                 <option key={s.student_id} value={s.student_id}>
                   {s.student_id} - {s.full_name}
                 </option>
@@ -610,7 +763,7 @@ export default function Payments() {
               type="number"
               className="form-control"
               value={form.amount}
-              onChange={e => setForm({ ...form, amount: e.target.value })}
+              onChange={(e) => setForm({ ...form, amount: e.target.value })}
               placeholder="Amount"
             />
           </div>
@@ -621,7 +774,7 @@ export default function Payments() {
             <select
               className="form-select"
               value={form.method}
-              onChange={e => setForm({ ...form, method: e.target.value })}
+              onChange={(e) => setForm({ ...form, method: e.target.value })}
             >
               <option value="CASH">Cash</option>
               <option value="CARD">Card</option>
@@ -636,7 +789,7 @@ export default function Payments() {
             <input
               className="form-control"
               value={form.reference}
-              onChange={e => setForm({ ...form, reference: e.target.value })}
+              onChange={(e) => setForm({ ...form, reference: e.target.value })}
               placeholder="Reference (optional)"
             />
           </div>
