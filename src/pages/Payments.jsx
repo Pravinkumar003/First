@@ -1,5 +1,6 @@
 import AdminShell from "../components/AdminShell";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
 import { api } from "../lib/mockApi";
 import { validateRequiredFields } from "../lib/validation";
@@ -31,10 +32,7 @@ export default function Payments() {
 
   const [saving, setSaving] = useState(false);
 
-  const [activePaymentStudent, setActivePaymentStudent] = useState(null);
-  const [subjectSelection, setSubjectSelection] = useState({});
-  const [quickPaymentAmount, setQuickPaymentAmount] = useState("");
-
+  const navigate = useNavigate();
   const hasActiveFilters = Boolean(
     form.year || form.group_code || form.courseCode || form.semester
   );
@@ -80,55 +78,6 @@ export default function Payments() {
       return matchesYear && matchesGroup && matchesCourse && matchesSemester;
     });
   }, [students, form.year, form.group_code, form.courseCode, form.semester]);
-
-  const subjectsForActiveStudent = useMemo(() => {
-    if (!activePaymentStudent) return [];
-    const { course_code, course_name, courseCode, course, semester } =
-      activePaymentStudent;
-    const courseValues = new Set(
-      [course_code, course_name, courseCode, course].filter(Boolean)
-    );
-    const semesterValue =
-      semester === "" || semester === undefined || semester === null
-        ? null
-        : Number(semester);
-
-    return subjects.filter((subject) => {
-      const matchesCourse =
-        courseValues.size === 0 ||
-        courseValues.has(subject.courseCode) ||
-        courseValues.has(subject.courseName);
-      const subjectSemester =
-        subject.semester === "" ||
-        subject.semester === undefined ||
-        subject.semester === null
-          ? null
-          : Number(subject.semester);
-      const matchesSemester =
-        semesterValue === null ||
-        subjectSemester === null ||
-        semesterValue === subjectSemester;
-      return matchesCourse && matchesSemester;
-    });
-  }, [
-    subjects,
-    activePaymentStudent?.student_id,
-    activePaymentStudent?.course_code,
-    activePaymentStudent?.course_name,
-    activePaymentStudent?.courseCode,
-    activePaymentStudent?.course,
-    activePaymentStudent?.semester,
-  ]);
-
-  const selectedSubjectCount = Object.values(subjectSelection || {}).filter(
-    Boolean
-  ).length;
-  const hasSelectedSubjects = selectedSubjectCount > 0;
-
-  useEffect(() => {
-    setSubjectSelection({});
-    setQuickPaymentAmount("");
-  }, [activePaymentStudent?.student_id]);
 
   const loadData = useCallback(async () => {
     try {
@@ -280,96 +229,6 @@ export default function Payments() {
       return false;
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handlePayNowClick = (student) => {
-    setActivePaymentStudent((prev) =>
-      prev?.student_id === student.student_id ? null : student
-    );
-  };
-
-  const toggleSubjectSelection = (subjectId) => {
-    setSubjectSelection((prev) => ({
-      ...prev,
-      [subjectId]: !prev[subjectId],
-    }));
-  };
-
-  const handleQuickPayment = async () => {
-    if (!activePaymentStudent) return;
-    if (!hasSelectedSubjects) {
-      showToast("Select at least one subject before paying.", {
-        type: "warning",
-      });
-      return;
-    }
-    if (!quickPaymentAmount || Number(quickPaymentAmount) <= 0) {
-      showToast("Enter a valid payment amount.", { type: "warning" });
-      return;
-    }
-
-    const selectedSubjectNames = subjectsForActiveStudent
-      .filter((subject) => subjectSelection[subject.id])
-      .map((subject) => subject.subjectName)
-      .filter(Boolean);
-
-    const matchedGroup = getMatchedGroup(activePaymentStudent);
-    const matchedCourse = getMatchedCourse(activePaymentStudent);
-    const resolvedYear = firstDefined(
-      form.year,
-      activePaymentStudent.academic_year,
-      activePaymentStudent.year
-    );
-    const resolvedGroupCode = firstDefined(
-      form.group_code,
-      activePaymentStudent.group_code,
-      matchedGroup?.code
-    );
-    const resolvedGroupName = firstDefined(
-      form.group,
-      activePaymentStudent.group_name,
-      activePaymentStudent.group,
-      matchedGroup?.name
-    );
-    const resolvedCourseCode = firstDefined(
-      form.courseCode,
-      activePaymentStudent.course_code,
-      activePaymentStudent.courseCode,
-      matchedCourse?.courseCode
-    );
-    const resolvedCourseName = firstDefined(
-      activePaymentStudent.course_name,
-      activePaymentStudent.courseName,
-      matchedCourse?.courseName
-    );
-    const resolvedSemester = firstDefined(
-      form.semester,
-      activePaymentStudent.semester
-    );
-
-    const override = {
-      student_id: activePaymentStudent.student_id,
-      amount: quickPaymentAmount,
-      ...(resolvedYear ? { year: resolvedYear } : {}),
-      ...(resolvedGroupCode ? { group_code: resolvedGroupCode } : {}),
-      ...(resolvedGroupName ? { group: resolvedGroupName } : {}),
-      ...(resolvedCourseCode ? { courseCode: resolvedCourseCode } : {}),
-      ...(resolvedCourseName ? { courseName: resolvedCourseName } : {}),
-      ...(resolvedSemester !== undefined
-        ? { semester: String(resolvedSemester) }
-        : {}),
-      ...(selectedSubjectNames.length
-        ? { reference: `Subjects: ${selectedSubjectNames.join(", ")}` }
-        : {}),
-    };
-
-    const success = await save(override);
-
-    if (success) {
-      setActivePaymentStudent(null);
-      setSubjectSelection({});
-      setQuickPaymentAmount("");
     }
   };
 
@@ -624,144 +483,48 @@ export default function Payments() {
                     const photoUrl = s.photo_url || s.photo || s.avatar;
                     const initials = getInitials(studentName);
 
-                    const isActive =
-                      activePaymentStudent?.student_id === s.student_id;
-
                     return (
-                      <Fragment key={`${s.student_id}-row`}>
-                        <tr className={isActive ? "table-primary" : undefined}>
-                          <td>
-                            {photoUrl ? (
-                              <img
-                                src={photoUrl}
-                                alt={studentName}
-                                className="rounded-circle"
-                                style={{
-                                  width: 40,
-                                  height: 40,
-                                  objectFit: "cover",
-                                }}
-                              />
-                            ) : (
-                              <div
-                                className="bg-secondary text-white rounded-circle d-inline-flex align-items-center justify-content-center"
-                                style={{ width: 40, height: 40, fontSize: 12 }}
-                              >
-                                {initials}
-                              </div>
-                            )}
-                          </td>
-                          <td>{academicYear}</td>
-                          <td className="fw-semibold">{s.student_id}</td>
-                          <td>{hallTicketNumber}</td>
-                          <td>{studentName}</td>
-                          <td>{groupLabel}</td>
-                          <td>{courseLabel}</td>
-                          <td className="text-end">
-                            <button
-                              className={`btn btn-sm ${
-                                isActive
-                                  ? "btn-outline-secondary"
-                                  : "btn-outline-primary"
-                              }`}
-                              onClick={() => handlePayNowClick(s)}
+                      <tr key={`${s.student_id}-row`}>
+                        <td>
+                          {photoUrl ? (
+                            <img
+                              src={photoUrl}
+                              alt={studentName}
+                              className="rounded-circle"
+                              style={{
+                                width: 40,
+                                height: 40,
+                                objectFit: "cover",
+                              }}
+                            />
+                          ) : (
+                            <div
+                              className="bg-secondary text-white rounded-circle d-inline-flex align-items-center justify-content-center"
+                              style={{ width: 40, height: 40, fontSize: 12 }}
                             >
-                              Apply
-                            </button>
-                          </td>
-                        </tr>
-                        {isActive && (
-                          <tr>
-                            <td colSpan="7">
-                              <div className="bg-white border rounded-3 p-3 shadow-sm">
-                                <div className="d-flex justify-content-between align-items-center mb-3">
-                                  <div>
-                                    <div className="fw-semibold">Subjects</div>
-                                    <div className="text-muted small">
-                                      {selectedSubjectCount} selected
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <span className="text-muted small">
-                                      Select subjects to pay
-                                    </span>
-                                  </div>
-                                </div>
-                                {subjectsForActiveStudent.length === 0 ? (
-                                  <div className="alert alert-light py-2 mb-3">
-                                    No subjects configured for this course or
-                                    semester yet.
-                                  </div>
-                                ) : (
-                                  <div className="row g-3">
-                                    {subjectsForActiveStudent.map((subject) => (
-                                      <div
-                                        key={`subject-${subject.id}`}
-                                        className="col-md-6"
-                                      >
-                                        <label className="form-check w-100">
-                                          <input
-                                            type="checkbox"
-                                            className="form-check-input"
-                                            checked={
-                                              !!subjectSelection[subject.id]
-                                            }
-                                            onChange={() =>
-                                              toggleSubjectSelection(subject.id)
-                                            }
-                                          />
-                                          <span className="form-check-label ms-2">
-                                            <strong>
-                                              {subject.subjectName ||
-                                                subject.subjectCode}
-                                            </strong>
-                                            <span className="text-muted small ms-2">
-                                              ({subject.subjectCode})
-                                            </span>
-                                          </span>
-                                        </label>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                                <div className="row g-2 align-items-end mt-3">
-                                  <div className="col-md-6">
-                                    <label className="form-label fw-semibold">
-                                      Amount (INR)
-                                    </label>
-                                    <input
-                                      type="number"
-                                      className="form-control"
-                                      min="0"
-                                      value={quickPaymentAmount}
-                                      onChange={(e) =>
-                                        setQuickPaymentAmount(e.target.value)
-                                      }
-                                      placeholder="Enter amount"
-                                    />
-                                  </div>
-                                  <div className="col-md-6">
-                                    <button
-                                      type="button"
-                                      className="btn btn-brand w-100"
-                                      disabled={
-                                        !hasSelectedSubjects ||
-                                        !quickPaymentAmount ||
-                                        saving
-                                      }
-                                      onClick={handleQuickPayment}
-                                    >
-                                      {saving
-                                        ? "Processing..."
-                                        : "Pay selected subjects"}
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </Fragment>
+                              {initials}
+                            </div>
+                          )}
+                        </td>
+                        <td>{academicYear}</td>
+                        <td className="fw-semibold">{s.student_id}</td>
+                        <td>{hallTicketNumber}</td>
+                        <td>{studentName}</td>
+                        <td>{groupLabel}</td>
+                        <td>{courseLabel}</td>
+                        <td className="text-end">
+                          <button
+                            className="btn btn-sm btn-outline-primary"
+                            onClick={() =>
+                              navigate("/admin/studentpayoverview", {
+                                state: { studentId: s.student_id },
+                              })
+                            }
+                          >
+                            ▶️
+                          </button>
+                        </td>
+                      </tr>
                     );
                   })}
                 </tbody>
