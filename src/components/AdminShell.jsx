@@ -24,21 +24,20 @@ const nav = [
     label: "Fees Generation",
     icon: "bi-mortarboard",
   },
-  { to: "/admin/batches", label: "Batches", icon: "bi-people" },
-  { to: "/admin/courses", label: "View Courses", icon: "bi-book" },
-  { to: "/admin/students", label: "Students Details", icon: "bi-person-badge" },
-  {
-    to: "/admin/exams",
-    label: "Create Exam Time Table",
-    icon: "bi-journal-check",
-  },
   { to: "/admin/payments", label: "Payments", icon: "bi-credit-card" },
+  { to: "/admin/students", label: "Students Details", icon: "bi-person-badge" },
+  { to: "/admin/courses", label: "View Courses", icon: "bi-book" },
   {
     to: "/admin/hall-tickets",
-    label: "Hall Tickets",
+    label: "Hall Ticket",
     icon: "bi-ticket-perforated",
   },
-  { to: "/admin/results", label: "Results", icon: "bi-award" },
+  {
+    to: "/admin/exams",
+    label: "Create Exam timetable",
+    icon: "bi-journal-check",
+  },
+  { to: "/admin/results", label: "Result", icon: "bi-award" },
 ];
 
 export default function AdminShell({ children, onSignOut }) {
