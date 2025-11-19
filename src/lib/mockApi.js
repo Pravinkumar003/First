@@ -43,7 +43,14 @@ const DUPLICATE_RULES = {
   [TABLES.courses]: { cols: ["course_code", "course_name"], pk: "course_id" },
   [TABLES.subCategories]: { cols: ["category_name"], pk: "category_id" },
   [TABLES.subjects]: {
-    cols: ["subject_code", "subject_name"],
+    // treat subjects as batched by year/course/semester/category —
+    // prevent inserting another batch for same year+course+semester+category
+    composite: [
+      "academic_year",
+      "course_name",
+      "semester_number",
+      "category_id",
+    ],
     pk: "subject_id",
   },
   [TABLES.batches]: { cols: ["name"], pk: "id" },
@@ -75,14 +82,43 @@ const ensureNoDuplicate = async (table, row = {}, opts = {}) => {
       }
     }
     if (Object.keys(matchObj).length === rule.composite.length) {
-      let query = supabase.from(table).select("id");
-      for (const k of Object.keys(matchObj)) query = query.eq(k, matchObj[k]);
-      if (opts.excludeId) query = query.neq(pk, opts.excludeId);
-      const existing = await runMaybeSingle(
-        query.maybeSingle(),
-        "Duplicate check"
-      );
-      if (existing) throw new Error("Duplicate fee definition already exists");
+      // Try a direct filtered query first (efficient). If it fails (some
+      // supabase REST filters can return 400 for complex values), fall back
+      // to fetching the columns and checking in JS.
+      try {
+        let query = supabase.from(table).select(pk);
+        for (const k of Object.keys(matchObj)) query = query.eq(k, matchObj[k]);
+        if (opts.excludeId) query = query.neq(pk, opts.excludeId);
+        const existing = await runMaybeSingle(
+          query.maybeSingle(),
+          "Duplicate check"
+        );
+        if (existing)
+          throw new Error("Duplicate fee definition already exists");
+      } catch (err) {
+        // fallback: fetch rows for the composite columns and check equality in JS
+        try {
+          const cols = [...rule.composite, pk];
+          const rows = await runQuery(
+            supabase.from(table).select(cols.join(",")),
+            "Duplicate check fallback"
+          );
+          const found = (rows || []).find((r) => {
+            if (opts.excludeId && String(r[pk]) === String(opts.excludeId))
+              return false;
+            return rule.composite.every((c) => {
+              const left = r[c];
+              const right = matchObj[c];
+              // loose equality for numbers/strings
+              return String(left) === String(right);
+            });
+          });
+          if (found) throw new Error("Duplicate fee definition already exists");
+        } catch (fallbackErr) {
+          console.error("Duplicate check failed (fallback)", fallbackErr);
+          throw fallbackErr;
+        }
+      }
     }
     return;
   }
@@ -91,16 +127,40 @@ const ensureNoDuplicate = async (table, row = {}, opts = {}) => {
   for (const col of rule.cols || []) {
     const val = row[col];
     if (val === undefined || val === null || val === "") continue;
-    let query = supabase.from(table).select("id");
-    query = query.eq(col, val);
-    if (opts.excludeId) query = query.neq(pk, opts.excludeId);
-    const existing = await runMaybeSingle(
-      query.maybeSingle(),
-      "Duplicate check"
-    );
-    if (existing) {
-      const pretty = col.replace(/_/g, " ");
-      throw new Error(`${pretty} already exists`);
+    // Try a direct query; fallback to JS-check on failure (safer for weird
+    // column/value combinations that can trigger REST 400 errors).
+    try {
+      let query = supabase.from(table).select(pk);
+      query = query.eq(col, val);
+      if (opts.excludeId) query = query.neq(pk, opts.excludeId);
+      const existing = await runMaybeSingle(
+        query.maybeSingle(),
+        "Duplicate check"
+      );
+      if (existing) {
+        const pretty = col.replace(/_/g, " ");
+        throw new Error(`${pretty} already exists`);
+      }
+    } catch (err) {
+      // fallback: fetch rows for the column and compare in JS
+      try {
+        const rows = await runQuery(
+          supabase.from(table).select(`${col},${pk}`),
+          "Duplicate check fallback"
+        );
+        const found = (rows || []).find((r) => {
+          if (opts.excludeId && String(r[pk]) === String(opts.excludeId))
+            return false;
+          return String(r[col]) === String(val);
+        });
+        if (found) {
+          const pretty = col.replace(/_/g, " ");
+          throw new Error(`${pretty} already exists`);
+        }
+      } catch (fallbackErr) {
+        console.error("Duplicate check failed (fallback)", fallbackErr);
+        throw fallbackErr;
+      }
     }
   }
 };
@@ -239,6 +299,9 @@ const mapSubject = (row = {}) => {
       "",
     subjectCode,
     subjectName,
+    subjectNames: parseSubjectList(
+      row.subjects_name || row.subject_name || row.subjectName
+    ),
     feeCategory: row.fee_category || row.feeCategory || row.fees_category || "",
     feeAmount:
       feeAmountValue === undefined ||
@@ -772,13 +835,33 @@ export const api = {
     // validate duplicates for each subject (skip phone/mobile checks by design)
     for (const s of subjects) {
       const subjectRow = toSubjectRow(s);
-      const excludeId = s.subject_id || s.subjectId || s.id || null;
-      await ensureNoDuplicate(TABLES.subjects, subjectRow, { excludeId });
+      const rawExclude = s.subject_id || s.subjectId || s.id || null;
+      const excludeId =
+        rawExclude !== null && rawExclude !== undefined && rawExclude !== ""
+          ? Number(rawExclude)
+          : null;
+      // only use excludeId when it's a valid number (DB uses integer identity)
+      await ensureNoDuplicate(TABLES.subjects, subjectRow, {
+        excludeId: !isNaN(excludeId) ? excludeId : undefined,
+      });
     }
+    // prepare payloads for upsert — remove `subject_id` so DB can generate
+    // identity values. Use composite conflict columns for batch uniqueness.
+    const payload = subjects.map((s) => {
+      const r = toSubjectRow(s);
+      if (r.subject_id !== undefined) delete r.subject_id;
+      return r;
+    });
+    const onConflictCols = [
+      "academic_year",
+      "course_name",
+      "semester_number",
+      "category_id",
+    ].join(",");
     const rows = await runQuery(
       supabase
         .from(TABLES.subjects)
-        .upsert(subjects.map(toSubjectRow), { onConflict: "subject_id" })
+        .upsert(payload, { onConflict: onConflictCols })
         .select(
           "subject_id, academic_year, course_name, semester_number, category_id, subject_code, subject_name, fees_category, amount, subject_category:subject_category(category_name)"
         ),

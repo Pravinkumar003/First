@@ -11,16 +11,19 @@ import { showToast } from "../store/ui";
 
 // Utility
 const uid = () => Math.random().toString(36).slice(2);
+
 const renameKey = (map, from, to, fallbackValue) => {
   if (from === to) return map;
   const { [from]: value = fallbackValue, ...rest } = map;
   return { ...rest, [to]: value ?? fallbackValue };
 };
+
 const deleteKey = (map, key) => {
   if (!Object.prototype.hasOwnProperty.call(map, key)) return map;
   const { [key]: _omit, ...rest } = map;
   return rest;
 };
+
 const buildComboKey = (item = {}) => {
   const year =
     item.academicYearId || item.academicYearName || item.academic_year || "";
@@ -37,6 +40,7 @@ const buildComboKey = (item = {}) => {
     .map((part) => (part === undefined || part === null ? "" : String(part)))
     .join("|");
 };
+
 const randomId = () => {
   if (
     typeof crypto !== "undefined" &&
@@ -44,10 +48,9 @@ const randomId = () => {
   ) {
     return crypto.randomUUID();
   }
-  // fallback UUID v4 generator
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    const v = c === "x" ? r : (r & 0x3) | 8;
     return v.toString(16);
   });
 };
@@ -68,14 +71,17 @@ const buildSubjectForm = (category = "") => ({
   feeAmount: "",
   subjectId: "",
 });
+
 const itemsToNames = (items = []) =>
   (items || []).map((item) => (item?.name || "").trim()).filter(Boolean);
+
 const subjectsToItems = (subjects = []) => {
   if (!Array.isArray(subjects)) return [];
   return subjects
     .map((name) => ({ id: randomId(), name }))
     .filter((item) => item.name);
 };
+
 const buildCourseLookup = (courses = []) => {
   return courses.reduce((acc, course) => {
     if (!course) return acc;
@@ -91,12 +97,14 @@ const buildCourseLookup = (courses = []) => {
     return acc;
   }, {});
 };
+
 const buildYearNameLookup = (years = []) => {
   return years.reduce((acc, year) => {
     if (year?.name && year?.id !== undefined) acc[year.name] = year.id;
     return acc;
   }, {});
 };
+
 const invertMap = (mapObj = {}) => {
   return Object.entries(mapObj).reduce((acc, [key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
@@ -105,52 +113,71 @@ const invertMap = (mapObj = {}) => {
     return acc;
   }, {});
 };
+
 const normalizeSubjectRecord = (subject = {}, context = {}) => {
   const {
     courseLookup = {},
     categoryNameById = {},
     yearNameToId = {},
   } = context;
+
   const semesterValue =
     subject.semester ??
     subject.semester_number ??
     subject.semesterNo ??
     subject.semesterNumber;
+
   const feeAmountValue =
     subject.amount ?? subject.feeAmount ?? subject.fee_amount;
+
   const subjectCode =
     subject.subjectCode ||
     subject.subject_code ||
     subject.subjectName ||
     subject.subject_name ||
     "";
+
   const subjectName =
     subject.subjectName || subject.subject_name || subjectCode;
+
+  const subjectNames =
+    subject.subjectNames && Array.isArray(subject.subjectNames)
+      ? subject.subjectNames
+      : subject.subjectName
+      ? [subject.subjectName]
+      : [];
+
   const courseKey =
     subject.courseName ||
     subject.course_name ||
     subject.courseCode ||
     subject.course_code ||
     "";
+
   const courseMeta = courseLookup[courseKey] || {};
+
   const academicYearName =
     subject.academicYearName ||
     subject.academic_year_name ||
     subject.academic_year ||
     "";
+
   const academicYearId =
     subject.academicYearId ||
     subject.academic_year_id ||
     yearNameToId[academicYearName] ||
     "";
+
   const categoryId = subject.category_id ?? subject.categoryId ?? "";
   const categoryName =
     subject.category ||
     subject.category_name ||
     categoryNameById[categoryId] ||
     "";
+
   const supabaseId =
     subject.subject_id || subject.subjectId || subject.id || "";
+
   return {
     id: supabaseId || subject.id || randomId(),
     subjectId: supabaseId || "",
@@ -185,6 +212,7 @@ const normalizeSubjectRecord = (subject = {}, context = {}) => {
       feeAmountValue === ""
         ? ""
         : Number(feeAmountValue),
+    subjectNames,
   };
 };
 const buildSubjectBatchKey = (subject = {}) => {
@@ -204,6 +232,7 @@ const buildSubjectBatchKey = (subject = {}) => {
     .join("__");
   return derived || subject.subjectId || subject.id || "";
 };
+
 const ensureSubjectBatchKey = (subject = {}) => {
   if (!subject) return subject;
   if (subject.batchId) return subject;
@@ -241,6 +270,7 @@ const PLACEHOLDER_FEE_NAMES = new Set([
   "Bus",
   "Lab",
 ]);
+
 const stripPlaceholders = (list) => {
   if (!list || !list.length) return list;
   const looksLikePlaceholder = list.every(
@@ -248,6 +278,7 @@ const stripPlaceholders = (list) => {
   );
   return looksLikePlaceholder ? [] : list;
 };
+
 const normalizeFeeCategories = (data) => {
   if (!Array.isArray(data)) return [];
   const hasNestedFees = data.some(
@@ -294,25 +325,26 @@ const normalizeFeeCategories = (data) => {
 };
 
 export default function Setup() {
-  // Route-driven tab from sidebar
   const { tab: tabParam } = useParams();
   const tab = ["years", "groups", "subjects", "students"].includes(tabParam)
     ? tabParam
     : "years";
 
-  // Academic Years (shared)
   const [yearForm, setYearForm] = useState({ name: "", active: true });
   const [academicYears, setAcademicYears] = useState([]);
   const [editingYearId, setEditingYearId] = useState("");
+
   const yearNameToId = useMemo(
     () => buildYearNameLookup(academicYears),
     [academicYears]
   );
+
   const resolveYearName = (yearId) => {
     if (!yearId) return "";
     const match = academicYears.find((y) => String(y.id) === String(yearId));
     return match?.name || "";
   };
+
   const addYear = async () => {
     if (!validateRequiredFields({ "Academic year name": yearForm.name }))
       return;
@@ -345,10 +377,12 @@ export default function Setup() {
     }
     setYearForm({ name: "", active: true });
   };
+
   const editYear = (year) => {
     setYearForm({ name: year.name, active: year.active });
     setEditingYearId(year.id);
   };
+
   const deleteYear = async (id) => {
     setAcademicYears((prev) => prev.filter((y) => y.id !== id));
     try {
@@ -364,6 +398,7 @@ export default function Setup() {
       setEditingYearId("");
     }
   };
+
   const cancelYearEdit = () => {
     setYearForm({ name: "", active: true });
     setEditingYearId("");
@@ -379,7 +414,9 @@ export default function Setup() {
     years: 0,
     semesters: 0,
   });
+
   const [editingGroupId, setEditingGroupId] = useState("");
+
   const saveGroup = async () => {
     if (
       !validateRequiredFields({
@@ -388,6 +425,7 @@ export default function Setup() {
       })
     )
       return;
+
     const code = groupForm.code.toUpperCase();
     const payload = {
       code,
@@ -396,6 +434,7 @@ export default function Setup() {
       semesters: Number(groupForm.semesters) || 0,
       category: groupForm.category,
     };
+
     if (editingGroupId) {
       try {
         const updated = await api.updateGroup?.(editingGroupId, payload);
@@ -406,7 +445,9 @@ export default function Setup() {
         }
       } catch (error) {
         console.error("Error updating group:", error);
-        showToast(error?.message || "Error updating group", { type: "danger" });
+        showToast(error?.message || "Error updating group", {
+          type: "danger",
+        });
       }
       setEditingGroupId("");
     } else {
@@ -417,6 +458,7 @@ export default function Setup() {
         });
         return;
       }
+
       try {
         const created = await api.addGroup(payload);
         if (created) setGroups((prev) => [...prev, created]);
@@ -425,6 +467,7 @@ export default function Setup() {
         showToast(error?.message || "Error adding group", { type: "danger" });
       }
     }
+
     setGroupForm({
       id: "",
       category: "",
@@ -445,6 +488,7 @@ export default function Setup() {
     });
     setEditingGroupId(group.id);
   };
+
   const deleteGroup = async (id) => {
     setGroups((prev) => prev.filter((g) => g.id !== id));
     try {
@@ -454,6 +498,7 @@ export default function Setup() {
       showToast(error?.message || "Error deleting group", { type: "danger" });
     }
   };
+
   const cancelGroupEdit = () => {
     setGroupForm({
       id: "",
@@ -469,6 +514,7 @@ export default function Setup() {
   // Courses
   const [courses, setCourses] = useState([]);
   const courseLookup = useMemo(() => buildCourseLookup(courses), [courses]);
+
   const [courseForm, setCourseForm] = useState({
     id: "",
     groupCode: "",
@@ -476,10 +522,11 @@ export default function Setup() {
     courseName: "",
     semesters: 6,
   });
+
   const [editingCourseId, setEditingCourseId] = useState("");
 
-  // Semesters (auto-generated per course)
-  const [semesters, setSemesters] = useState([]); // [{ id, courseCode, number }]
+  // Semesters auto-generate
+  const [semesters, setSemesters] = useState([]);
   useEffect(() => {
     const generated = courses.flatMap((course) => {
       const code = course.courseCode || course.code;
@@ -493,6 +540,7 @@ export default function Setup() {
     });
     setSemesters(generated);
   }, [courses]);
+
   const saveCourse = async () => {
     const {
       groupCode,
@@ -500,6 +548,7 @@ export default function Setup() {
       courseName,
       semesters: semCount,
     } = courseForm;
+
     if (
       !validateRequiredFields({
         "Group code": groupCode,
@@ -509,13 +558,16 @@ export default function Setup() {
       })
     )
       return;
+
     const code = courseCode.toUpperCase();
+
     const payload = {
       code,
       name: courseName,
       group_code: groupCode,
       semesters: Number(semCount) || 0,
     };
+
     if (editingCourseId) {
       try {
         const updated = await api.updateCourse?.(editingCourseId, payload);
@@ -533,6 +585,7 @@ export default function Setup() {
       setEditingCourseId("");
     } else {
       if (courses.some((c) => (c.courseCode || c.code) === code)) return;
+
       try {
         const created = await api.addCourse(payload);
         if (created) setCourses((prev) => [...prev, created]);
@@ -541,6 +594,7 @@ export default function Setup() {
         showToast(error?.message || "Error adding course", { type: "danger" });
       }
     }
+
     setCourseForm({
       id: "",
       groupCode: "",
@@ -549,17 +603,21 @@ export default function Setup() {
       semesters: 6,
     });
   };
+
   const editCourse = (c) => {
     setCourseForm(c);
     setEditingCourseId(c.id);
   };
+
   const deleteCourse = async (id) => {
     const course = courses.find((c) => c.id === id);
     setCourses(courses.filter((c) => c.id !== id));
+
     if (course) {
       const code = course.courseCode || course.code;
       setSemesters(semesters.filter((s) => s.courseCode !== code));
     }
+
     try {
       await api.deleteCourse?.(id);
     } catch (error) {
@@ -568,21 +626,25 @@ export default function Setup() {
     }
   };
 
-  // Sub-categories and Languages
+  // Sub-categories
   const [categories, setCategories] = useState([]);
   const [categoryIdMap, setCategoryIdMap] = useState({});
   const categoryNameById = useMemo(
     () => invertMap(categoryIdMap),
     [categoryIdMap]
   );
+
   const [categoryName, setCategoryName] = useState("");
   const [editingCategory, setEditingCategory] = useState("");
   const [catItems, setCatItems] = useState({});
+
   const [feeCategories, setFeeCategories] = useState([]);
   const [feeCategoryName, setFeeCategoryName] = useState("");
   const [editingFeeCategoryId, setEditingFeeCategoryId] = useState("");
   const [feeDrafts, setFeeDrafts] = useState({});
+
   const [students, setStudents] = useState([]);
+
   const persistFeeCategoryList = async (list) => {
     try {
       await api.setFeeTypes?.(list);
@@ -593,6 +655,8 @@ export default function Setup() {
       });
     }
   };
+
+  // Initial loading
   useEffect(() => {
     (async () => {
       try {
@@ -605,24 +669,30 @@ export default function Setup() {
           api.listSubjects?.() || [],
           api.listStudents?.() || [],
         ]);
+
         if (yrs.length) setAcademicYears(yrs);
         if (grps.length) setGroups(grps);
         if (crs.length) setCourses(crs);
+
         if (ft) {
           const normalized = normalizeFeeCategories(ft);
           setFeeCategories(normalized);
         }
+
         const catNameByIdInit = {};
+
         if (subcats.length) {
           const names = [];
           const itemsMap = {};
           const idMap = {};
+
           subcats.forEach((cat) => {
             names.push(cat.name);
             idMap[cat.name] = cat.id;
             itemsMap[cat.name] = subjectsToItems(cat.subjects);
             if (cat.id) catNameByIdInit[cat.id] = cat.name;
           });
+
           setCategories(names);
           setCatItems(itemsMap);
           setCategoryIdMap(idMap);
@@ -631,11 +701,13 @@ export default function Setup() {
           setCatItems({});
           setCategoryIdMap({});
         }
+
         const initialSubjectContext = {
           courseLookup: buildCourseLookup(crs),
           categoryNameById: catNameByIdInit,
           yearNameToId: buildYearNameLookup(yrs),
         };
+
         if (subs?.length) {
           setSubjects(
             subs.map((rec) =>
@@ -647,6 +719,7 @@ export default function Setup() {
         } else {
           setSubjects([]);
         }
+
         if (studs?.length) {
           setStudents(studs);
         } else {
@@ -669,11 +742,13 @@ export default function Setup() {
       });
       return;
     }
+
     const duplicate = feeCategories.some(
       (cat) =>
         cat.name.trim().toLowerCase() === trimmed.toLowerCase() &&
         cat.id !== editingFeeCategoryId
     );
+
     if (duplicate) {
       showToast("That fee category already exists.", {
         type: "danger",
@@ -681,6 +756,7 @@ export default function Setup() {
       });
       return;
     }
+
     let next = [];
     if (editingFeeCategoryId) {
       next = feeCategories.map((cat) =>
@@ -689,7 +765,9 @@ export default function Setup() {
     } else {
       next = [...feeCategories, { id: randomId(), name: trimmed, fees: [] }];
     }
+
     setFeeCategories(next);
+
     try {
       await persistFeeCategoryList(next);
       showToast(
@@ -703,180 +781,166 @@ export default function Setup() {
       showToast("Unable to save fee category.", { type: "danger" });
     }
   };
+
   const editFeeCategory = (cat) => {
     setFeeCategoryName(cat.name);
     setEditingFeeCategoryId(cat.id);
   };
+
   const deleteFeeCategory = async (id) => {
     const next = feeCategories.filter((cat) => cat.id !== id);
     setFeeCategories(next);
+
     try {
       await persistFeeCategoryList(next);
       setFeeDrafts((prev) => deleteKey(prev, id));
+
       if (editingFeeCategoryId === id) {
         setFeeCategoryName("");
         setEditingFeeCategoryId("");
       }
+
       showToast("Fee category deleted.", { type: "info" });
     } catch (error) {
       console.error("Failed to delete fee category", error);
       showToast("Unable to delete fee category.", { type: "danger" });
     }
   };
+
+  // Sub-category (subjects) create/update/delete handlers
+  const saveCategory = async () => {
+    const trimmed = (categoryName || "").trim();
+    if (!trimmed) {
+      showToast("Enter a sub-category name.", {
+        type: "warning",
+        title: "Required field",
+      });
+      return;
+    }
+
+    // If editingCategory is set, it holds the existing category name (not id)
+    if (editingCategory) {
+      const oldName = editingCategory;
+      const id = categoryIdMap[oldName];
+      if (!id) {
+        showToast("Unable to locate the category to update.", {
+          type: "danger",
+        });
+        return;
+      }
+      const items = itemsToNames(catItems[oldName] || []);
+      try {
+        const updated = await api.updateSubCategory?.(id, {
+          name: trimmed,
+          subjects: items,
+        });
+        // update local maps
+        setCategories((prev) =>
+          prev.map((n) => (n === oldName ? updated.name : n))
+        );
+        setCatItems((prev) => {
+          const copy = { ...prev };
+          copy[updated.name] = subjectsToItems(updated.subjects || []);
+          if (oldName !== updated.name) delete copy[oldName];
+          return copy;
+        });
+        setCategoryIdMap((prev) => {
+          const copy = { ...prev };
+          if (oldName !== updated.name) delete copy[oldName];
+          copy[updated.name] = updated.id;
+          return copy;
+        });
+        setCategoryName("");
+        setEditingCategory("");
+        showToast("Sub-category updated.", { type: "success" });
+      } catch (error) {
+        console.error("Failed to update sub-category", error);
+        showToast(error?.message || "Unable to update sub-category.", {
+          type: "danger",
+        });
+      }
+    } else {
+      try {
+        const created = await api.addSubCategory?.(trimmed);
+        if (created) {
+          setCategories((prev) => [...prev, created.name]);
+          setCatItems((prev) => ({
+            ...prev,
+            [created.name]: subjectsToItems(created.subjects || []),
+          }));
+          setCategoryIdMap((prev) => ({ ...prev, [created.name]: created.id }));
+          setCategoryName("");
+          showToast("Sub-category added.", { type: "success" });
+        }
+      } catch (error) {
+        console.error("Failed to add sub-category", error);
+        showToast(error?.message || "Unable to add sub-category.", {
+          type: "danger",
+        });
+      }
+    }
+  };
+
+  const deleteCategory = async (name) => {
+    if (!name) return;
+    const id = categoryIdMap[name];
+    // optimistic UI update
+    setCategories((prev) => prev.filter((n) => n !== name));
+    setCatItems((prev) => {
+      const copy = { ...prev };
+      delete copy[name];
+      return copy;
+    });
+    setCategoryIdMap((prev) => {
+      const copy = { ...prev };
+      delete copy[name];
+      return copy;
+    });
+    try {
+      if (id) await api.deleteSubCategory?.(id);
+      showToast("Sub-category deleted.", { type: "info" });
+    } catch (error) {
+      console.error("Failed to delete sub-category", error);
+      showToast("Unable to delete sub-category.", { type: "danger" });
+    }
+  };
+
   const updateFeeDraft = (catId, field, value) => {
     setFeeDrafts((prev) => ({
       ...prev,
       [catId]: { ...prev[catId], [field]: value },
     }));
   };
-  const addFeeLine = () => {};
-  const updateFeeLine = () => {};
-  const deleteFeeLine = () => {};
-  const saveFeeCategories = async () => {
-    const payload = feeCategories
-      .map((cat) => ({
-        id: cat.id,
-        name: cat.name.trim(),
-        fees: [],
-      }))
-      .filter((cat) => cat.name);
-    await persistFeeCategoryList(payload);
-    setFeeCategories(payload);
-  };
-  const saveCategory = async () => {
-    const trimmed = categoryName.trim();
-    if (!trimmed) {
-      showToast("Enter a sub-category name before saving.", {
-        type: "warning",
-        title: "Required field",
-      });
-      return;
-    }
-    const duplicate = categories.some(
-      (c) => c.toLowerCase() === trimmed.toLowerCase() && c !== editingCategory
-    );
-    if (duplicate) {
-      showToast("That sub-category already exists.", {
-        type: "danger",
-        title: "Duplicate entry",
-      });
-      return;
-    }
-    if (editingCategory) {
-      setCategories(
-        categories.map((c) => (c === editingCategory ? trimmed : c))
-      );
-      setCatItems((prev) => renameKey(prev, editingCategory, trimmed, []));
-      setSubjects((prev) =>
-        prev.map((s) =>
-          s.category === editingCategory ? { ...s, category: trimmed } : s
-        )
-      );
-      if (subjectForm.category === editingCategory) {
-        setSubjectForm((prev) => ({ ...prev, category: trimmed }));
-      }
-      const catId = categoryIdMap[editingCategory];
-      const currentItems = catItems[editingCategory] || [];
-      if (catId) {
-        try {
-          await api.updateSubCategory?.(catId, {
-            name: trimmed,
-            subjects: itemsToNames(currentItems),
-          });
-          showToast("Sub-category updated successfully.", { type: "success" });
-        } catch (error) {
-          console.error("Failed to rename sub-category", error);
-          showToast("Failed to update sub-category.", { type: "danger" });
-        }
-        setCategoryIdMap((prev) => {
-          const next = { ...prev };
-          delete next[editingCategory];
-          return { ...next, [trimmed]: catId };
-        });
-      }
-    } else {
-      try {
-        const created = await api.addSubCategory?.(trimmed);
-        const label = created?.name || trimmed;
-        const id = created?.id;
-        setCategories((prev) => [...prev, label]);
-        setCatItems((prev) => ({
-          ...prev,
-          [label]: subjectsToItems(created?.subjects || []),
-        }));
-        if (id) {
-          setCategoryIdMap((prev) => ({ ...prev, [label]: id }));
-        }
-        showToast("Sub-category added successfully.", { type: "success" });
-      } catch (error) {
-        console.error("Failed to add sub-category", error);
-        showToast("Unable to add sub-category.", { type: "danger" });
-        return;
-      }
-    }
-    setCategoryName("");
-    setEditingCategory("");
-  };
-  const deleteCategory = async (name) => {
-    const id = categoryIdMap[name];
-    if (id) {
-      try {
-        await api.deleteSubCategory?.(id);
-      } catch (error) {
-        console.error("Failed to delete sub-category", error);
-        showToast("Unable to delete sub-category.", { type: "danger" });
-        return;
-      }
-    }
-    const remaining = categories.filter((c) => c !== name);
-    if (remaining.length === categories.length) return;
-    setCategories(remaining);
-    setCatItems((prev) => deleteKey(prev, name));
-    setCategoryIdMap((prev) => deleteKey(prev, name));
-    setSubjects((prev) => {
-      const fallback = remaining[0] || "";
-      return prev.reduce((acc, item) => {
-        if (item.category !== name) {
-          acc.push(item);
-          return acc;
-        }
-        if (fallback) acc.push({ ...item, category: fallback });
-        return acc;
-      }, []);
-    });
-    if (subjectForm.category === name) {
-      setSubjectForm((prev) => ({ ...prev, category: remaining[0] || "" }));
-    }
-    if (editingCategory === name) {
-      setCategoryName("");
-      setEditingCategory("");
-    }
-    showToast("Sub-category deleted.", { type: "info" });
-  };
 
-  // Languages (special under Language category)
-  const [languages, setLanguages] = useState([]); // [{id, name}]
+  // Languages
+  const [languages, setLanguages] = useState([]);
   const [langCount, setLangCount] = useState(0);
   const [langInputs, setLangInputs] = useState([]);
+
   const prepareLangInputs = (n) => {
     const count = Math.max(0, Number(n) || 0);
     setLangCount(count);
     setLangInputs(Array.from({ length: count }, (_, i) => langInputs[i] || ""));
   };
+
   const saveLanguages = () => {
     const newOnes = langInputs
       .filter(Boolean)
       .map((name) => ({ id: uid(), name }));
+
     if (newOnes.length) setLanguages([...languages, ...newOnes]);
+
     setLangCount(0);
     setLangInputs([]);
   };
+
   const editLanguage = (id, name) =>
     setLanguages(languages.map((l) => (l.id === id ? { ...l, name } : l)));
+
   const deleteLanguage = (id) =>
     setLanguages(languages.filter((l) => l.id !== id));
 
-  // Subjects
+  // SUBJECTS
   const subjectContext = useMemo(
     () => ({
       courseLookup,
@@ -885,6 +949,7 @@ export default function Setup() {
     }),
     [courseLookup, categoryNameById, yearNameToId]
   );
+
   const loadSubjects = useCallback(async () => {
     try {
       const rows = (await api.listSubjects?.()) || [];
@@ -897,6 +962,7 @@ export default function Setup() {
       console.error("Failed to reload subjects", error);
     }
   }, [subjectContext]);
+
   const [subjects, setSubjects] = useState([]);
   const [pendingSubjects, setPendingSubjects] = useState([]);
   const [subjectForm, setSubjectForm] = useState(() => buildSubjectForm(""));
@@ -910,6 +976,7 @@ export default function Setup() {
       return { ...prev, category: categories[0] };
     });
   }, [categories]);
+
   const [editingSubjectId, setEditingSubjectId] = useState("");
   const [editingBatchId, setEditingBatchId] = useState("");
 
@@ -918,6 +985,7 @@ export default function Setup() {
     if (!subjectForm.groupCode) return false;
     return groupCode === subjectForm.groupCode;
   });
+
   const semForCourse = semesters.filter(
     (s) => s.courseCode === subjectForm.courseCode
   );
@@ -935,16 +1003,20 @@ export default function Setup() {
       feeCategory,
       feeAmount,
     } = subjectForm;
+
     const selectedNames = Array.isArray(subjectSelections)
       ? subjectSelections
       : [];
+
     const hasSelection = selectedNames.length > 0;
+
     const manualNames = [
       subjectName,
       ...(Array.isArray(extraSubjectNames) ? extraSubjectNames : []),
     ]
       .map((name) => (name || "").trim())
       .filter(Boolean);
+
     if (
       !academicYearId ||
       !groupCode ||
@@ -958,6 +1030,7 @@ export default function Setup() {
       );
       return;
     }
+
     if (!hasSelection && manualNames.length === 0) {
       showToast("Enter at least one subject name.", {
         type: "warning",
@@ -965,14 +1038,17 @@ export default function Setup() {
       });
       return;
     }
+
     const names = hasSelection ? selectedNames : manualNames;
     const academicYearName = resolveYearName(academicYearId);
     const categoryId = categoryIdMap[category] || "";
     const courseMeta = courses.find(
       (c) => c.courseCode === courseCode || c.code === courseCode
     );
+
     const courseName = courseMeta?.courseName || courseCode;
     const batchId = editingBatchId || randomId();
+
     const entries = names.map((name, idx) => ({
       id: editingSubjectId && idx === 0 ? editingSubjectId : randomId(),
       subjectId: editingSubjectId && idx === 0 ? editingSubjectId : "",
@@ -990,6 +1066,7 @@ export default function Setup() {
       feeCategory,
       feeAmount: feeAmount ? Number(feeAmount) : "",
     }));
+
     if (editingSubjectId) {
       setPendingSubjects((prev) => [
         ...prev.filter((s) => s.id !== editingSubjectId),
@@ -999,13 +1076,14 @@ export default function Setup() {
     } else {
       setPendingSubjects((prev) => [...prev, ...entries]);
     }
-    const verb = editingSubjectId ? "updated" : "added";
+
     showToast(
       `${names.length} subject${
         names.length === 1 ? "" : "s"
-      } ${verb} to pending list.`,
-      { type: "success", title: "Subjects queued" }
+      } added to pending list.`,
+      { type: "success" }
     );
+
     setSubjectForm((prev) => ({
       ...prev,
       subjectName: "",
@@ -1015,77 +1093,32 @@ export default function Setup() {
       feeAmount: "",
     }));
   };
-  const submitPendingSubjects = async () => {
-    if (!pendingSubjects.length) return;
-    const pendingSnapshot = pendingSubjects.map((item) => ({ ...item }));
-    const payload = pendingSnapshot.map((item) => {
-      const academicYearName =
-        item.academicYearName || resolveYearName(item.academicYearId);
-      const courseMeta =
-        courseLookup[item.courseCode] || courseLookup[item.courseName] || {};
-      const categoryId =
-        item.categoryId || categoryIdMap[item.category] || null;
-      const subjectCodeValue = item.subjectCode || item.subjectName || "";
-      const subjectNameValue = item.subjectName || subjectCodeValue;
-      const amountValue =
-        item.feeAmount === "" ||
-        item.feeAmount === undefined ||
-        item.feeAmount === null
-          ? null
-          : Number(item.feeAmount);
-      const courseCodeValue =
-        courseMeta.courseCode || item.courseCode || item.courseName || null;
-      const row = {
-        academic_year: academicYearName || null,
-        course_name: courseCodeValue,
-        semester_number: item.semester ? Number(item.semester) : null,
-        category_id: categoryId,
-        subject_code: subjectCodeValue,
-        subject_name: subjectNameValue,
-        fees_category: item.feeCategory || null,
-        amount: amountValue,
-      };
-      if (item.subjectId) {
-        row.subject_id = item.subjectId;
-      }
-      return row;
-    });
-    const existingCombos = new Set(subjects.map(buildComboKey));
-    const pendingCombos = new Set(pendingSnapshot.map(buildComboKey));
-    for (const key of pendingCombos) {
-      if (existingCombos.has(key)) {
-        showToast(
-          "These subjects already exist for the selected year/group/course/semester. Use edit to update them.",
-          { type: "warning", title: "Duplicate combination" }
-        );
-        return;
-      }
-    }
-    try {
-      await api.addSubjects?.(payload);
-      setPendingSubjects([]);
-      await loadSubjects();
-    } catch (error) {
-      console.error("Failed to save subjects", error);
-      showToast(error?.message || "Failed to save subjects", {
-        type: "danger",
-      });
-    }
-  };
+
+  // 🔥🔥🔥 IMPORTANT — PATCHED FUNCTION BELOW 🔥🔥🔥
   const editPendingSubject = (rec) => {
     const batchRef = buildSubjectBatchKey(rec);
+
     setPendingSubjects((prev) =>
       prev.filter((s) => buildSubjectBatchKey(s) !== batchRef)
     );
+
     const options = catItems[rec.category] || [];
+
     const names = rec.subjectNames?.length
       ? rec.subjectNames
       : [rec.subjectName].filter(Boolean);
+
     const allPreset =
       names.length > 0 &&
       names.every((name) => options.some((item) => item.name === name));
+
+    // 🟢 FIXED: Always restore correct valid categoryId
+    const fixedCategoryId =
+      categoryIdMap[rec.category] || rec.categoryId || rec.category_id || "";
+
     setSubjectForm({
       ...rec,
+      categoryId: fixedCategoryId,
       semester:
         rec.semester === undefined || rec.semester === null
           ? ""
@@ -1096,40 +1129,141 @@ export default function Setup() {
       extraSubjectNames: allPreset ? [] : names.slice(1),
       subjectSelections: allPreset ? names : [],
     });
+
     setEditingSubjectId(rec.subjectId || rec.id || "");
     setEditingBatchId(batchRef || "");
   };
+  const submitPendingSubjects = async () => {
+    if (!pendingSubjects.length) return;
+
+    const pendingSnapshot = pendingSubjects.map((item) => ({ ...item }));
+
+    const grouped = {};
+    for (const item of pendingSnapshot) {
+      const key = buildSubjectBatchKey(item) || randomId();
+
+      if (!grouped[key]) {
+        const academicYearName =
+          item.academicYearName || resolveYearName(item.academicYearId);
+
+        const courseMeta =
+          courseLookup[item.courseCode] || courseLookup[item.courseName] || {};
+
+        const categoryId =
+          item.categoryId || categoryIdMap[item.category] || null;
+
+        const courseCodeValue =
+          courseMeta.courseCode || item.courseCode || item.courseName || null;
+
+        grouped[key] = {
+          rep: item,
+          academic_year: academicYearName || null,
+          course_name: courseCodeValue,
+          semester_number: item.semester ? Number(item.semester) : null,
+          category_id: categoryId,
+          fees_category: item.feeCategory || null,
+          amount:
+            item.feeAmount === "" ||
+            item.feeAmount === undefined ||
+            item.feeAmount === null
+              ? null
+              : Number(item.feeAmount),
+          names: [],
+          subject_id: item.subjectId || item.id || null,
+        };
+      }
+
+      const name = (item.subjectName || item.subjectCode || "").toString();
+      if (name) grouped[key].names.push(name);
+
+      if (!grouped[key].subject_id && (item.subjectId || item.id)) {
+        grouped[key].subject_id = item.subjectId || item.id;
+      }
+    }
+
+    const payload = Object.values(grouped).map((g) => {
+      const row = {
+        academic_year: g.academic_year,
+        course_name: g.course_name,
+        semester_number: g.semester_number,
+        category_id: g.category_id,
+        subject_name: JSON.stringify(g.names || []),
+        fees_category: g.fees_category,
+        amount: g.amount,
+      };
+      if (g.subject_id) row.subject_id = g.subject_id;
+      return row;
+    });
+
+    const existingCombos = new Set(subjects.map(buildComboKey));
+    const pendingCombos = new Set(
+      Object.values(grouped).map((g) => buildComboKey(g.rep))
+    );
+
+    for (const key of pendingCombos) {
+      if (existingCombos.has(key)) {
+        showToast(
+          "These subjects already exist for the selected combination.",
+          { type: "warning", title: "Duplicate combination" }
+        );
+        return;
+      }
+    }
+
+    try {
+      await api.addSubjects?.(payload);
+      setPendingSubjects([]);
+      await loadSubjects();
+      showToast("Subjects submitted.", { type: "success" });
+    } catch (error) {
+      console.error("Failed to save subjects", error);
+      showToast(error?.message || "Failed to save subjects", {
+        type: "danger",
+      });
+    }
+  };
+
   const editSubject = async (rec) => {
     const batchRef = buildSubjectBatchKey(rec);
+
     setSubjects((prev) =>
       prev.filter((s) => buildSubjectBatchKey(s) !== batchRef)
     );
+
     editPendingSubject(rec);
   };
+
   const deletePendingSubject = (item) => {
     const batchRef = buildSubjectBatchKey(item);
+
     setPendingSubjects((prev) =>
       prev.filter((s) => buildSubjectBatchKey(s) !== batchRef)
     );
+
     if (editingSubjectId === (item.subjectId || item.id)) {
       setSubjectForm(buildSubjectForm(categories[0] || ""));
       setEditingSubjectId("");
     }
+
     if (editingBatchId === batchRef) {
       setSubjectForm(buildSubjectForm(categories[0] || ""));
       setEditingBatchId("");
     }
   };
+
   const deleteSubject = async (group) => {
     const batchRef = buildSubjectBatchKey(group);
+
     const ids = (
       group.subjectIds?.length
         ? group.subjectIds
         : [group.subjectId || group.id]
     ).filter(Boolean);
+
     setSubjects((prev) =>
       prev.filter((s) => buildSubjectBatchKey(s) !== batchRef)
     );
+
     try {
       await Promise.all(ids.map((id) => api.deleteSubject?.(id)));
       showToast("Subject entries deleted.", { type: "info" });
@@ -1138,6 +1272,7 @@ export default function Setup() {
       showToast("Unable to delete subject.", { type: "danger" });
     }
   };
+
   const cancelSubjectEdit = () => {
     setEditingSubjectId("");
     setEditingBatchId("");
@@ -1174,31 +1309,38 @@ export default function Setup() {
       route: "/admin/students",
     },
   ];
+
   const heroTagline = "Manage programme structures and duration.";
 
   return (
     <AdminShell>
       <div className="desktop-container">
         <h2 className="fw-bold mb-3">Admin Setup</h2>
+
         <section className="setup-hero mb-4">
           <div className="setup-hero-grid">
             <div className="setup-hero-copywrap">
-              <div className="setup-hero-crest" aria-hidden="true">
+              <div className="setup-hero-crest">
                 <img src={crestPrimary} alt="Vijayam crest" />
               </div>
+
               <h3 className="setup-hero-title mb-2">
                 Vijayam Arts & Science College
               </h3>
+
               <p className="setup-hero-copy mb-3">{heroTagline}</p>
+
               <div className="setup-hero-chips d-flex flex-wrap gap-2">
                 <span className="setup-hero-chip">
                   SMART EXAMINATION PLATFORM
                 </span>
               </div>
+
               <p className="setup-hero-eyebrow text-uppercase mt-3">
                 Administration · Setup Console
               </p>
             </div>
+
             <div className="setup-stat-grid">
               {heroStats.map((stat) => (
                 <Link
