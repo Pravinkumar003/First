@@ -190,9 +190,6 @@ export default function GroupsCoursesSection({
                             gap: "0.35rem",
                           }}
                         >
-                          <span style={accentBadgeStyle}>
-                            {g.years || 0} yrs
-                          </span>
                           {g.category ? (
                             <span style={accentBadgeStyle}>{g.category}</span>
                           ) : null}

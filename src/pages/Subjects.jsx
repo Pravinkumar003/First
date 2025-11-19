@@ -189,7 +189,7 @@ export default function SubjectsSection({
                 <div className="subcat-panel-header">
                   <div>
                     <div className="subcat-panel-title">{cat}</div>
-                    <div className="subcat-panel-meta">{subjectCount} subject{subjectCount === 1 ? '' : 's'} configured</div>
+                   
                   </div>
                   <div className="subcat-panel-actions">
                     <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => { setCategoryName(cat); setEditingCategory(cat) }}>Rename</button>
