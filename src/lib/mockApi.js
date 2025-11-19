@@ -113,7 +113,8 @@ const ensureNoDuplicate = async (table, row = {}, opts = {}) => {
               return String(left) === String(right);
             });
           });
-          if (found) throw new Error("Duplicate data definition already exists");
+          if (found)
+            throw new Error("Duplicate data definition already exists");
         } catch (fallbackErr) {
           console.error("Duplicate check failed (fallback)", fallbackErr);
           throw fallbackErr;
@@ -192,13 +193,18 @@ const mapGroup = (row = {}) => ({
   semesters: row.number_semesters ?? 0,
 });
 
-const toGroupRow = ({ code, name, years, semesters, category }) => ({
-  group_code: code,
-  group_name: name,
-  category: category ?? null,
-  duration_years: years ?? null,
-  number_semesters: semesters ?? null,
-});
+const toGroupRow = ({ code, name, years, semesters, category }) => {
+  const row = {
+    group_code: code,
+    group_name: name,
+    duration_years: years ?? null,
+    number_semesters: semesters ?? null,
+  };
+  // include `category` only when provided to avoid sending an unknown
+  // column to Supabase (some schemas may not have this column).
+  if (category !== undefined) row.category = category ?? null;
+  return row;
+};
 
 const mapCourse = (row = {}) => {
   const code = row.course_code || row.code;
