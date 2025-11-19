@@ -181,11 +181,22 @@ export default function GroupsCoursesSection({
                           <div className="text-muted small">
                             {g.code || "-"}
                           </div>
-                          <div className="text-muted small">
-                            Category: {g.category || "-"}
-                          </div>
                         </div>
-                        <span style={accentBadgeStyle}>{g.years || 0} yrs</span>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "flex-end",
+                            gap: "0.35rem",
+                          }}
+                        >
+                          <span style={accentBadgeStyle}>
+                            {g.years || 0} yrs
+                          </span>
+                          {g.category ? (
+                            <span style={accentBadgeStyle}>{g.category}</span>
+                          ) : null}
+                        </div>
                       </div>
                       <div className="d-flex flex-wrap gap-4 mb-4 text-muted">
                         <div>
