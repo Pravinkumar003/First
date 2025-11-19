@@ -202,7 +202,9 @@ const toGroupRow = ({ code, name, years, semesters, category }) => {
   };
   // include `category` only when provided to avoid sending an unknown
   // column to Supabase (some schemas may not have this column).
-  if (category !== undefined) row.category = category ?? null;
+  // Some DB schemas use a capitalized column name `Category` (legacy).
+  // Write to that column name when present so UG/PG values persist.
+  if (category !== undefined) row.Category = category ?? null;
   return row;
 };
 

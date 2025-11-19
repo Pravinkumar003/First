@@ -429,6 +429,7 @@ export default function Setup() {
     const payload = {
       code,
       name: groupForm.name,
+      category: groupForm.category,
       years: Number(groupForm.years) || 0,
       semesters: Number(groupForm.semesters) || 0,
     };

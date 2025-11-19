@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 export default function GroupsCoursesSection({
   groupForm,
   setGroupForm,
@@ -49,6 +51,20 @@ export default function GroupsCoursesSection({
     borderRadius: "999px",
     padding: "0.35rem 0.9rem",
   };
+
+  // When category is UG/PG we auto-fill standard duration and semesters
+  useEffect(() => {
+    if (!groupForm) return;
+    if (groupForm.category === "UG") {
+      setGroupForm((prev) => ({ ...prev, years: 3, semesters: 6 }));
+    } else if (groupForm.category === "PG") {
+      setGroupForm((prev) => ({ ...prev, years: 2, semesters: 4 }));
+    }
+    // note: we intentionally do not clear years/semesters when category is empty
+  }, [groupForm?.category, setGroupForm]);
+
+  const isFixedDuration =
+    groupForm && (groupForm.category === "UG" || groupForm.category === "PG");
 
   return (
     <>
@@ -108,9 +124,11 @@ export default function GroupsCoursesSection({
                   className="form-control no-spinner"
                   placeholder="Years"
                   value={groupForm.years}
-                  onChange={(e) =>
-                    setGroupForm({ ...groupForm, years: e.target.value })
-                  }
+                  onChange={(e) => {
+                    if (!isFixedDuration)
+                      setGroupForm({ ...groupForm, years: e.target.value });
+                  }}
+                  disabled={isFixedDuration}
                   style={{ "-moz-appearance": "textfield" }}
                   onWheel={(e) => e.target.blur()}
                 />
@@ -124,9 +142,11 @@ export default function GroupsCoursesSection({
                   className="form-control no-spinner"
                   placeholder="No. of Semesters"
                   value={groupForm.semesters}
-                  onChange={(e) =>
-                    setGroupForm({ ...groupForm, semesters: e.target.value })
-                  }
+                  onChange={(e) => {
+                    if (!isFixedDuration)
+                      setGroupForm({ ...groupForm, semesters: e.target.value });
+                  }}
+                  disabled={isFixedDuration}
                   style={{ "-moz-appearance": "textfield" }}
                   onWheel={(e) => e.target.blur()}
                 />
