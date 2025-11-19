@@ -19,13 +19,13 @@ const nav = [
     label: "Create Subjects",
     icon: "bi-journal-text",
   },
+  { to: "/admin/students", label: "Students Details", icon: "bi-person-badge" },
   {
     to: "/admin/departments",
     label: "Fees Generation",
     icon: "bi-mortarboard",
   },
   { to: "/admin/payments", label: "Payments", icon: "bi-credit-card" },
-  { to: "/admin/students", label: "Students Details", icon: "bi-person-badge" },
   { to: "/admin/courses", label: "View Courses", icon: "bi-book" },
   {
     to: "/admin/hall-tickets",
