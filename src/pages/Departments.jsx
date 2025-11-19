@@ -137,13 +137,7 @@ export default function Departments() {
 
   // Delete fee category
   const deleteFeeCategory = async (id) => {
-    if (
-      !window.confirm(
-        "Are you sure you want to delete this category? This action cannot be undone."
-      )
-    ) {
-      return;
-    }
+    showToast("Deleting category...", { type: "info", title: "Deleting" });
 
     try {
       // First check if this category is in use
@@ -169,7 +163,7 @@ export default function Departments() {
       if (error) throw error;
 
       showToast("Category deleted successfully", { type: "success" });
-      loadFeeCategories();
+      await loadFeeCategories();
     } catch (error) {
       console.error("Error deleting fee category:", error);
       showToast("Failed to delete category", { type: "danger" });
