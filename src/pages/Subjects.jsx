@@ -276,7 +276,7 @@ export default function SubjectsSection({
           </select>
         </div>
         <div className="col-12 col-sm-6 col-xl-3">
-          <label className="form-label fw-bold mb-1">Subject Name <span className="text-danger">*</span></label>
+          <label className="form-label fw-bold mb-1">Subject Title <span className="text-danger">*</span></label>
           {(catItems[subjectForm.category] || []).length ? (
             <div className="subject-checkbox-group">
               {catItems[subjectForm.category].map(item => {
@@ -304,7 +304,7 @@ export default function SubjectsSection({
             </div>
           ) : (
             <>
-              <input className="form-control" placeholder="Subject Name" value={subjectForm.subjectName} onChange={e => setSubjectForm({ ...subjectForm, subjectName: e.target.value })} />
+              <input className="form-control" placeholder="Subject title" value={subjectForm.subjectName} onChange={e => setSubjectForm({ ...subjectForm, subjectName: e.target.value })} />
               {extraInputFields}
             </>
           )}

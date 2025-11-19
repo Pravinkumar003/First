@@ -1145,6 +1145,15 @@ export default function Setup() {
         const courseCodeValue =
           courseMeta.courseCode || item.courseCode || item.courseName || null;
 
+        // ensure subject_id is numeric (DB identity). ignore UUID/client ids.
+        const rawSubjectId = item.subjectId || item.id || null;
+        const numericSubjectId =
+          rawSubjectId !== null &&
+          rawSubjectId !== undefined &&
+          rawSubjectId !== ""
+            ? Number(rawSubjectId)
+            : null;
+
         grouped[key] = {
           rep: item,
           academic_year: academicYearName || null,
@@ -1159,7 +1168,9 @@ export default function Setup() {
               ? null
               : Number(item.feeAmount),
           names: [],
-          subject_id: item.subjectId || item.id || null,
+          subject_id: Number.isFinite(numericSubjectId)
+            ? numericSubjectId
+            : null,
         };
       }
 
@@ -1182,15 +1193,15 @@ export default function Setup() {
         amount: g.amount,
       };
       if (g.subject_id) row.subject_id = g.subject_id;
-      return row;
+      return { grouped: g, row };
     });
 
     const existingCombos = new Set(subjects.map(buildComboKey));
-    const pendingCombos = new Set(
-      Object.values(grouped).map((g) => buildComboKey(g.rep))
-    );
 
-    for (const key of pendingCombos) {
+    // If any pending group (without subject_id) collides with existing saved combos, block
+    for (const item of payload) {
+      const key = buildComboKey(item.grouped.rep);
+      if (item.grouped.subject_id) continue; // allow updates to existing rows
       if (existingCombos.has(key)) {
         showToast(
           "These subjects already exist for the selected combination.",
@@ -1201,7 +1212,27 @@ export default function Setup() {
     }
 
     try {
-      await api.addSubjects?.(payload);
+      // Separate updates (have numeric subject_id) and inserts (new rows)
+      const toUpdate = payload.filter((p) =>
+        Number.isFinite(p.grouped.subject_id)
+      );
+      const toInsert = payload
+        .filter((p) => !Number.isFinite(p.grouped.subject_id))
+        .map((p) => p.row);
+
+      // Perform updates first (coerce id to Number)
+      if (toUpdate.length) {
+        await Promise.all(
+          toUpdate.map((p) =>
+            api.updateSubject?.(Number(p.grouped.subject_id), p.row)
+          )
+        );
+      }
+
+      if (toInsert.length) {
+        await api.addSubjects?.(toInsert);
+      }
+
       setPendingSubjects([]);
       await loadSubjects();
       showToast("Subjects submitted.", { type: "success" });
@@ -1272,7 +1303,12 @@ export default function Setup() {
     );
 
     try {
-      await Promise.all(ids.map((id) => api.deleteSubject?.(id)));
+      const numericIds = ids
+        .map((id) => Number(id))
+        .filter((n) => Number.isFinite(n));
+      if (numericIds.length) {
+        await Promise.all(numericIds.map((id) => api.deleteSubject?.(id)));
+      }
       showToast("Subject entries deleted.", { type: "info" });
     } catch (error) {
       console.error("Failed to delete subject", error);

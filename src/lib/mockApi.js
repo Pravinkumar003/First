@@ -878,6 +878,26 @@ export const api = {
     );
   },
 
+  updateSubject: async (id, row) => {
+    if (!id) throw new Error("Missing subject id");
+    const updateRow = { ...row };
+    // Ensure we don't try to set subject_id (identity)
+    if (updateRow.subject_id !== undefined) delete updateRow.subject_id;
+    if (updateRow.subjectId !== undefined) delete updateRow.subjectId;
+    const updated = await runQuery(
+      supabase
+        .from(TABLES.subjects)
+        .update(updateRow)
+        .eq("subject_id", id)
+        .select(
+          "subject_id, academic_year, course_name, semester_number, category_id, subject_code, subject_name, fees_category, amount, subject_category:subject_category(category_name)"
+        )
+        .single(),
+      "Unable to update subject"
+    );
+    return mapSubject(updated);
+  },
+
   listBatches: async () => {
     const rows = await runQuery(
       supabase
