@@ -155,6 +155,7 @@ export default function AdminApplications() {
       const { error } = await supabase.from('students').insert([payload])
       if (error) throw error
 
+      showToast('Application submitted successfully!', { type: 'success', title: 'Success' })
       setMsg('Application saved successfully.')
       resetAll()
     } catch (error) {
