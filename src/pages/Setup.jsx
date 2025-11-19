@@ -465,8 +465,6 @@ export default function Setup() {
         showToast(error?.message || "Error adding group", { type: "danger" });
       }
     }
-<<<<<<< HEAD
-
     setGroupForm({
       id: "",
       category: "",
@@ -475,9 +473,6 @@ export default function Setup() {
       years: 0,
       semesters: 0,
     });
-=======
-    setGroupForm({ id: "", code: "", name: "", years: 0, semesters: 0 });
->>>>>>> origin/Pravin
   };
   const editGroup = (g) => {
     setGroupForm(g);
@@ -493,7 +488,6 @@ export default function Setup() {
       showToast(error?.message || "Error deleting group", { type: "danger" });
     }
   };
-<<<<<<< HEAD
 
   const cancelGroupEdit = () => {
     setGroupForm({
@@ -506,8 +500,6 @@ export default function Setup() {
     });
     setEditingGroupId("");
   };
-=======
->>>>>>> origin/Pravin
 
   // Courses
   const [courses, setCourses] = useState([]);

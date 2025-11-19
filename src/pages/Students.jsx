@@ -5,7 +5,7 @@ import { trackPromise } from "../store/ui";
 import { toast } from "react-toastify";
 import { validateRequiredFields } from "../lib/validation";
 import { api } from "../lib/mockApi";
-
+ 
 export default function Students() {
   const [students, setStudents] = useState([]);
   const [filters, setFilters] = useState({
@@ -18,6 +18,11 @@ export default function Students() {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
+  const [statusModal, setStatusModal] = useState({
+    show: false,
+    student: null,
+    selectedStatus: 'CONTINUE'
+  });
   const [editForm, setEditForm] = useState({
     student_id: "",
     hall_ticket_no: "",
@@ -45,7 +50,7 @@ export default function Students() {
     cert_url: "",
     status: "ACTIVE",
   });
-
+ 
   // Load initial data
   useEffect(() => {
     const loadData = async () => {
@@ -63,33 +68,33 @@ export default function Students() {
           `
           )
           .order("full_name");
-
+ 
         if (studentsError) throw studentsError;
-
+ 
         // Fetch academic years
         const { data: yearsData, error: yearsError } = await supabase
           .from("academic_year")
           .select("id, academic_year, status")
           .order("academic_year", { ascending: false });
-
+ 
         if (yearsError) throw yearsError;
-
+ 
         // Fetch groups
         const { data: groupsData, error: groupsError } = await supabase
           .from("groups")
           .select("group_id, group_code, group_name")
           .order("group_name");
-
+ 
         if (groupsError) throw groupsError;
-
+ 
         // Fetch courses
         const { data: coursesData, error: coursesError } = await supabase
           .from("courses")
           .select("course_id, course_code, course_name")
           .order("course_name");
-
+ 
         if (coursesError) throw coursesError;
-
+ 
         // Transform students data to include related fields
         const transformedStudents = studentsData.map((student) => ({
           ...student,
@@ -99,7 +104,7 @@ export default function Students() {
           course_code: student.course?.course_code,
           academic_year: student.year?.academic_year || student.academic_year,
         }));
-
+ 
         setStudents(transformedStudents);
         const activeYears = (yearsData || []).filter((year) =>
           year.status === undefined ? true : Boolean(year.status)
@@ -115,7 +120,7 @@ export default function Students() {
     };
     trackPromise(loadData());
   }, []);
-
+ 
   // Filter students based on selected filters
   const filteredStudents = useMemo(() => {
     return students.filter((student) => {
@@ -126,15 +131,15 @@ export default function Students() {
         !filters.group_name || student.group_code === filters.group_name;
       const matchesCourse =
         !filters.course_name || student.course_code === filters.course_name;
-
+ 
       return matchesYear && matchesGroup && matchesCourse;
     });
   }, [students, filters]);
-
+ 
   const handleFilterChange = (field, value) => {
     setFilters((prev) => ({ ...prev, [field]: value }));
   };
-
+ 
   const handleEdit = (student) => {
     setEditingStudent(student);
     setEditForm({
@@ -170,7 +175,7 @@ export default function Students() {
       status: student.status || "ACTIVE",
     });
   };
-
+ 
   const handleEditChange = (e) => {
     const { name, value } = e.target;
     setEditForm((prev) => {
@@ -196,7 +201,7 @@ export default function Students() {
       };
     });
   };
-
+ 
   const handleUpdateStudent = async () => {
     if (!editingStudent) return;
     const essentialFields = {
@@ -210,7 +215,7 @@ export default function Students() {
       notify: ({ message }) => toast.warn(message),
     });
     if (!valid) return;
-
+ 
     try {
       setLoading(true);
       const payload = {
@@ -242,9 +247,9 @@ export default function Students() {
         .from("students")
         .update(payload)
         .eq("id", editingStudent.id);
-
+ 
       if (error) throw error;
-
+ 
       const groupDisplayName =
         groups.find((g) => g.group_code === editForm.group_code)?.group_name ||
         editForm.group_code;
@@ -267,7 +272,7 @@ export default function Students() {
             : student
         )
       );
-
+ 
       toast.success("Student updated successfully");
       setEditingStudent(null);
     } catch (error) {
@@ -277,11 +282,11 @@ export default function Students() {
       setLoading(false);
     }
   };
-
+ 
   const handleCancelEdit = () => {
     setEditingStudent(null);
   };
-
+ 
   const handleDelete = async (studentId) => {
     if (window.confirm("Are you sure you want to delete this student?")) {
       try {
@@ -292,13 +297,57 @@ export default function Students() {
       }
     }
   };
-
+ 
+  // Open status modal with current student's status
+  const openStatusModal = (student) => {
+    setStatusModal({
+      show: true,
+      student,
+      selectedStatus: student.status || 'CONTINUE'
+    });
+  };
+ 
+  // Close status modal
+  const closeStatusModal = () => {
+    setStatusModal(prev => ({
+      ...prev,
+      show: false
+    }));
+  };
+ 
+  // Update student status in database and local state
+  const updateStudentStatus = async () => {
+    if (!statusModal.student) return;
+   
+    try {
+      const { error } = await supabase
+        .from("students")
+        .update({ status: statusModal.selectedStatus })
+        .eq("id", statusModal.student.id);
+ 
+      if (error) throw error;
+ 
+      // Update local state
+      setStudents(students.map(student =>
+        student.id === statusModal.student.id
+          ? { ...student, status: statusModal.selectedStatus }
+          : student
+      ));
+ 
+      toast.success("Student status updated successfully");
+      closeStatusModal();
+    } catch (error) {
+      console.error("Error updating student status:", error);
+      toast.error("Failed to update student status");
+    }
+  };
+ 
   return (
     <AdminShell>
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h2 className="fw-bold mb-0">Student Management</h2>
       </div>
-
+ 
       {/* Filters */}
       <div className="card card-soft p-3 mb-4">
         <h5 className="mb-3">Filter Students</h5>
@@ -354,7 +403,7 @@ export default function Students() {
           </div>
         </div>
       </div>
-
+ 
       {/* Students Table */}
       <div className="card card-soft p-0">
         <div className="table-responsive">
@@ -389,7 +438,25 @@ export default function Students() {
                     <td>{student.group?.group_name || student.group_name}</td>
                     <td>{student.course?.course_name || student.course_name}</td>
                     <td>{student.academic_year}</td>
-                    <td>{student.status || 'Active'}</td>
+                    <td>
+                      <button
+                        className={`btn btn-sm ${
+                          student.status === 'DISCONTINUE'
+                            ? 'btn-danger'
+                            : student.status === 'HOLD'
+                              ? 'btn-warning'
+                              : 'btn-success'
+                        }`}
+                        onClick={() => openStatusModal(student)}
+                        style={{ minWidth: '100px' }}
+                      >
+                        {student.status === 'DISCONTINUE'
+                          ? 'Discontinued'
+                          : student.status === 'HOLD'
+                            ? 'On Hold'
+                            : 'Active'}
+                      </button>
+                    </td>
                     <td>
                       <button
                         className="btn btn-sm btn-outline-primary me-2"
@@ -417,7 +484,7 @@ export default function Students() {
           </table>
         </div>
       </div>
-
+ 
       {/* Edit Student Modal */}
       {editingStudent && (
         <div
@@ -577,7 +644,7 @@ export default function Students() {
                     </div>
                   </div>
                 </div>
-
+ 
                 <div className="row mt-3">
                   <div className="col-md-6">
                     <h6>Parent Information</h6>
@@ -626,7 +693,7 @@ export default function Students() {
                     </div>
                   </div>
                 </div>
-
+ 
                 <div className="row mt-3">
                   <div className="col-12">
                     <h6>Address & Identity</h6>
@@ -694,7 +761,7 @@ export default function Students() {
                     </div>
                   </div>
                 </div>
-
+ 
                 <div className="row mt-3">
                   <div className="col-md-4">
                     <div className="mb-3">
@@ -733,7 +800,7 @@ export default function Students() {
                     </div>
                   </div>
                 </div>
-
+ 
                 <div className="row mt-3">
                   <div className="col-md-6">
                     <div className="mb-3">
@@ -783,6 +850,86 @@ export default function Students() {
           </div>
         </div>
       )}
+      {/* Status Change Modal */}
+      {statusModal.show && (
+        <div className="modal d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Update Student Status</h5>
+                <button type="button" className="btn-close" onClick={closeStatusModal}></button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-3">
+                  <label className="form-label">Select Status</label>
+                  <div className="d-flex flex-column gap-2">
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="statusOption"
+                        id="continueOption"
+                        value="CONTINUE"
+                        checked={statusModal.selectedStatus === 'CONTINUE'}
+                        onChange={() => setStatusModal({...statusModal, selectedStatus: 'CONTINUE'})}
+                      />
+                      <label className="form-check-label" htmlFor="continueOption">
+                        Continue (Active)
+                      </label>
+                    </div>
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="statusOption"
+                        id="discontinueOption"
+                        value="DISCONTINUE"
+                        checked={statusModal.selectedStatus === 'DISCONTINUE'}
+                        onChange={() => setStatusModal({...statusModal, selectedStatus: 'DISCONTINUE'})}
+                      />
+                      <label className="form-check-label" htmlFor="discontinueOption">
+                        Discontinue
+                      </label>
+                    </div>
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="statusOption"
+                        id="holdOption"
+                        value="HOLD"
+                        checked={statusModal.selectedStatus === 'HOLD'}
+                        onChange={() => setStatusModal({...statusModal, selectedStatus: 'HOLD'})}
+                      />
+                      <label className="form-check-label" htmlFor="holdOption">
+                        Hold
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={closeStatusModal}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={updateStudentStatus}
+                >
+                  Update Status
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminShell>
   );
 }
+ 
+ 
