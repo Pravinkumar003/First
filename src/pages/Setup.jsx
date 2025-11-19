@@ -339,6 +339,9 @@ export default function Setup() {
       }
     } catch (error) {
       console.error("Failed to save academic year", error);
+      showToast(error?.message || "Failed to save academic year", {
+        type: "danger",
+      });
     }
     setYearForm({ name: "", active: true });
   };
@@ -352,6 +355,9 @@ export default function Setup() {
       await api.deleteAcademicYear?.(id);
     } catch (error) {
       console.error("Failed to delete academic year", error);
+      showToast(error?.message || "Failed to delete academic year", {
+        type: "danger",
+      });
     }
     if (editingYearId === id) {
       setYearForm({ name: "", active: true });
@@ -400,6 +406,7 @@ export default function Setup() {
         }
       } catch (error) {
         console.error("Error updating group:", error);
+        showToast(error?.message || "Error updating group", { type: "danger" });
       }
       setEditingGroupId("");
     } else {
@@ -415,9 +422,17 @@ export default function Setup() {
         if (created) setGroups((prev) => [...prev, created]);
       } catch (error) {
         console.error("Error adding group:", error);
+        showToast(error?.message || "Error adding group", { type: "danger" });
       }
     }
-    setGroupForm({ id: "", category: "", code: "", name: "", years: 0, semesters: 0 });
+    setGroupForm({
+      id: "",
+      category: "",
+      code: "",
+      name: "",
+      years: 0,
+      semesters: 0,
+    });
   };
   const editGroup = (group) => {
     setGroupForm({
@@ -436,10 +451,18 @@ export default function Setup() {
       await api.deleteGroup?.(id);
     } catch (error) {
       console.error("Error deleting group:", error);
+      showToast(error?.message || "Error deleting group", { type: "danger" });
     }
   };
   const cancelGroupEdit = () => {
-    setGroupForm({ id: "", category: "", code: "", name: "", years: 0, semesters: 0 });
+    setGroupForm({
+      id: "",
+      category: "",
+      code: "",
+      name: "",
+      years: 0,
+      semesters: 0,
+    });
     setEditingGroupId("");
   };
 
@@ -503,6 +526,9 @@ export default function Setup() {
         }
       } catch (error) {
         console.error("Error updating course:", error);
+        showToast(error?.message || "Error updating course", {
+          type: "danger",
+        });
       }
       setEditingCourseId("");
     } else {
@@ -512,6 +538,7 @@ export default function Setup() {
         if (created) setCourses((prev) => [...prev, created]);
       } catch (error) {
         console.error("Error adding course:", error);
+        showToast(error?.message || "Error adding course", { type: "danger" });
       }
     }
     setCourseForm({
@@ -537,6 +564,7 @@ export default function Setup() {
       await api.deleteCourse?.(id);
     } catch (error) {
       console.error("Error deleting course:", error);
+      showToast(error?.message || "Error deleting course", { type: "danger" });
     }
   };
 
@@ -560,6 +588,9 @@ export default function Setup() {
       await api.setFeeTypes?.(list);
     } catch (error) {
       console.error("Failed to save fee categories", error);
+      showToast(error?.message || "Failed to save fee categories", {
+        type: "danger",
+      });
     }
   };
   useEffect(() => {
@@ -623,6 +654,9 @@ export default function Setup() {
         }
       } catch (error) {
         console.error("Failed to load setup data", error);
+        showToast(error?.message || "Failed to load setup data", {
+          type: "danger",
+        });
       }
     })();
   }, []);
@@ -1033,6 +1067,9 @@ export default function Setup() {
       await loadSubjects();
     } catch (error) {
       console.error("Failed to save subjects", error);
+      showToast(error?.message || "Failed to save subjects", {
+        type: "danger",
+      });
     }
   };
   const editPendingSubject = (rec) => {

@@ -127,13 +127,15 @@ const mapGroup = (row = {}) => ({
   id: row.group_id ?? row.id,
   code: row.group_code,
   name: row.group_name,
+  category: row.category || row.Category || "",
   years: row.duration_years ?? 0,
   semesters: row.number_semesters ?? 0,
 });
 
-const toGroupRow = ({ code, name, years, semesters }) => ({
+const toGroupRow = ({ code, name, years, semesters, category }) => ({
   group_code: code,
   group_name: name,
+  category: category ?? null,
   duration_years: years ?? null,
   number_semesters: semesters ?? null,
 });
@@ -596,12 +598,7 @@ export const api = {
 
   listGroups: async () => {
     const rows = await runQuery(
-      supabase
-        .from(TABLES.groups)
-        .select(
-          "group_id, group_code, group_name, duration_years, number_semesters"
-        )
-        .order("group_code"),
+      supabase.from(TABLES.groups).select("*").order("group_code"),
       "Unable to fetch groups"
     );
     return rows.map(mapGroup);
@@ -613,9 +610,7 @@ export const api = {
       supabase
         .from(TABLES.groups)
         .insert(toGroupRow(group))
-        .select(
-          "group_id, group_code, group_name, duration_years, number_semesters"
-        )
+        .select("*")
         .single(),
       "Unable to add group"
     );
@@ -631,9 +626,7 @@ export const api = {
         .from(TABLES.groups)
         .update(toGroupRow(group))
         .eq("group_id", id)
-        .select(
-          "group_id, group_code, group_name, duration_years, number_semesters"
-        )
+        .select("*")
         .single(),
       "Unable to update group"
     );
