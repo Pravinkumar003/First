@@ -504,12 +504,13 @@ export default function Payments() {
                     const studentName =
                       s.full_name || s.name || "Unnamed student";
                     const academicYear = s.academic_year || "Year not set";
+                    const matchedGroup = getMatchedGroup(s);
                     const groupLabel =
+                      matchedGroup?.name ||
                       s.group_name ||
                       s.group ||
                       s.group_code ||
                       "Group unknown";
-                    const matchedGroup = getMatchedGroup(s);
                     const matchedCourse = getMatchedCourse(s);
                     const courseLabel =
                       matchedCourse?.courseName ||

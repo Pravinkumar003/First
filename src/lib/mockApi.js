@@ -113,7 +113,7 @@ const ensureNoDuplicate = async (table, row = {}, opts = {}) => {
               return String(left) === String(right);
             });
           });
-          if (found) throw new Error("Duplicate fee definition already exists");
+          if (found) throw new Error("Duplicate data definition already exists");
         } catch (fallbackErr) {
           console.error("Duplicate check failed (fallback)", fallbackErr);
           throw fallbackErr;
