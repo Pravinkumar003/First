@@ -10,6 +10,11 @@ export default function Results(){
   const save=async()=>{ if(!form.student_id||!form.exam_id||!form.total||!form.grade) return; setSaving(true); await api.addResult({ student_id:form.student_id, exam_id:form.exam_id, total:Number(form.total), grade:form.grade }); setForm({student_id:'',exam_id:'',total:'',grade:''}); setSaving(false) }
   return (
     <AdminShell>
+      <div className="d-flex flex-column align-items-center justify-content-center" style={{ minHeight: '70vh' }}>
+        <h2 className="fw-bold mb-3">Results Management</h2>
+        <p className="h4 text-muted">This page should be updated</p>
+      </div>
+      {/* Original functionality preserved but commented out
       <h2 className="fw-bold mb-3">Publish Results</h2>
       <div className="card card-soft p-3">
         <div className="row g-2">
@@ -32,7 +37,10 @@ export default function Results(){
           <button className="btn btn-brand" disabled={saving} onClick={save}>{saving?'Saving...':'Add Result'}</button>
         </div>
       </div>
+      */}
     </AdminShell>
   )
 }
-
+ 
+ 
+ 
