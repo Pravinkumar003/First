@@ -57,15 +57,28 @@ export default function GroupsCoursesSection({
         <div className="row">
           <div className="col-12">
             <div className="row g-2">
-              <div className="col-md-4">
+              <div className="col-md-3">
+                <label className="form-label fw-bold mb-1">Category</label>
+                <select 
+                  className="form-select" 
+                  value={groupForm.category}
+                  onChange={e => setGroupForm({ ...groupForm, category: e.target.value })}
+                  required
+                >
+                  <option value="">Select Category</option>
+                  <option value="UG">UG</option>
+                  <option value="PG">PG</option>
+                </select>
+              </div>
+              <div className="col-md-3">
                 <label className="form-label fw-bold mb-1">Group Code</label>
                 <input className="form-control" placeholder="Group Code" required value={groupForm.code} onChange={e => setGroupForm({ ...groupForm, code: e.target.value.toUpperCase() })} />
               </div>
-              <div className="col-md-4">
+              <div className="col-md-3">
                 <label className="form-label fw-bold mb-1">Group Name</label>
                 <input className="form-control" placeholder="Group Name" required value={groupForm.name} onChange={e => setGroupForm({ ...groupForm, name: e.target.value })} />
               </div>
-              <div className="col-md-4 col-lg-3">
+              <div className="col-md-3 col-lg-2">
                 <label className="form-label fw-bold mb-1">Duration (years)</label>
                 <input
                   type="number"
@@ -77,7 +90,7 @@ export default function GroupsCoursesSection({
                   onWheel={e => e.target.blur()}
                 />
               </div>
-              <div className="col-md-4 col-lg-3">
+              <div className="col-md-3 col-lg-2">
                 <label className="form-label fw-bold mb-1">Number of semesters</label>
                 <input
                   type="number"
@@ -98,7 +111,7 @@ export default function GroupsCoursesSection({
                 <button
                   className="btn btn-outline-secondary"
                   onClick={() => {
-                    setGroupForm({ id: '', code: '', name: '', years: 0, semesters: 0 })
+                    setGroupForm({ id: '', category: '', code: '', name: '', years: 0, semesters: 0 })
                     setEditingGroupId('')
                   }}
                 >

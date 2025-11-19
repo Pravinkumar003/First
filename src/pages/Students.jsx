@@ -330,7 +330,7 @@ export default function Students() {
               <option value="">All Groups</option>
               {groups.map((group) => (
                 <option key={group.group_id} value={group.group_code}>
-                  {group.group_name} ({group.group_code})
+                  {group.group_name}
                 </option>
               ))}
             </select>
@@ -347,7 +347,7 @@ export default function Students() {
               <option value="">All Courses</option>
               {courses.map((course) => (
                 <option key={course.course_id} value={course.course_code}>
-                  {course.course_name} ({course.course_code})
+                  {course.course_name}
                 </option>
               ))}
             </select>
@@ -363,8 +363,9 @@ export default function Students() {
               <tr>
                 <th>Student ID</th>
                 <th>Name</th>
-                <th>Course</th>
+                <th>Hall Ticket No</th>
                 <th>Group</th>
+                <th>Course</th>
                 <th>Academic Year</th>
                 <th>Actions</th>
               </tr>
@@ -383,10 +384,9 @@ export default function Students() {
                   <tr key={student.id}>
                     <td>{student.student_id}</td>
                     <td>{student.full_name}</td>
-                    <td>
-                      {student.course?.course_name || student.course_name}
-                    </td>
+                    <td>{student.hall_ticket_no || '-'}</td>
                     <td>{student.group?.group_name || student.group_name}</td>
+                    <td>{student.course?.course_name || student.course_name}</td>
                     <td>{student.academic_year}</td>
                     <td>
                       <button

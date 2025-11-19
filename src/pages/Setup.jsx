@@ -367,6 +367,7 @@ export default function Setup() {
   const [groups, setGroups] = useState([]);
   const [groupForm, setGroupForm] = useState({
     id: "",
+    category: "",
     code: "",
     name: "",
     years: 0,
@@ -387,6 +388,7 @@ export default function Setup() {
       name: groupForm.name,
       years: Number(groupForm.years) || 0,
       semesters: Number(groupForm.semesters) || 0,
+      category: groupForm.category,
     };
     if (editingGroupId) {
       try {
@@ -415,11 +417,18 @@ export default function Setup() {
         console.error("Error adding group:", error);
       }
     }
-    setGroupForm({ id: "", code: "", name: "", years: 0, semesters: 0 });
+    setGroupForm({ id: "", category: "", code: "", name: "", years: 0, semesters: 0 });
   };
-  const editGroup = (g) => {
-    setGroupForm(g);
-    setEditingGroupId(g.id);
+  const editGroup = (group) => {
+    setGroupForm({
+      id: group.id,
+      category: group.category || "",
+      code: group.code,
+      name: group.name,
+      years: group.years,
+      semesters: group.semesters,
+    });
+    setEditingGroupId(group.id);
   };
   const deleteGroup = async (id) => {
     setGroups((prev) => prev.filter((g) => g.id !== id));
@@ -428,6 +437,10 @@ export default function Setup() {
     } catch (error) {
       console.error("Error deleting group:", error);
     }
+  };
+  const cancelGroupEdit = () => {
+    setGroupForm({ id: "", category: "", code: "", name: "", years: 0, semesters: 0 });
+    setEditingGroupId("");
   };
 
   // Courses
