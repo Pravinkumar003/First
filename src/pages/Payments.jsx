@@ -21,10 +21,6 @@ export default function Payments() {
     group_code: "",
     courseCode: "",
     semester: "",
-    student_id: "",
-    amount: "",
-    method: "CASH",
-    reference: "",
   });
   const [displayCount, setDisplayCount] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -193,94 +189,8 @@ export default function Payments() {
   }, [loadData]);
 
   const save = async (override = {}) => {
-    const payload = { ...form };
-    Object.entries(override).forEach(([key, value]) => {
-      if (value !== undefined) {
-        payload[key] = value;
-      }
-    });
-
-    if (
-      !validateRequiredFields(
-        { Student: payload.student_id, Amount: payload.amount },
-        { title: "Missing payment details" }
-      )
-    )
-      return false;
-
-    const selectedCourse = courses.find(
-      (c) => c.courseCode === payload.courseCode
-    );
-    const courseName = selectedCourse?.courseName || payload.courseName || "";
-
-    const semesterNumber = payload.semester ? Number(payload.semester) : null;
-    const groupKey = payload.group_code || payload.group;
-    const courseKey = payload.courseCode || courseName;
-
-    const matchingFee = feeDefinitions.find((f) => {
-      if (f.academic_year !== payload.year) return false;
-      if (semesterNumber !== Number(f.semester_number ?? f.semester))
-        return false;
-      if (groupKey) {
-        const availableGroupValues = [f.group, f.group_code, f.group_name];
-        if (!availableGroupValues.some((val) => val && val === groupKey))
-          return false;
-      }
-      if (courseKey) {
-        const availableCourseValues = [
-          f.course_name,
-          f.course_code,
-          courseName,
-        ];
-        if (!availableCourseValues.some((val) => val && val === courseKey))
-          return false;
-      }
-      return true;
-    });
-
-    if (!matchingFee) {
-      showToast(
-        "Define fee structure first for this year/group/course/semester.",
-        {
-          type: "warning",
-          title: "Missing fee definition",
-        }
-      );
-      return false;
-    }
-
-    setSaving(true);
-    try {
-      const { error } = await supabase.from("student_payments").insert([
-        {
-          student_id: payload.student_id,
-          fee_id: matchingFee.id,
-          amount_paid: Number(payload.amount),
-          payment_date: new Date().toISOString(),
-          payment_mode: payload.method,
-          remarks: payload.reference || null,
-        },
-      ]);
-
-      if (error) throw error;
-
-      setForm({
-        ...form,
-        student_id: "",
-        amount: "",
-        reference: "",
-      });
-
-      showToast("Payment recorded successfully!", { type: "success" });
-      await loadData();
-      return true;
-    } catch (e) {
-      console.error("Error saving payment:", e);
-      showToast("Failed to record payment. Try again.", { type: "danger" });
-      return false;
-    } finally {
-      setSaving(false);
-    }
+    // Payment form has been removed as per requirements
+    return false;
   };
 
   const handlePayNowClick = (student) => {
@@ -665,7 +575,7 @@ export default function Payments() {
                               }`}
                               onClick={() => handlePayNowClick(s)}
                             >
-                              Apply
+                              Apply for Exam
                             </button>
                           </td>
                         </tr>
@@ -770,72 +680,6 @@ export default function Payments() {
         </div>
       </div>
 
-      {/* Payment Form */}
-      <div className="card card-soft p-3">
-        <div className="row g-2">
-          {/* Student */}
-          <div className="col-md-4">
-            <label className="form-label fw-bold">Student</label>
-            <select
-              className="form-select"
-              value={form.student_id}
-              onChange={(e) => setForm({ ...form, student_id: e.target.value })}
-            >
-              <option value="">Select Student</option>
-
-              {filteredStudents.map((s) => (
-                <option key={s.student_id} value={s.student_id}>
-                  {s.student_id} - {s.full_name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Amount */}
-          <div className="col-md-2">
-            <label className="form-label fw-bold">Amount (INR)</label>
-            <input
-              type="number"
-              className="form-control"
-              value={form.amount}
-              onChange={(e) => setForm({ ...form, amount: e.target.value })}
-              placeholder="Amount"
-            />
-          </div>
-
-          {/* Method */}
-          <div className="col-md-3">
-            <label className="form-label fw-bold">Payment Method</label>
-            <select
-              className="form-select"
-              value={form.method}
-              onChange={(e) => setForm({ ...form, method: e.target.value })}
-            >
-              <option value="CASH">Cash</option>
-              <option value="CARD">Card</option>
-              <option value="UPI">UPI</option>
-              <option value="NETBANKING">Net Banking</option>
-            </select>
-          </div>
-
-          {/* Reference */}
-          <div className="col-md-3">
-            <label className="form-label fw-bold">Reference</label>
-            <input
-              className="form-control"
-              value={form.reference}
-              onChange={(e) => setForm({ ...form, reference: e.target.value })}
-              placeholder="Reference (optional)"
-            />
-          </div>
-        </div>
-
-        <div className="mt-3 d-flex justify-content-end">
-          <button className="btn btn-brand" disabled={saving} onClick={save}>
-            {saving ? "Saving..." : "Add Payment"}
-          </button>
-        </div>
-      </div>
     </AdminShell>
   );
 }

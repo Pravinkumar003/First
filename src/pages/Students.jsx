@@ -367,7 +367,8 @@ export default function Students() {
                 <th>Group</th>
                 <th>Course</th>
                 <th>Academic Year</th>
-                <th>Actions</th>
+                <th>Academic Status</th>
+                <th>Edit Details</th>
               </tr>
             </thead>
             <tbody>
@@ -388,6 +389,7 @@ export default function Students() {
                     <td>{student.group?.group_name || student.group_name}</td>
                     <td>{student.course?.course_name || student.course_name}</td>
                     <td>{student.academic_year}</td>
+                    <td>{student.status || 'Active'}</td>
                     <td>
                       <button
                         className="btn btn-sm btn-outline-primary me-2"
