@@ -20,6 +20,7 @@ export default function StudentPayOverview() {
   const passedStudent = location.state?.student ?? null;
   const passedStudentId =
     location.state?.studentId ?? passedStudent?.student_id;
+  const passedFilters = location.state?.selectedFilters ?? null;
 
   const [student, setStudent] = useState(passedStudent);
   const [loading, setLoading] = useState(false);
@@ -101,7 +102,24 @@ export default function StudentPayOverview() {
         </div>
         <button
           className="btn btn-outline-secondary"
-          onClick={() => navigate(-1)}
+          onClick={() => {
+            if (passedStudentId) {
+              if (passedFilters) {
+                navigate("/admin/payments", {
+                  state: {
+                    selectedStudentId: passedStudentId,
+                    selectedFilters: passedFilters,
+                  },
+                });
+              } else {
+                navigate("/admin/payments", {
+                  state: { selectedStudentId: passedStudentId },
+                });
+              }
+            } else {
+              navigate(-1);
+            }
+          }}
         >
           Back to payments
         </button>

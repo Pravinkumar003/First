@@ -1,6 +1,6 @@
 import AdminShell from "../components/AdminShell";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
 import { api } from "../lib/mockApi";
 import { validateRequiredFields } from "../lib/validation";
@@ -128,6 +128,7 @@ export default function Payments() {
   }, [activePaymentStudent?.student_id]);
 
   const navigate = useNavigate();
+  const location = useLocation();
 
   const loadData = useCallback(async () => {
     try {
@@ -191,6 +192,31 @@ export default function Payments() {
     loadData();
   }, [loadData]);
 
+  // Restore filters and selected student when navigated back with state
+  useEffect(() => {
+    const navState = location?.state;
+    if (!navState) return;
+    const { studentId, selectedFilters } = navState;
+
+    if (selectedFilters) {
+      setForm((prev) => ({ ...prev, ...selectedFilters }));
+    }
+
+    if (studentId && students && students.length) {
+      const found = students.find((s) => s.student_id === studentId);
+      if (found) {
+        setActivePaymentStudent(found);
+      }
+    }
+
+    // clear the navigation state so this runs only once
+    try {
+      navigate(location.pathname, { replace: true });
+    } catch (e) {
+      // ignore navigation replace failures
+    }
+  }, [location, students, navigate]);
+
   const save = async (override = {}) => {
     // Payment form has been removed as per requirements
     return false;
@@ -198,7 +224,7 @@ export default function Payments() {
 
   const handlePayNowClick = (student) => {
     navigate("/admin/studentpayoverview", {
-      state: { studentId: student.student_id },
+      state: { studentId: student.student_id, selectedFilters: form },
     });
   };
 
