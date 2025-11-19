@@ -37,6 +37,74 @@ const runMaybeSingle = async (query, label) => {
   return data ?? null;
 };
 
+const DUPLICATE_RULES = {
+  [TABLES.academicYears]: { cols: ["academic_year"], pk: "id" },
+  [TABLES.groups]: { cols: ["group_code", "group_name"], pk: "group_id" },
+  [TABLES.courses]: { cols: ["course_code", "course_name"], pk: "course_id" },
+  [TABLES.subCategories]: { cols: ["category_name"], pk: "category_id" },
+  [TABLES.subjects]: {
+    cols: ["subject_code", "subject_name"],
+    pk: "subject_id",
+  },
+  [TABLES.batches]: { cols: ["name"], pk: "id" },
+  [TABLES.students]: {
+    cols: ["student_id", "hall_ticket_no", "aadhar_number", "email"],
+    pk: "id",
+  },
+  [TABLES.feeCategories]: { cols: ["name"], pk: "id" },
+  [TABLES.feeDefinitions]: {
+    composite: ["academic_year", "group", "course", "semester", "fee_cat"],
+    pk: "id",
+  },
+};
+
+const ensureNoDuplicate = async (table, row = {}, opts = {}) => {
+  // opts: { excludeId, excludeIdCol }
+  const rule = DUPLICATE_RULES[table];
+  if (!rule) return;
+
+  const pk = opts.excludeIdCol || rule.pk;
+
+  // composite check
+  if (rule.composite) {
+    const matchObj = {};
+    for (const col of rule.composite) {
+      // accept either incoming key or DB column names
+      if (row[col] !== undefined && row[col] !== null && row[col] !== "") {
+        matchObj[col] = row[col];
+      }
+    }
+    if (Object.keys(matchObj).length === rule.composite.length) {
+      let query = supabase.from(table).select("id");
+      for (const k of Object.keys(matchObj)) query = query.eq(k, matchObj[k]);
+      if (opts.excludeId) query = query.neq(pk, opts.excludeId);
+      const existing = await runMaybeSingle(
+        query.maybeSingle(),
+        "Duplicate check"
+      );
+      if (existing) throw new Error("Duplicate fee definition already exists");
+    }
+    return;
+  }
+
+  // single-column checks
+  for (const col of rule.cols || []) {
+    const val = row[col];
+    if (val === undefined || val === null || val === "") continue;
+    let query = supabase.from(table).select("id");
+    query = query.eq(col, val);
+    if (opts.excludeId) query = query.neq(pk, opts.excludeId);
+    const existing = await runMaybeSingle(
+      query.maybeSingle(),
+      "Duplicate check"
+    );
+    if (existing) {
+      const pretty = col.replace(/_/g, " ");
+      throw new Error(`${pretty} already exists`);
+    }
+  }
+};
+
 const mapYear = (row = {}) => {
   const statusValue = row.status;
   const isInactive =
@@ -457,6 +525,8 @@ export const api = {
 
   approveApplication: async (appId, student) => {
     const studentRow = toStudentRow(student);
+    // ensure duplicates (allow same mobile/phone)
+    await ensureNoDuplicate(TABLES.students, studentRow);
     await runQuery(
       supabase.from(TABLES.students).insert(studentRow),
       "Unable to create student record"
@@ -489,6 +559,7 @@ export const api = {
   },
 
   addAcademicYear: async (payload) => {
+    await ensureNoDuplicate(TABLES.academicYears, toYearRow(payload));
     const row = await runQuery(
       supabase
         .from(TABLES.academicYears)
@@ -501,6 +572,9 @@ export const api = {
   },
 
   updateAcademicYear: async (id, payload) => {
+    await ensureNoDuplicate(TABLES.academicYears, toYearRow(payload), {
+      excludeId: id,
+    });
     const row = await runQuery(
       supabase
         .from(TABLES.academicYears)
@@ -534,6 +608,7 @@ export const api = {
   },
 
   addGroup: async (group) => {
+    await ensureNoDuplicate(TABLES.groups, toGroupRow(group));
     const row = await runQuery(
       supabase
         .from(TABLES.groups)
@@ -548,6 +623,9 @@ export const api = {
   },
 
   updateGroup: async (id, group) => {
+    await ensureNoDuplicate(TABLES.groups, toGroupRow(group), {
+      excludeId: id,
+    });
     const row = await runQuery(
       supabase
         .from(TABLES.groups)
@@ -583,6 +661,7 @@ export const api = {
   },
 
   addCourse: async (course) => {
+    await ensureNoDuplicate(TABLES.courses, toCourseRow(course));
     const row = await runQuery(
       supabase
         .from(TABLES.courses)
@@ -597,6 +676,9 @@ export const api = {
   },
 
   updateCourse: async (id, course) => {
+    await ensureNoDuplicate(TABLES.courses, toCourseRow(course), {
+      excludeId: id,
+    });
     const row = await runQuery(
       supabase
         .from(TABLES.courses)
@@ -630,6 +712,10 @@ export const api = {
   },
 
   addSubCategory: async (name) => {
+    await ensureNoDuplicate(
+      TABLES.subCategories,
+      toSubCategoryRow({ name, subjects: [] })
+    );
     const row = await runQuery(
       supabase
         .from(TABLES.subCategories)
@@ -642,6 +728,13 @@ export const api = {
   },
 
   updateSubCategory: async (id, { name, subjects }) => {
+    await ensureNoDuplicate(
+      TABLES.subCategories,
+      toSubCategoryRow({ name, subjects }),
+      {
+        excludeId: id,
+      }
+    );
     const row = await runQuery(
       supabase
         .from(TABLES.subCategories)
@@ -683,6 +776,12 @@ export const api = {
 
   addSubjects: async (subjects = []) => {
     if (!Array.isArray(subjects) || !subjects.length) return [];
+    // validate duplicates for each subject (skip phone/mobile checks by design)
+    for (const s of subjects) {
+      const subjectRow = toSubjectRow(s);
+      const excludeId = s.subject_id || s.subjectId || s.id || null;
+      await ensureNoDuplicate(TABLES.subjects, subjectRow, { excludeId });
+    }
     const rows = await runQuery(
       supabase
         .from(TABLES.subjects)
@@ -715,6 +814,7 @@ export const api = {
   },
 
   addBatch: async (batch) => {
+    await ensureNoDuplicate(TABLES.batches, toBatchRow(batch));
     const row = await runQuery(
       supabase
         .from(TABLES.batches)
@@ -835,6 +935,7 @@ export const api = {
   },
 
   addFee: async (fee) => {
+    await ensureNoDuplicate(TABLES.feeDefinitions, toFeeDefinitionRow(fee));
     await runQuery(
       supabase.from(TABLES.feeDefinitions).insert(toFeeDefinitionRow(fee)),
       "Unable to add fee definition"
@@ -853,8 +954,17 @@ export const api = {
   },
 
   setFeeTypes: async (categories) => {
+    // prevent duplicate names in the provided list
+    const names = categories.map((c) =>
+      String(c.name || "")
+        .trim()
+        .toLowerCase()
+    );
+    const dup = names.findIndex((n, i) => n && names.indexOf(n) !== i);
+    if (dup !== -1) throw new Error("Duplicate fee category names in payload");
+
     const existing = await runQuery(
-      supabase.from(TABLES.feeCategories).select("id"),
+      supabase.from(TABLES.feeCategories).select("id, name"),
       "Unable to load existing fee categories"
     );
     const nextIds = new Set(categories.map((cat) => cat.id));
@@ -868,6 +978,12 @@ export const api = {
       );
     }
     if (categories.length) {
+      // validate against DB for duplicates (allow updating existing by id)
+      for (const cat of categories) {
+        await ensureNoDuplicate(TABLES.feeCategories, toFeeCategoryRow(cat), {
+          excludeId: cat.id,
+        });
+      }
       await runQuery(
         supabase
           .from(TABLES.feeCategories)
