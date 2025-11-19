@@ -1215,6 +1215,23 @@ export default function Setup() {
       setPendingSubjects([]);
       await loadSubjects();
       showToast("Subjects submitted.", { type: "success" });
+      // Clear the main subject selection fields after successful submit
+      setSubjectForm((prev) => ({
+        ...prev,
+        academicYearId: "",
+        academicYearName: "",
+        groupCode: "",
+        courseCode: "",
+        courseName: "",
+        semester: "",
+        category: "",
+        categoryId: "",
+        subjectName: "",
+        extraSubjectNames: [],
+        subjectSelections: [],
+      }));
+      setEditingSubjectId("");
+      setEditingBatchId("");
     } catch (error) {
       console.error("Failed to save subjects", error);
       showToast(error?.message || "Failed to save subjects", {
