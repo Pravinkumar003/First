@@ -1,10 +1,11 @@
 import AdminShell from "../components/AdminShell";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
 import { api } from "../lib/mockApi";
 import { validateRequiredFields } from "../lib/validation";
 import { showToast } from "../store/ui";
- 
+
 export default function Payments() {
   // Master data
   const [years, setYears] = useState([]);
@@ -13,7 +14,7 @@ export default function Payments() {
   const [students, setStudents] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [feeDefinitions, setFeeDefinitions] = useState([]);
- 
+
   // Form
   const [form, setForm] = useState({
     year: "",
@@ -24,22 +25,22 @@ export default function Payments() {
   });
   const [displayCount, setDisplayCount] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
- 
+
   const [saving, setSaving] = useState(false);
- 
+
   const [activePaymentStudent, setActivePaymentStudent] = useState(null);
   const [subjectSelection, setSubjectSelection] = useState({});
   const [quickPaymentAmount, setQuickPaymentAmount] = useState("");
- 
+
   const hasActiveFilters = Boolean(
     form.year || form.group_code || form.courseCode || form.semester
   );
- 
+
   const firstDefined = (...values) =>
     values.find(
       (value) => value !== undefined && value !== null && value !== ""
     );
- 
+
   const getMatchedGroup = (student) =>
     groups.find(
       (g) =>
@@ -49,7 +50,7 @@ export default function Payments() {
         g.name === student.group ||
         g.name === student.group_name
     );
- 
+
   const getMatchedCourse = (student) =>
     courses.find(
       (c) =>
@@ -59,7 +60,7 @@ export default function Payments() {
         c.courseName === student.course_name ||
         c.courseName === student.courseCode
     );
- 
+
   const filteredStudents = useMemo(() => {
     return students.filter((s) => {
       const matchesYear = !form.year || s.academic_year === form.year;
@@ -76,7 +77,7 @@ export default function Payments() {
       return matchesYear && matchesGroup && matchesCourse && matchesSemester;
     });
   }, [students, form.year, form.group_code, form.courseCode, form.semester]);
- 
+
   const subjectsForActiveStudent = useMemo(() => {
     if (!activePaymentStudent) return [];
     const { course_code, course_name, courseCode, course, semester } =
@@ -88,7 +89,7 @@ export default function Payments() {
       semester === "" || semester === undefined || semester === null
         ? null
         : Number(semester);
- 
+
     return subjects.filter((subject) => {
       const matchesCourse =
         courseValues.size === 0 ||
@@ -115,17 +116,19 @@ export default function Payments() {
     activePaymentStudent?.course,
     activePaymentStudent?.semester,
   ]);
- 
+
   const selectedSubjectCount = Object.values(subjectSelection || {}).filter(
     Boolean
   ).length;
   const hasSelectedSubjects = selectedSubjectCount > 0;
- 
+
   useEffect(() => {
     setSubjectSelection({});
     setQuickPaymentAmount("");
   }, [activePaymentStudent?.student_id]);
- 
+
+  const navigate = useNavigate();
+
   const loadData = useCallback(async () => {
     try {
       const [
@@ -143,17 +146,17 @@ export default function Payments() {
         api.listFees?.(),
         api.listSubjects?.(),
       ]);
- 
+
       const normalizedYears = (yearsData || []).filter(
         (y) => y?.active !== false
       );
- 
+
       const normalizedGroups = (groupsData || []).map((g) => ({
         id: g.group_id ?? g.id,
         code: g.group_code ?? g.code,
         name: g.group_name ?? g.name,
       }));
- 
+
       const normalizedCourses = (coursesData || []).map((c) => ({
         id: c.course_id ?? c.id,
         courseCode: c.course_code || c.code,
@@ -161,7 +164,7 @@ export default function Payments() {
         group_code: c.group_code || c.group_name || c.groupCode,
         group_name: c.group_name || c.groupCode,
       }));
- 
+
       const normalizedStudents = (studentsData || []).map((s) => ({
         ...s,
         academic_year: s.academic_year || "",
@@ -172,7 +175,7 @@ export default function Payments() {
         course_code: s.course_code || s.course_name || s.course_id || "",
         semester: s.semester ?? s.semester_number ?? "",
       }));
- 
+
       setYears(normalizedYears);
       setGroups(normalizedGroups);
       setCourses(normalizedCourses);
@@ -183,29 +186,29 @@ export default function Payments() {
       console.error("Error loading payment masters:", e);
     }
   }, []);
- 
+
   useEffect(() => {
     loadData();
   }, [loadData]);
- 
+
   const save = async (override = {}) => {
     // Payment form has been removed as per requirements
     return false;
   };
- 
+
   const handlePayNowClick = (student) => {
-    setActivePaymentStudent((prev) =>
-      prev?.student_id === student.student_id ? null : student
-    );
+    navigate("/admin/studentpayoverview", {
+      state: { studentId: student.student_id },
+    });
   };
- 
+
   const toggleSubjectSelection = (subjectId) => {
     setSubjectSelection((prev) => ({
       ...prev,
       [subjectId]: !prev[subjectId],
     }));
   };
- 
+
   const handleQuickPayment = async () => {
     if (!activePaymentStudent) return;
     if (!hasSelectedSubjects) {
@@ -218,12 +221,12 @@ export default function Payments() {
       showToast("Enter a valid payment amount.", { type: "warning" });
       return;
     }
- 
+
     const selectedSubjectNames = subjectsForActiveStudent
       .filter((subject) => subjectSelection[subject.id])
       .map((subject) => subject.subjectName)
       .filter(Boolean);
- 
+
     const matchedGroup = getMatchedGroup(activePaymentStudent);
     const matchedCourse = getMatchedCourse(activePaymentStudent);
     const resolvedYear = firstDefined(
@@ -257,7 +260,7 @@ export default function Payments() {
       form.semester,
       activePaymentStudent.semester
     );
- 
+
     const override = {
       student_id: activePaymentStudent.student_id,
       amount: quickPaymentAmount,
@@ -273,18 +276,18 @@ export default function Payments() {
         ? { reference: `Subjects: ${selectedSubjectNames.join(", ")}` }
         : {}),
     };
- 
+
     const success = await save(override);
- 
+
     if (success) {
       setActivePaymentStudent(null);
       setSubjectSelection({});
       setQuickPaymentAmount("");
     }
   };
- 
+
   const matchedStudentCount = hasActiveFilters ? filteredStudents.length : 0;
- 
+
   const filteredBySearch = searchTerm
     ? filteredStudents.filter((student) => {
         const key = `${student.student_id} ${
@@ -293,14 +296,14 @@ export default function Payments() {
         return key.includes(searchTerm.toLowerCase());
       })
     : filteredStudents;
- 
+
   const limitedStudents = displayCount
     ? filteredBySearch.slice(
         0,
         Math.min(Number(displayCount), filteredBySearch.length)
       )
     : filteredBySearch;
- 
+
   const handleDisplayCountChange = (value) => {
     if (value === "") {
       setDisplayCount("");
@@ -313,22 +316,22 @@ export default function Payments() {
     }
     setDisplayCount(String(Math.floor(numeric)));
   };
- 
+
   const getInitials = (name) => {
     if (!name) return "S";
     const parts = name.trim().split(" ");
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   };
- 
+
   return (
     <AdminShell>
       <h2 className="fw-bold mb-3">Record Payment</h2>
- 
+
       {/* Filter Section */}
       <div className="card card-soft p-3 mb-4">
         <h4 className="fw-bold mb-3">Filter Students</h4>
- 
+
         <div className="row g-3">
           {/* Academic Year */}
           <div className="col-md-3">
@@ -356,7 +359,7 @@ export default function Payments() {
               ))}
             </select>
           </div>
- 
+
           {/* Group */}
           <div className="col-md-3">
             <label className="form-label fw-bold">Group</label>
@@ -368,7 +371,7 @@ export default function Payments() {
                 const row = groups.find(
                   (g) => g.code === value || g.group_code === value
                 );
- 
+
                 setForm((prev) => ({
                   ...prev,
                   group: row?.name || "",
@@ -387,7 +390,7 @@ export default function Payments() {
               ))}
             </select>
           </div>
- 
+
           {/* Course */}
           <div className="col-md-3">
             <label className="form-label fw-bold">Course</label>
@@ -400,7 +403,7 @@ export default function Payments() {
               }
             >
               <option value="">Select Course</option>
- 
+
               {courses
                 .filter((c) => {
                   if (!form.group_code) return true;
@@ -417,7 +420,7 @@ export default function Payments() {
                 ))}
             </select>
           </div>
- 
+
           {/* Semester */}
           <div className="col-md-3">
             <label className="form-label fw-bold">Semester</label>
@@ -532,10 +535,10 @@ export default function Payments() {
                       "N/A";
                     const photoUrl = s.photo_url || s.photo || s.avatar;
                     const initials = getInitials(studentName);
- 
+
                     const isActive =
                       activePaymentStudent?.student_id === s.student_id;
- 
+
                     return (
                       <Fragment key={`${s.student_id}-row`}>
                         <tr className={isActive ? "table-primary" : undefined}>
@@ -679,9 +682,6 @@ export default function Payments() {
           )}
         </div>
       </div>
- 
     </AdminShell>
   );
 }
- 
- 
