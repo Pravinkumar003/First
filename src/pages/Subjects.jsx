@@ -31,6 +31,8 @@ export default function SubjectsSection({
   deleteSubject,
   onCancelSubjectEdit
 }) {
+  const [programmeCategory, setProgrammeCategory] = useState('')
+
   const yearNameById = academicYears.reduce((acc, year) => {
     if (year?.id !== undefined) acc[year.id] = year.name
     return acc
@@ -45,6 +47,37 @@ export default function SubjectsSection({
     const selectedYear = academicYears.find(year => String(year.id) === String(subjectForm.academicYearId))
     return selectedYear ? [...activeList, selectedYear] : activeList
   })()
+  const selectedYear = academicYears.find(
+    (year) => String(year.id) === String(subjectForm.academicYearId)
+  )
+  useEffect(() => {
+    if (selectedYear?.category) {
+      setProgrammeCategory(selectedYear.category.toUpperCase())
+    }
+  }, [selectedYear])
+
+  const filteredYearOptions = yearOptions.filter(
+    (year) =>
+      !year.category || year.category.toUpperCase() === programmeCategory
+  )
+  if (
+    selectedYear &&
+    !filteredYearOptions.some((year) => String(year.id) === String(selectedYear.id))
+  ) {
+    filteredYearOptions.push(selectedYear)
+  }
+
+  const filteredGroupOptions = groups.filter((group) => {
+    const categoryValue = (group.category || group.Category || "").toUpperCase()
+    const matchesCategory =
+      !programmeCategory || !categoryValue || categoryValue === programmeCategory
+    const matchesSelection =
+      subjectForm.groupCode &&
+      [group.groupCode, group.code, group.group_code]
+        .map((v) => String(v || ""))
+        .includes(String(subjectForm.groupCode))
+    return matchesCategory || matchesSelection
+  })
   const getSemesterLabel = (subject) => {
     const raw = subject?.semester ?? subject?.semester_number ?? subject?.semesterNumber ?? ''
     if (raw === undefined || raw === null || raw === '') return '-'
@@ -210,28 +243,59 @@ export default function SubjectsSection({
       <h5 className="section-title">Subjects</h5>
       <div className="row g-3">
         <div className="col-12 col-sm-6 col-xl-3">
-          <label className="form-label fw-bold mb-1">Academic Year <span className="text-danger">*</span></label>
+          <label className="form-label fw-bold mb-1">Category <span className="text-danger">*</span></label>
+          <select
+            className="form-select"
+            value={programmeCategory}
+            onChange={(e) => {
+              const value = e.target.value
+              setProgrammeCategory(value)
+              setSubjectForm({
+                ...subjectForm,
+                programmeCategory: value,
+                academicYearId: "",
+                academicYearName: "",
+                groupCode: "",
+                courseCode: "",
+                semester: ""
+              })
+            }}
+          >
+            <option value="">Select category</option>
+            <option value="UG">UG</option>
+            <option value="PG">PG</option>
+          </select>
+        </div>
+        <div className="col-12 col-sm-6 col-xl-3">
+              <label className="form-label fw-bold mb-1">Academic Year <span className="text-danger">*</span></label>
           <select
             className="form-select"
             required
             value={subjectForm.academicYearId}
+            disabled={!programmeCategory}
             onChange={e => {
               const value = e.target.value
               const selected = academicYears.find(y => String(y.id) === String(value))
               setSubjectForm({ ...subjectForm, academicYearId: value, academicYearName: selected?.name || '' })
             }}
           >
-            <option value="">Select Year</option>
-            {yearOptions.map(y => (
+                <option value="">Select Year</option>
+            {filteredYearOptions.map(y => (
               <option key={y.id} value={y.id}>{y.name}</option>
             ))}
           </select>
         </div>
         <div className="col-12 col-sm-6 col-xl-3">
           <label className="form-label fw-bold mb-1">Group <span className="text-danger">*</span></label>
-          <select className="form-select" required value={subjectForm.groupCode} onChange={e => setSubjectForm({ ...subjectForm, groupCode: e.target.value, courseCode: '', semester: '' })}>
+          <select
+            className="form-select"
+            required
+            value={subjectForm.groupCode}
+            disabled={!programmeCategory}
+            onChange={e => setSubjectForm({ ...subjectForm, groupCode: e.target.value, courseCode: '', semester: '' })}
+          >
             <option value="">Select Group</option>
-            {groups.map(g => <option key={g.id} value={g.code}>{g.name || g.code}</option>)}
+            {filteredGroupOptions.map(g => <option key={g.id} value={g.code}>{g.name || g.code}</option>)}
           </select>
         </div>
         <div className="col-12 col-sm-6 col-xl-3">
@@ -239,6 +303,7 @@ export default function SubjectsSection({
           <select
             className="form-select"
             required
+            disabled={!subjectForm.groupCode}
             value={subjectForm.courseCode}
             onChange={e => {
               const value = e.target.value
@@ -261,7 +326,13 @@ export default function SubjectsSection({
         </div>
         <div className="col-12 col-sm-6 col-xl-3">
           <label className="form-label fw-bold mb-1">Semester <span className="text-danger">*</span></label>
-          <select className="form-select" required value={subjectForm.semester} onChange={e => setSubjectForm({ ...subjectForm, semester: e.target.value })}>
+          <select
+            className="form-select"
+            required
+            disabled={!subjectForm.courseCode}
+            value={subjectForm.semester}
+            onChange={e => setSubjectForm({ ...subjectForm, semester: e.target.value })}
+          >
             <option value="">Select Semester</option>
             {semForCourse.map(s => (
               <option key={s.id} value={s.number}>Semester {s.number}</option>

@@ -1022,10 +1022,16 @@ export default function Setup() {
   const [editingSubjectId, setEditingSubjectId] = useState("");
   const [editingBatchId, setEditingBatchId] = useState("");
 
+  const selectedGroupName = groupNameByCode[subjectForm.groupCode] || "";
   const coursesForGroup = courses.filter((c) => {
-    const groupCode = c.groupCode || c.group_code;
     if (!subjectForm.groupCode) return false;
-    return groupCode === subjectForm.groupCode;
+    const groupNameValue =
+      c.groupName ||
+      c.group_name ||
+      groupNameByCode[c.groupCode] ||
+      groupNameByCode[c.group_code] ||
+      "";
+    return groupNameValue && groupNameValue === selectedGroupName;
   });
 
   const semForCourse = semesters.filter(
