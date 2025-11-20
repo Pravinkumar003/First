@@ -204,7 +204,6 @@ const normalizeSubjectRecord = (subject = {}, context = {}) => {
     feeCategory:
       subject.feeCategory ||
       subject.fee_category ||
-      subject.fees_category ||
       "",
     feeAmount:
       feeAmountValue === undefined ||
@@ -1218,7 +1217,6 @@ export default function Setup() {
           course_name: courseCodeValue,
           semester_number: item.semester ? Number(item.semester) : null,
           category_id: categoryId,
-          fees_category: item.feeCategory || null,
           amount:
             item.feeAmount === "" ||
             item.feeAmount === undefined ||
@@ -1247,7 +1245,6 @@ export default function Setup() {
         semester_number: g.semester_number,
         category_id: g.category_id,
         subject_name: JSON.stringify(g.names || []),
-        fees_category: g.fees_category,
         amount: g.amount,
       };
       if (g.subject_id) row.subject_id = g.subject_id;

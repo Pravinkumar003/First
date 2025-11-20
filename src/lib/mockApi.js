@@ -315,7 +315,7 @@ const mapSubject = (row = {}) => {
     subjectNames: parseSubjectList(
       row.subjects_name || row.subject_name || row.subjectName
     ),
-    feeCategory: row.fee_category || row.feeCategory || row.fees_category || "",
+    feeCategory: row.fee_category || row.feeCategory || "",
     feeAmount:
       feeAmountValue === undefined ||
       feeAmountValue === null ||
@@ -366,7 +366,6 @@ const toSubjectRow = (subject = {}) => {
       subject.subject_code ||
       subject.subjectCode ||
       null,
-    fees_category: subject.fees_category || subject.feeCategory || null,
     amount: normalizedFee,
   };
   if (subjectId) {
@@ -833,7 +832,7 @@ export const api = {
       supabase
         .from(TABLES.subjects)
         .select(
-          "subject_id, academic_year, course_name, semester_number, category_id, subject_code, subject_name, fees_category, amount, subject_category:subject_category(category_name)"
+          "subject_id, academic_year, course_name, semester_number, category_id, subject_code, subject_name, amount"
         )
         .order("academic_year", { ascending: false })
         .order("course_name")
@@ -876,7 +875,7 @@ export const api = {
         .from(TABLES.subjects)
         .upsert(payload, { onConflict: onConflictCols })
         .select(
-          "subject_id, academic_year, course_name, semester_number, category_id, subject_code, subject_name, fees_category, amount, subject_category:subject_category(category_name)"
+          "subject_id, academic_year, course_name, semester_number, category_id, subject_code, subject_name, amount"
         ),
       "Unable to save subjects"
     );
@@ -903,7 +902,7 @@ export const api = {
         .update(updateRow)
         .eq("subject_id", id)
         .select(
-          "subject_id, academic_year, course_name, semester_number, category_id, subject_code, subject_name, fees_category, amount, subject_category:subject_category(category_name)"
+          "subject_id, academic_year, course_name, semester_number, category_id, subject_code, subject_name, amount"
         )
         .single(),
       "Unable to update subject"
