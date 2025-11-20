@@ -217,7 +217,8 @@ const toGroupRow = ({ code, name, years, semesters, category }) => {
 const mapCourse = (row = {}) => {
   const code = row.course_code || row.code;
   const name = row.course_name || row.name;
-  const groupCode = row.group_name || row.group_code || row.groupCode || "";
+  const groupCode = row.group_code || row.groupCode || "";
+  const groupName = row.group_name || row.groupName || "";
   const semesters = Number(row.no_of_semesters ?? row.semesters ?? 0) || 0;
   const duration =
     row.duration_years ?? (semesters ? Math.ceil(semesters / 2) : null);
@@ -229,26 +230,24 @@ const mapCourse = (row = {}) => {
     courseName: name,
     group_code: groupCode,
     groupCode,
+    group_name: groupName,
+    groupName,
     semesters,
     duration_years: duration,
   };
 };
 
-const toCourseRow = ({
-  code,
-  name,
-  group_code,
-  groupCode,
-  semesters,
-  duration_years,
-}) => ({
-  course_code: code,
-  course_name: name,
-  group_name: group_code || groupCode || null,
-  no_of_semesters: semesters ?? null,
-  duration_years:
-    duration_years ?? (semesters ? Math.ceil(semesters / 2) : null),
-});
+const toCourseRow = ({ code, name, group_name, groupName, semesters, duration_years }) => {
+  const normalizedGroupName = group_name ?? groupName ?? null;
+  return {
+    course_code: code,
+    course_name: name,
+    group_name: normalizedGroupName,
+    no_of_semesters: semesters ?? null,
+    duration_years:
+      duration_years ?? (semesters ? Math.ceil(semesters / 2) : null),
+  };
+};
 
 const parseSubjectList = (value) => {
   if (!value && value !== 0) return [];

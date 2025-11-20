@@ -296,9 +296,24 @@ export default function GroupsCoursesSection({
                   className="form-select"
                   required
                   value={courseForm.groupCode}
-                  onChange={(e) =>
-                    setCourseForm({ ...courseForm, groupCode: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const selected = filteredGroups.find(
+                      (g) =>
+                        (g.groupCode || g.code || g.group_code) === value ||
+                        (g.group_name || g.name) === value
+                    );
+                    const groupNameValue =
+                      selected?.group_name ||
+                      selected?.name ||
+                      selected?.groupName ||
+                      "";
+                    setCourseForm({
+                      ...courseForm,
+                      groupCode: value,
+                      groupName: groupNameValue,
+                    });
+                  }}
                   disabled={!categoryFilter}
                 >
                   <option value="">Select Group</option>
@@ -397,7 +412,7 @@ export default function GroupsCoursesSection({
                         Group
                       </p>
                       <p className="fw-semibold text-dark mb-4">
-                        {c.groupCode}
+                        {c.groupName || c.groupCode || "-"}
                       </p>
                       <div className="mt-auto d-flex gap-2">
                         <button

@@ -324,6 +324,24 @@ const normalizeFeeCategories = (data) => {
   );
 };
 
+const buildGroupNameMap = (groups = []) => {
+  return (groups || []).reduce((acc, group) => {
+    const code = group.code || group.group_code || group.groupName || "";
+    const name = group.name || group.group_name || group.groupName || "";
+    if (code) acc[code] = name || code;
+    return acc;
+  }, {});
+};
+
+const enrichCourseRecord = (course = {}, groupNameByCode = {}) => {
+  const code = course.group_name || course.groupCode || course.group_code || "";
+  return {
+    ...course,
+    groupCode: code,
+    groupName: groupNameByCode[code] || code,
+  };
+};
+
 export default function Setup() {
   const { tab: tabParam } = useParams();
   const tab = ["years", "groups", "subjects", "students"].includes(tabParam)
@@ -412,6 +430,7 @@ export default function Setup() {
 
   // Groups
   const [groups, setGroups] = useState([]);
+  const groupNameByCode = useMemo(() => buildGroupNameMap(groups), [groups]);
   const [groupForm, setGroupForm] = useState({
     id: "",
     code: "",
@@ -510,11 +529,16 @@ export default function Setup() {
 
   // Courses
   const [courses, setCourses] = useState([]);
+  const coursesWithNames = useMemo(
+    () => courses.map((course) => enrichCourseRecord(course, groupNameByCode)),
+    [courses, groupNameByCode]
+  );
   const courseLookup = useMemo(() => buildCourseLookup(courses), [courses]);
 
   const [courseForm, setCourseForm] = useState({
     id: "",
     groupCode: "",
+    groupName: "",
     courseCode: "",
     courseName: "",
     semesters: 6,
@@ -558,10 +582,21 @@ export default function Setup() {
 
     const code = courseCode.toUpperCase();
 
+    const selectedGroup =
+      groups.find((g) => (g.groupCode || g.code || g.group_code) === groupCode) ||
+      groups.find((g) => (g.group_name || g.name) === courseForm.groupName);
+    const groupNameValue =
+      selectedGroup?.group_name ||
+      selectedGroup?.name ||
+      selectedGroup?.groupName ||
+      courseForm.groupName ||
+      groupNameByCode[groupCode] ||
+      groupCode;
+
     const payload = {
       code,
       name: courseName,
-      group_code: groupCode,
+      group_name: groupNameValue,
       semesters: Number(semCount) || 0,
     };
 
@@ -585,7 +620,9 @@ export default function Setup() {
 
       try {
         const created = await api.addCourse(payload);
-        if (created) setCourses((prev) => [...prev, created]);
+        if (created) {
+          setCourses((prev) => [...prev, created]);
+        }
       } catch (error) {
         console.error("Error adding course:", error);
         showToast(error?.message || "Error adding course", { type: "danger" });
@@ -595,6 +632,7 @@ export default function Setup() {
     setCourseForm({
       id: "",
       groupCode: "",
+      groupName: "",
       courseCode: "",
       courseName: "",
       semesters: 6,
@@ -602,7 +640,14 @@ export default function Setup() {
   };
 
   const editCourse = (c) => {
-    setCourseForm(c);
+    setCourseForm({
+      id: c.id,
+      groupCode: c.groupCode || c.group_code || c.group_name || "",
+      groupName: c.groupName || c.group_name || c.groupName || "",
+      courseCode: c.courseCode || c.code || "",
+      courseName: c.courseName || c.name || "",
+      semesters: c.semesters ?? c.number_semesters ?? 6,
+    });
     setEditingCourseId(c.id);
   };
 
@@ -1447,7 +1492,7 @@ export default function Setup() {
             setCourseForm={setCourseForm}
             editingCourseId={editingCourseId}
             setEditingCourseId={setEditingCourseId}
-            courses={courses}
+            courses={coursesWithNames}
             saveCourse={saveCourse}
             editCourse={editCourse}
             deleteCourse={deleteCourse}
