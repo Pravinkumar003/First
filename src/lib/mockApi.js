@@ -179,9 +179,10 @@ const mapYear = (row = {}) => {
   };
 };
 
-const toYearRow = ({ name, active }) => ({
+const toYearRow = ({ name, active, category }) => ({
   academic_year: name,
   status: active ? 1 : 0,
+  category: category || null,
 });
 
 const mapGroup = (row = {}) => ({

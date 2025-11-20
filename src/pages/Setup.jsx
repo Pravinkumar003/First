@@ -330,7 +330,7 @@ export default function Setup() {
     ? tabParam
     : "years";
 
-  const [yearForm, setYearForm] = useState({ name: "", active: true });
+  const [yearForm, setYearForm] = useState({ name: "", category: "", active: true });
   const [academicYears, setAcademicYears] = useState([]);
   const [editingYearId, setEditingYearId] = useState("");
 
@@ -352,6 +352,7 @@ export default function Setup() {
       if (editingYearId) {
         const updated = await api.updateAcademicYear?.(editingYearId, {
           name: yearForm.name,
+          category: yearForm.category,
           active: yearForm.active,
         });
         if (updated) {
@@ -363,6 +364,7 @@ export default function Setup() {
       } else {
         const created = await api.addAcademicYear({
           name: yearForm.name,
+          category: yearForm.category,
           active: yearForm.active,
         });
         if (created) {
@@ -379,7 +381,11 @@ export default function Setup() {
   };
 
   const editYear = (year) => {
-    setYearForm({ name: year.name, active: year.active });
+    setYearForm({ 
+      name: year.name, 
+      category: year.category || "",
+      active: year.active 
+    });
     setEditingYearId(year.id);
   };
 
@@ -394,7 +400,7 @@ export default function Setup() {
       });
     }
     if (editingYearId === id) {
-      setYearForm({ name: "", active: true });
+      setYearForm({ name: "", category: "", active: true });
       setEditingYearId("");
     }
   };

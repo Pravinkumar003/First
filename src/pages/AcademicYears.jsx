@@ -12,8 +12,21 @@ export default function AcademicYearsSection({
     <section className="setup-section mb-4">
       <h5 className="section-title">Academic Years</h5>
       <div className="row g-2">
-        <div className="col-md-5">
-          <label className="form-label fw-bold mb-1">Academic Year Name</label>
+        <div className="col-md-2">
+          <label className="form-label fw-bold mb-1">Category</label>
+          <select
+            className="form-select"
+            value={yearForm.category || ''}
+            onChange={(e) => setYearForm({ ...yearForm, category: e.target.value })}
+            required
+          >
+            <option value="">Select Category</option>
+            <option value="UG">UG</option>
+            <option value="PG">PG</option>
+          </select>
+        </div>
+        <div className="col-md-3">
+          <label className="form-label fw-bold mb-1">Academic Year</label>
           <input
             className="form-control"
             placeholder="e.g., 2022-2025"
@@ -62,6 +75,7 @@ export default function AcademicYearsSection({
               <div>
                 <div className="setup-list-title">
                   {y.name || y.academic_year}
+                  {y.category && <span className="badge bg-secondary ms-2">{y.category}</span>}
                 </div>
                 <div className="setup-list-meta">Created</div>
               </div>
