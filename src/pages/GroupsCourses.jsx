@@ -272,49 +272,44 @@ export default function GroupsCoursesSection({
       <section className="setup-section mb-4">
         <h5 className="section-title">Courses</h5>
         <div className="row">
-          <div className="col-md-8">
-            <div className="row g-2">
-              <div className="col-md-4">
-                <div className="row g-2">
-                  <div className="col-6">
-                    <label className="form-label fw-bold mb-1">Category</label>
-                    <select
-                      className="form-select"
-                      value={categoryFilter}
-                      onChange={(e) => {
-                        setCategoryFilter(e.target.value);
-                        // Reset group selection when category changes
-                        setCourseForm(prev => ({ ...prev, groupCode: "" }));
-                      }}
-                    >
-                      <option value="">All Categories</option>
-                      <option value="UG">UG</option>
-                      <option value="PG">PG</option>
-                    </select>
-                  </div>
-                  <div className="col-6">
-                    <label className="form-label fw-bold mb-1">Group</label>
-                    <select
-                      className="form-select"
-                      style={{ minWidth: '120px' }}
-                      required
-                      value={courseForm.groupCode}
-                      onChange={(e) =>
-                        setCourseForm({ ...courseForm, groupCode: e.target.value })
-                      }
-                      disabled={!categoryFilter}
-                    >
-                      <option value="">Select Group</option>
-                      {filteredGroups.map((g) => (
-                        <option key={g.id} value={g.code}>
-                          {g.name || g.code}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+          <div className="col-12">
+            <div className="row g-3">
+              <div className="col-md-2">
+                <label className="form-label fw-bold mb-1">Category</label>
+                <select
+                  className="form-select"
+                  value={categoryFilter}
+                  onChange={(e) => {
+                    setCategoryFilter(e.target.value);
+                    // Reset group selection when category changes
+                    setCourseForm((prev) => ({ ...prev, groupCode: "" }));
+                  }}
+                >
+                  <option value="">All Categories</option>
+                  <option value="UG">UG</option>
+                  <option value="PG">PG</option>
+                </select>
               </div>
-              <div className="col-md-4">
+              <div className="col-md-3">
+                <label className="form-label fw-bold mb-1">Group</label>
+                <select
+                  className="form-select"
+                  required
+                  value={courseForm.groupCode}
+                  onChange={(e) =>
+                    setCourseForm({ ...courseForm, groupCode: e.target.value })
+                  }
+                  disabled={!categoryFilter}
+                >
+                  <option value="">Select Group</option>
+                  {filteredGroups.map((g) => (
+                    <option key={g.id} value={g.code}>
+                      {g.name || g.code}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-md-3">
                 <label className="form-label fw-bold mb-1">Course Code</label>
                 <input
                   className="form-control"
