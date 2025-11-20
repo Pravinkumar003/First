@@ -171,11 +171,16 @@ const mapYear = (row = {}) => {
   const isInactive =
     statusValue === 0 || statusValue === "0" || statusValue === false;
   const academicYear = row.academic_year ?? row.name ?? "";
+  const rawCategory = row.category || row.year_category || "";
+  const category = rawCategory
+    ? String(rawCategory).toUpperCase()
+    : "UG";
   return {
     id: row.id,
     academic_year: academicYear,
     name: academicYear,
     active: !isInactive,
+    category,
   };
 };
 
@@ -625,7 +630,7 @@ export const api = {
     const rows = await runQuery(
       supabase
         .from(TABLES.academicYears)
-        .select("id, academic_year, status")
+        .select("id, academic_year, status, category")
         .order("academic_year"),
       "Unable to fetch academic years"
     );
@@ -638,7 +643,7 @@ export const api = {
       supabase
         .from(TABLES.academicYears)
         .insert(toYearRow(payload))
-        .select("id, academic_year, status")
+        .select("id, academic_year, status, category")
         .single(),
       "Unable to add academic year"
     );
@@ -654,7 +659,7 @@ export const api = {
         .from(TABLES.academicYears)
         .update(toYearRow(payload))
         .eq("id", id)
-        .select("id, academic_year, status")
+        .select("id, academic_year, status, category")
         .single(),
       "Unable to update academic year"
     );

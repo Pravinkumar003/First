@@ -1,5 +1,15 @@
 import { useState } from 'react';
 
+const inferCategoryFromYearName = (yearName = '') => {
+  if (!yearName) return 'UG';
+  const sanitized = yearName.trim().replace(/[^0-9-]/g, '');
+  const match = sanitized.match(/^(\d{4})-(\d{4})$/);
+  if (!match) return 'UG';
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  return end - start === 2 ? 'PG' : 'UG';
+};
+
 export default function AcademicYearsSection({
   yearForm,
   setYearForm,
@@ -47,15 +57,30 @@ export default function AcademicYearsSection({
     }
   };
   
-  // Group academic years by category
-  const groupedYears = academicYears.reduce((acc, year) => {
-    const category = year.category || 'UG'; // Default to UG if not specified
-    if (!acc[category]) {
-      acc[category] = [];
-    }
-    acc[category].push(year);
-    return acc;
-  }, { UG: [], PG: [] }); // Initialize with both UG and PG arrays
+  const getCategory = (year) => {
+    const rawCategory =
+      (year.category && String(year.category)) ||
+      (year.year_category && String(year.year_category)) ||
+      "";
+    const normalized = rawCategory.trim();
+    if (normalized) return normalized.toUpperCase();
+    return inferCategoryFromYearName(year.name || year.academic_year);
+  };
+
+  // Group academic years by category (normalize to uppercase)
+  const groupedYears = academicYears.reduce(
+    (acc, year) => {
+      const category = getCategory(year);
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push(year);
+      return acc;
+    },
+    { UG: [], PG: [] } // Ensure both buckets exist
+  );
+  const ugYears = groupedYears.UG || [];
+  const pgYears = groupedYears.PG || [];
 
   const handleAddYear = async () => {
     if (!yearForm.category) {
@@ -74,7 +99,13 @@ export default function AcademicYearsSection({
   };
 
   const handleEditYear = (year) => {
+    const category = getCategory(year);
     editYear(year);
+    setYearForm({
+      name: year.name || year.academic_year,
+      category,
+      active: year.active,
+    });
     setError('');
   };
 
@@ -145,15 +176,15 @@ export default function AcademicYearsSection({
           )}
         </div>
       </div>
-      {Object.keys(groupedYears).length > 0 && (
+      {(ugYears.length > 0 || pgYears.length > 0) && (
         <div className="row mt-4">
           {/* UG Years Column */}
           <div className="col-md-6">
-            {groupedYears['UG'] && (
+            {ugYears.length > 0 && (
               <>
                 <h6 className="fw-bold mb-3">UG Years</h6>
                 <div className="setup-list">
-                  {groupedYears['UG'].map((y) => (
+                  {ugYears.map((y) => (
                   <div
                     className="setup-list-item"
                     key={y.id || y.academic_year || y.name}
@@ -161,10 +192,10 @@ export default function AcademicYearsSection({
                     <div>
                       <div className="setup-list-title">
                         {y.name || y.academic_year}
-                        <span className="badge bg-secondary ms-2">{y.category}</span>
+                        <span className="badge bg-secondary ms-2">{getCategory(y)}</span>
                       </div>
                       <div className="setup-list-meta">
-                        {y.category} Academic Year
+                        {getCategory(y)} Academic Year
                       </div>
                     </div>
                     <div className="d-flex gap-2 align-items-center">
@@ -203,7 +234,7 @@ export default function AcademicYearsSection({
               <>
                 <h6 className="fw-bold mb-3">PG Years</h6>
                 <div className="setup-list">
-                  {groupedYears['PG'].map((y) => (
+                  {pgYears.map((y) => (
                     <div
                       className="setup-list-item"
                       key={y.id || y.academic_year || y.name}
@@ -211,10 +242,10 @@ export default function AcademicYearsSection({
                       <div>
                         <div className="setup-list-title">
                           {y.name || y.academic_year}
-                          <span className="badge bg-secondary ms-2">{y.category}</span>
+                          <span className="badge bg-secondary ms-2">{getCategory(y)}</span>
                         </div>
                         <div className="setup-list-meta">
-                          {y.category} Academic Year
+                          {getCategory(y)} Academic Year
                         </div>
                       </div>
                       <div className="d-flex gap-2 align-items-center">
