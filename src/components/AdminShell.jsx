@@ -67,17 +67,26 @@ export default function AdminShell({ children, onSignOut }) {
         }`}
       >
         <div className="sidebar-header">
-          <div className="sidebar-brand d-flex align-items-center gap-2">
+          <div className="sidebar-brand d-flex align-items-center gap-3">
             <img
               src={logo}
               alt="Vijayam Logo"
               className="brand-logo shadow-sm"
+              style={{ width: 80, height: 80, objectFit: "contain" }}
             />
-            <div className="sidebar-brand-info">
-              <div className="heading-font fw-600">Vijayam College</div>
-              <small className="sidebar-brand-subtitle text-uppercase">
-                Arts & Science · Chittor
-              </small>
+            <div className="sidebar-brand-info text-uppercase">
+              <div
+                className="heading-font fw-600"
+                style={{ letterSpacing: "0.2em", fontSize: "0.95rem" }}
+              >
+                Vijayam College
+              </div>
+              <div
+                className="sidebar-brand-subtitle fw-semibold"
+                style={{ fontSize: "0.85rem", letterSpacing: "0.18em" }}
+              >
+                Arts & Science<span style={{ padding: "0 0.4rem" }}>&middot;</span>Chittor
+              </div>
             </div>
           </div>
           <button
