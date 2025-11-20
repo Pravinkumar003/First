@@ -37,6 +37,25 @@ export default function AcademicYearsSection({
 
   const handleYearChange = (e) => {
     const value = e.target.value;
+    const prevValue = yearForm.name || '';
+    if (yearForm.category && /^\d{4}$/.test(value)) {
+      if (value.length <= prevValue.length) {
+        setYearForm(prev => ({ ...prev, name: value }));
+        setError('');
+        return;
+      }
+      const duration = yearForm.category === 'UG' ? 3 : 2;
+      const startYear = Number(value);
+      const autofilled = `${value}-${startYear + duration}`;
+      setYearForm(prev => ({ ...prev, name: autofilled }));
+      if (!validateYearFormat(autofilled, yearForm.category)) {
+        const expectedYears = yearForm.category === 'UG' ? '3 years' : '2 years';
+        setError(`Please enter a valid ${yearForm.category} duration (${expectedYears})`);
+      } else {
+        setError('');
+      }
+      return;
+    }
     setYearForm(prev => ({ ...prev, name: value }));
     
     if (!value) {
