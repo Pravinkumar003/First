@@ -23,6 +23,23 @@ export default function Students() {
     student: null,
     selectedStatus: 'CONTINUE'
   });
+  const baseCategoryOptions = ["UG", "PG"];
+  const categoryOptions = useMemo(() => {
+    const result = [...baseCategoryOptions];
+    const seen = new Set(result.map((val) => val?.toUpperCase()));
+    groups.forEach((group) => {
+      const value = group.category || group.Category;
+      if (value) {
+        const normalized = value.toUpperCase();
+        if (!seen.has(normalized)) {
+          seen.add(normalized);
+          result.push(normalized);
+        }
+      }
+    });
+    return result;
+  }, [groups]);
+
   const [editForm, setEditForm] = useState({
     student_id: "",
     hall_ticket_no: "",
@@ -49,6 +66,7 @@ export default function Students() {
     photo_url: "",
     cert_url: "",
     status: "ACTIVE",
+    category: "",
   });
  
   // Load initial data
@@ -146,6 +164,8 @@ export default function Students() {
       student_id: student.student_id || "",
       hall_ticket_no: student.hall_ticket_no || "",
       academic_year: student.academic_year || "",
+
+      category: (student.Category || student.category || "").toUpperCase(),
       group_name:
         student.group?.group_name || student.group_name || student.group || "",
       group_code: student.group?.group_code || student.group_code || "",
@@ -179,22 +199,28 @@ export default function Students() {
   const handleEditChange = (e) => {
     const { name, value } = e.target;
     setEditForm((prev) => {
-      if (name === "group_code") {
-        const match = groups.find((g) => g.group_code === value);
-        return {
-          ...prev,
-          group_code: value,
-          group_name: match?.group_name || "",
+    if (name === "group_code") {
+      const match = groups.find((g) => g.group_code === value);
+      return {
+        ...prev,
+        group_code: value,
+        group_name: match?.group_name || "",
         };
       }
-      if (name === "course_code") {
-        const match = courses.find((c) => c.course_code === value);
-        return {
-          ...prev,
-          course_code: value,
-          course_name: match?.course_name || "",
-        };
-      }
+    if (name === "course_code") {
+      const match = courses.find((c) => c.course_code === value);
+      return {
+        ...prev,
+        course_code: value,
+        course_name: match?.course_name || "",
+      };
+    }
+    if (name === "category") {
+      return {
+        ...prev,
+        category: value.toUpperCase(),
+      };
+    }
       return {
         ...prev,
         [name]: value,
@@ -206,6 +232,7 @@ export default function Students() {
     if (!editingStudent) return;
     const essentialFields = {
       "Student ID": editForm.student_id,
+      Category: editForm.category,
       "Full Name": editForm.full_name,
       "Academic Year": editForm.academic_year,
       Group: editForm.group_name,
@@ -222,6 +249,7 @@ export default function Students() {
         student_id: editForm.student_id,
         hall_ticket_no: editForm.hall_ticket_no,
         academic_year: editForm.academic_year,
+        Category: editForm.category,
         group_name: editForm.group_code,
         course_name: editForm.course_code,
         full_name: editForm.full_name,
@@ -574,6 +602,23 @@ export default function Students() {
                   <div className="col-md-6">
                     <h6>Academic Information</h6>
                     <div className="mb-3">
+                      <label className="form-label">Category</label>
+                      <select
+                        className="form-select"
+                        name="category"
+                        value={editForm.category}
+                        onChange={handleEditChange}
+                        required
+                      >
+                        <option value="">Select Category</option>
+                        {categoryOptions.map((cat) => (
+                          <option key={cat} value={cat}>
+                            {cat}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="mb-3">
                       <label className="form-label">Academic Year</label>
                       <select
                         className="form-select"
@@ -816,7 +861,7 @@ export default function Students() {
                   </div>
                   <div className="col-md-6">
                     <div className="mb-3">
-                      <label className="form-label">Certificate URL</label>
+                      <label className="form-label">Signature URL</label>
                       <input
                         type="text"
                         className="form-control"

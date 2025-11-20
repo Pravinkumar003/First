@@ -1,40 +1,62 @@
 import AdminShell from "../components/AdminShell";
-import { useEffect, useRef, useState } from "react";
-import { api } from "../lib/mockApi";
-import { supabase } from "../../supabaseClient";
-import { validateRequiredFields } from "../lib/validation";
-import { showToast } from "../store/ui";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { api } from "../lib/mockApi";
+import { supabase } from "../../supabaseClient";
+import { validateRequiredFields } from "../lib/validation";
+import { showToast } from "../store/ui";
 
 export default function Departments() {
-  const [years, setYears] = useState([]);
-  const [groups, setGroups] = useState([]);
-  const [courses, setCourses] = useState([]);
+  const [years, setYears] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [courses, setCourses] = useState([]);
 
-  const [subjects, setSubjects] = useState([]);
-  const [amounts, setAmounts] = useState({});
+  const [filteredYears, setFilteredYears] = useState([]);
+  const [filteredGroups, setFilteredGroups] = useState([]);
+  const [filteredCourses, setFilteredCourses] = useState([]);
 
-  const [subjectFees, setSubjectFees] = useState([]);
-  const [editingSubjectId, setEditingSubjectId] = useState(null);
+  const [subjects, setSubjects] = useState([]);
+  const [amounts, setAmounts] = useState({});
 
-  const [feeCats, setFeeCats] = useState([]);
-  const [feeCategoryName, setFeeCategoryName] = useState("");
-  const [editingFeeCategoryId, setEditingFeeCategoryId] = useState(null);
-  const [categoryFees, setCategoryFees] = useState([]);
-  const [editingCategoryFeeId, setEditingCategoryFeeId] = useState(null);
+  const [subjectFees, setSubjectFees] = useState([]);
+  const [editingSubjectId, setEditingSubjectId] = useState(null);
 
-  const [form, setForm] = useState({
-    year: "",
-    group: "",
-    courseCode: "",
-    semester: "",
-  });
+  const [feeCats, setFeeCats] = useState([]);
+  const [feeCategoryName, setFeeCategoryName] = useState("");
+  const [editingFeeCategoryId, setEditingFeeCategoryId] = useState(null);
+  const [categoryFees, setCategoryFees] = useState([]);
+  const [editingCategoryFeeId, setEditingCategoryFeeId] = useState(null);
 
-  const [selectedCategories, setSelectedCategories] = useState([]);
-  const [categoryAmount, setCategoryAmount] = useState("");
-  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
-  const categoryDropdownRef = useRef(null);
+  const [form, setForm] = useState({
+    category: "",
+    year: "",
+    group: "",
+    courseCode: "",
+    semester: "",
+  });
 
-  const [appliedFilter, setAppliedFilter] = useState(null);
+  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [categoryAmount, setCategoryAmount] = useState("");
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const categoryDropdownRef = useRef(null);
+
+  const [appliedFilter, setAppliedFilter] = useState(null);
+
+  const normalizeCategory = (value) => (value || "").trim().toLowerCase();
+
+  const categoryOptions = useMemo(() => {
+    const seen = new Set();
+    const values = [];
+    groups.forEach((group) => {
+      const category = (group.category || group.Category || "").trim();
+      if (category && !seen.has(category)) {
+        seen.add(category);
+        values.push(category);
+      }
+    });
+    return values.sort((a, b) => a.localeCompare(b));
+  }, [groups]);
+
+  const categoryFilterValue = normalizeCategory(form.category);
 
   // Supplementary Fees State
   const [supplementaryFees, setSupplementaryFees] = useState([]);
@@ -44,19 +66,128 @@ export default function Departments() {
   const [editingFeeId, setEditingFeeId] = useState(null);
 
   // ---------------- LOAD MASTER DATA ----------------
-  useEffect(() => {
-    const load = async () => {
-      const [ys, gs, cs] = await Promise.all([
-        api.listAcademicYears(),
-        api.listGroups(),
-        api.listCourses(),
-      ]);
-      setYears((ys || []).filter((y) => y?.active !== false));
-      setGroups(gs || []);
-      setCourses(cs || []);
-    };
-    load();
-  }, []);
+  useEffect(() => {
+    const load = async () => {
+      const [ys, gs, cs] = await Promise.all([
+        api.listAcademicYears(),
+        api.listGroups(),
+        api.listCourses(),
+      ]);
+      const activeYears = (ys || []).filter((y) => y?.active !== false);
+      setYears(activeYears);
+      setFilteredYears(activeYears);
+      setGroups(gs || []);
+      setFilteredGroups(gs || []); // initial load, keep as all groups
+      setCourses(cs || []);
+      setFilteredCourses(cs || []);
+    };
+    load();
+  }, []);
+
+  useEffect(() => {
+    const normalizeGroupCategory = (group) =>
+      normalizeCategory(group.category || group.Category);
+
+    const computeNextYears = () => {
+      if (!categoryFilterValue) return years;
+      return years.filter(
+        (year) => normalizeCategory(year.category) === categoryFilterValue
+      );
+    };
+
+    const computeNextGroups = () => {
+      if (!categoryFilterValue) return groups;
+      return groups.filter(
+        (group) => normalizeGroupCategory(group) === categoryFilterValue
+      );
+    };
+
+    const nextYears = computeNextYears();
+    const nextGroups = computeNextGroups();
+
+    const categoriesGroupCodes = new Set(
+      nextGroups
+        .map((group) => group.group_code || group.code || group.groupCode)
+        .filter(Boolean)
+        .map((code) => String(code))
+    );
+
+    const selectedGroup = nextGroups.find((group) =>
+      [group.code, group.group_code, group.groupCode]
+        .map((code) => String(code || ""))
+        .includes(String(form.group))
+    );
+
+    const filterCoursesByGroup = (targetGroup) => {
+      if (!targetGroup) return [];
+      const groupCode = targetGroup.code || targetGroup.group_code || targetGroup.groupCode;
+      const groupNames = [targetGroup.name, targetGroup.group_name, targetGroup.groupName]
+        .filter(Boolean)
+        .map((value) => String(value));
+
+      return courses.filter((course) => {
+        if (!groupCode) return false;
+        if (course.group_code === groupCode || course.groupCode === groupCode) return true;
+        if (course.group_name && groupNames.includes(String(course.group_name))) return true;
+        if (course.groupName && groupNames.includes(String(course.groupName))) return true;
+        return false;
+      });
+    };
+
+    const nextCourses =
+      selectedGroup !== undefined
+        ? filterCoursesByGroup(selectedGroup)
+        : categoryFilterValue
+        ? courses.filter(
+            (course) =>
+              categoriesGroupCodes.has(String(course.group_code || "")) ||
+              categoriesGroupCodes.has(String(course.groupCode || ""))
+          )
+        : courses;
+
+    setFilteredYears(nextYears);
+    setFilteredGroups(nextGroups);
+    setFilteredCourses(nextCourses);
+
+    if (
+      form.year &&
+      !nextYears.some(
+        (year) =>
+          String(year.academic_year) === String(form.year) ||
+          String(year.name) === String(form.year)
+      )
+    ) {
+      setForm((prev) => ({ ...prev, year: "" }));
+    }
+    if (
+      form.group &&
+      !nextGroups.some(
+        (group) =>
+          String(group.code) === String(form.group) ||
+          String(group.group_code) === String(form.group) ||
+          String(group.groupCode) === String(form.group)
+      )
+    ) {
+      setForm((prev) => ({ ...prev, group: "", courseCode: "" }));
+    }
+    if (
+      form.courseCode &&
+      !nextCourses.some(
+        (course) =>
+          String(course.code) === String(form.courseCode) || String(course.courseCode) === String(form.courseCode)
+      )
+    ) {
+      setForm((prev) => ({ ...prev, courseCode: "" }));
+    }
+  }, [
+    categoryFilterValue,
+    years,
+    groups,
+    courses,
+    form.year,
+    form.group,
+    form.courseCode,
+  ]);
 
   // load fee categories from Supabase
   useEffect(() => {
@@ -793,64 +924,88 @@ export default function Departments() {
       </div>
       <div className="card card-soft p-3 mb-4">
         <div className="row g-3">
-          {/* Academic Year */}
-          <div className="col-md-3">
-            <label className="form-label fw-bold">Academic Year</label>
-            <select
-              className="form-select"
-              value={form.year}
-              onChange={(e) => setForm({ ...form, year: e.target.value })}
-            >
-              <option value="">Academic Year</option>
-              {years.map((y) => {
-                const label = y.name || y.academic_year;
-                return (
-                  <option key={y.id} value={label}>
-                    {label}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
+        {/* Category */}
+        <div className="col-md-3">
+          <label className="form-label fw-bold">Category</label>
+          <select
+            className="form-select"
+            value={form.category}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                category: e.target.value,
+                year: "",
+                group: "",
+                courseCode: "",
+                semester: "",
+              })
+            }
+          >
+            <option value="">Category</option>
+            {categoryOptions.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
+        </div>
 
-          {/* Group */}
-          <div className="col-md-3">
-            <label className="form-label fw-bold">Group</label>
-            <select
-              className="form-select"
-              value={form.group}
-              onChange={(e) =>
-                setForm({ ...form, group: e.target.value, courseCode: "" })
-              }
-            >
-              <option value="">Group</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.code}>
-                  {g.name}
-                </option>
-              ))}
-            </select>
-          </div>
+        {/* Academic Year */}
+        <div className="col-md-3">
+          <label className="form-label fw-bold">Academic Year</label>
+          <select
+            className="form-select"
+            value={form.year}
+            onChange={(e) => setForm({ ...form, year: e.target.value })}
+          >
+            <option value="">Academic Year</option>
+            {filteredYears.map((y) => {
+              const label = y.name || y.academic_year;
+              return (
+                <option key={y.id} value={label}>
+                  {label}
+                </option>
+              );
+            })}
+          </select>
+        </div>
 
-          {/* Course */}
-          <div className="col-md-3">
-            <label className="form-label fw-bold">Course</label>
-            <select
-              className="form-select"
-              value={form.courseCode}
-              onChange={(e) =>
-                setForm({ ...form, courseCode: e.target.value, semester: "" })
-              }
-            >
-              <option value="">Course</option>
-              {courses
-                .filter((c) => !form.group || c.group_code === form.group)
-                .map((c) => (
-                  <option key={c.id} value={c.code}>
-                    {c.name}
-                  </option>
-                ))}
-            </select>
+        {/* Group */}
+        <div className="col-md-3">
+          <label className="form-label fw-bold">Group</label>
+          <select
+            className="form-select"
+            value={form.group}
+            onChange={(e) =>
+              setForm({ ...form, group: e.target.value, courseCode: "" })
+            }
+          >
+            <option value="">Group</option>
+            {filteredGroups.map((g) => (
+              <option key={g.id} value={g.code}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Course */}
+        <div className="col-md-3">
+          <label className="form-label fw-bold">Course</label>
+          <select
+            className="form-select"
+            value={form.courseCode}
+            onChange={(e) =>
+              setForm({ ...form, courseCode: e.target.value, semester: "" })
+            }
+          >
+            <option value="">Course</option>
+            {filteredCourses.map((c) => (
+              <option key={c.id} value={c.code}>
+                {c.courseName || c.name || c.course_name || "Unnamed course"}
+              </option>
+            ))}
+          </select>
           </div>
 
           {/* Semester */}

@@ -5,13 +5,13 @@ import AdminShell from '../components/AdminShell'
 import crestPrimary from '../assets/media/images.png'
 import { validateRequiredFields } from '../lib/validation'
 import { showToast } from '../store/ui'
-
+ 
 export default function AdminApplications() {
   const GENDERS = ['Male', 'Female', 'Other']
   const CASTES = ['General', 'OBC', 'SC', 'ST', 'Others']
   const RELIGIONS = ['Hindu', 'Muslim', 'Christian', 'Sikh', 'Buddhist', 'Jain', 'Others']
   const STATES = ['Tamil Nadu', 'Andhra Pradesh', 'Karnataka', 'Kerala', 'Telangana', 'Maharashtra', 'Other']
-
+ 
   const initialForm = {
     student_id: '',
     ht_no: '',
@@ -36,9 +36,9 @@ export default function AdminApplications() {
     caste: '',
     sub_caste: ''
   }
-
-  const [form, setForm] = useState({ 
-    ...initialForm, 
+ 
+  const [form, setForm] = useState({
+    ...initialForm,
     course_name: ''
   })
   const [photo, setPhoto] = useState(null)
@@ -48,9 +48,13 @@ export default function AdminApplications() {
   const [courses, setCourses] = useState([])
   const [groups, setGroups] = useState([])
   const [years, setYears] = useState([])
-
+  const [category, setCategory] = useState('')
+  const [filteredYears, setFilteredYears] = useState([])
+  const [filteredGroups, setFilteredGroups] = useState([])
+  const [filteredCourses, setFilteredCourses] = useState([])
+ 
   const handle = (key, value) => setForm((prev) => ({ ...prev, [key]: value }))
-
+ 
   useEffect(() => {
     const bootstrap = async () => {
       try {
@@ -60,36 +64,107 @@ export default function AdminApplications() {
           api.listAcademicYears?.() || []
         ])
         setCourses(cs || [])
+        setFilteredCourses(cs || [])
         setGroups(gs || [])
-        setYears((ys || []).filter(year => year?.active !== false))
+        setFilteredGroups(gs || [])
+        const activeYears = (ys || []).filter(year => year?.active !== false)
+        setYears(activeYears)
+        setFilteredYears(activeYears) // Initialize with all years
       } catch (error) {
         console.error('Failed to load masters', error)
         setCourses([])
         setGroups([])
         setYears([])
+        setFilteredYears([])
       }
     }
     bootstrap()
   }, [])
-
+ 
+  useEffect(() => {
+    if (category) {
+      // Filter years based on UG/PG category
+      const filteredYrs = years.filter(year => {
+        return (category === 'UG' && year.category === 'UG') ||
+               (category === 'PG' && year.category === 'PG')
+      })
+     
+      // Filter groups based on UG/PG category
+      const filteredGrps = groups.filter(group => {
+        return (category === 'UG' && (group.category === 'UG' || group.Category === 'UG')) ||
+               (category === 'PG' && (group.category === 'PG' || group.Category === 'PG'))
+      })
+     
+      // Get the selected group to filter courses
+      const selectedGroup = filteredGrps.find(g => g.code === form.group_code || g.group_code === form.group_code);
+     
+      // Filter courses based on the selected group's code
+      const filteredCrs = courses.filter(course => {
+        // If no group is selected, show all courses for the category
+        if (!selectedGroup) return true;
+       
+        // Get the group code from the selected group (trying both possible properties)
+        const groupCode = selectedGroup.code || selectedGroup.group_code;
+       
+        // Match course's group with the selected group's code
+        // Check all possible group-related properties in the course
+        return (
+          course.group_code === groupCode ||
+          course.groupCode === groupCode ||
+          (course.group_name && (course.group_name === selectedGroup.name || course.group_name === selectedGroup.group_name)) ||
+          (course.groupName && (course.groupName === selectedGroup.name || course.groupName === selectedGroup.group_name))
+        );
+      });
+     
+      setFilteredYears(filteredYrs)
+      setFilteredGroups(filteredGrps)
+      setFilteredCourses(filteredCrs)
+     
+      // Reset selections if current selection is not in filtered lists
+      if (form.academic_year && !filteredYrs.some(y => y.academic_year === form.academic_year || y.name === form.academic_year)) {
+        handle('academic_year', '')
+      }
+      if (form.group_code && !filteredGrps.some(g => g.code === form.group_code || g.group_code === form.group_code)) {
+        handle('group_code', '')
+        handle('group', '')
+        // Also reset courses when group changes
+        handle('course_id', '')
+        handle('course_name', '')
+      }
+      if (form.course_id && !filteredCrs.some(c => String(c.id || c.course_id) === String(form.course_id))) {
+        handle('course_id', '')
+        handle('course_name', '')
+      }
+    } else {
+      setFilteredYears(years)
+      setFilteredGroups(groups)
+      setFilteredCourses(courses)
+    }
+  }, [category, years, groups, courses, form.academic_year, form.group_code, form.course_id])
+ 
   const resetAll = () => {
     setForm(initialForm)
+    setCategory('')
+    setFilteredGroups(groups)
+    setFilteredCourses(courses)
+    setFilteredYears(years)
     setPhoto(null)
     setCert(null)
     setMsg('')
   }
-
+ 
   const onNumericChange = (key, max) => (event) => {
     const sanitized = (event.target.value || '').replace(/\D/g, '').slice(0, max)
     handle(key, sanitized)
   }
-
+ 
   const isDigits = (value, len) => new RegExp(`^\\d{${len}}$`).test(value)
-
+ 
   const submit = async (event) => {
     event.preventDefault()
     setMsg('')
     const requiredFields = {
+      Category: category,
       'Academic Year': form.academic_year,
       'Group': form.group,
       'Course': form.course_id,
@@ -114,23 +189,24 @@ export default function AdminApplications() {
       showToast('Aadhar number must contain 12 digits.', { type: 'warning', title: 'Invalid Aadhar' })
       return
     }
-
+ 
     setLoading(true)
     try {
       const selectedCourse = courses.find((course) => String(course.id || course.course_id) === String(form.course_id))
       if (!selectedCourse) throw new Error('Select a valid course')
-
+ 
       const courseCode = selectedCourse.courseCode || selectedCourse.code
       if (!courseCode) throw new Error('Selected course is missing a course code reference')
       const courseLabel = form.course_name || selectedCourse.courseName || selectedCourse.course_name || ''
-
-      const payload = {
-        student_id: form.student_id || `STU${Date.now().toString().slice(-6)}`,
-        hall_ticket_no: form.ht_no || null,
-        academic_year: form.academic_year,
-        group_name: form.group_code || form.group,
-        course_name: courseCode,
-        full_name: form.full_name,
+ 
+        const payload = {
+          student_id: form.student_id || `STU${Date.now().toString().slice(-6)}`,
+          hall_ticket_no: form.ht_no || null,
+          academic_year: form.academic_year,
+          group_name: form.group_code || form.group,
+          course_name: courseCode,
+          Category: category || null,
+          full_name: form.full_name,
         gender: form.gender,
         date_of_birth: form.dob,
         father_name: form.father_name || null,
@@ -151,10 +227,10 @@ export default function AdminApplications() {
         status: 'ACTIVE',
         created_at: new Date().toISOString()
       }
-
+ 
       const { error } = await supabase.from('students').insert([payload])
       if (error) throw error
-
+ 
       showToast('Application submitted successfully!', { type: 'success', title: 'Success' })
       setMsg('Application saved successfully.')
       resetAll()
@@ -165,7 +241,7 @@ export default function AdminApplications() {
       setLoading(false)
     }
   }
-
+ 
   return (
     <AdminShell>
       <div className="desktop-container" style={{ overflowX: 'hidden' }}>
@@ -183,7 +259,7 @@ export default function AdminApplications() {
             </div>
           </div>
         </section>
-
+ 
         <div className="row g-4 justify-content-center mx-0">
           <div className="col-12 col-lg-11 col-xl-10">
             <div className="card card-soft p-4 mb-4">
@@ -194,16 +270,35 @@ export default function AdminApplications() {
                 </div>
                 <button type="button" className="btn btn-outline-secondary" onClick={resetAll}>Reset Form</button>
               </div>
-
+ 
               <form onSubmit={submit}>
                 <div className="application-section mb-4">
                   <h6 className="text-uppercase text-muted fw-bold small">Programme Selection</h6>
                   <div className="row g-3 mt-1">
-                    <div className="col-md-4">
-                      <label className="form-label">Academic Year</label>
-                      <select className="form-select" value={form.academic_year} onChange={(e) => handle('academic_year', e.target.value)} required>
+                    <div className="col-md-3">
+                      <label className="form-label">Category</label>
+                      <select
+                        className="form-select"
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                        required
+                      >
                         <option value="">Select</option>
-                        {years.map((year) => (
+                        <option value="UG">UG</option>
+                        <option value="PG">PG</option>
+                      </select>
+                    </div>
+                    <div className="col-md-3">
+                      <label className="form-label">Academic Year</label>
+                      <select
+                        className="form-select"
+                        value={form.academic_year}
+                        onChange={(e) => handle('academic_year', e.target.value)}
+                        required
+                        disabled={!category}
+                      >
+                        <option value="">Select Year</option>
+                        {filteredYears.map((year) => (
                           <option key={year.id} value={year.academic_year || year.name}>
                             {year.academic_year || year.name}
                           </option>
@@ -217,14 +312,15 @@ export default function AdminApplications() {
                         value={form.group_code || form.group}
                         onChange={(e) => {
                           const value = e.target.value
-                          const selected = groups.find(group => group.code === value || group.group_code === value)
+                          const selected = filteredGroups.find(group => group.code === value || group.group_code === value)
                           handle('group', selected?.name || selected?.group_name || selected?.code || value)
                           setForm(prev => ({ ...prev, group_code: value }))
                         }}
                         required
+                        disabled={!category}
                       >
                         <option value="">Select</option>
-                        {groups.map((group) => (
+                        {filteredGroups.map((group) => (
                           <option key={group.id || group.group_id} value={group.code || group.group_code}>
                             {group.name || group.group_name || 'Group'}
                           </option>
@@ -237,28 +333,27 @@ export default function AdminApplications() {
                         className="form-select"
                         value={form.course_id}
                         onChange={(e) => {
-                          const selected = courses.find(course => String(course.id || course.course_id) === String(e.target.value))
+                          const selected = filteredCourses.find(course => String(course.id || course.course_id) === String(e.target.value));
                           setForm(prev => ({
                             ...prev,
                             course_id: e.target.value,
                             course_name: selected?.courseName || selected?.course_name || selected?.name || ''
-                          }))
+                          }));
                         }}
                         required
+                        disabled={!form.group_code}
                       >
                         <option value="">Select</option>
-                        {courses
-                          .filter(course => !form.group_code || String(course.group_code) === String(form.group_code))
-                          .map((course) => (
-                            <option key={course.id || course.course_id} value={course.id || course.course_id}>
-                              {course.name || course.courseName || course.course_name}
-                            </option>
-                          ))}
+                        {filteredCourses.map((course) => (
+                          <option key={course.id || course.course_id} value={course.id || course.course_id}>
+                            {course.name || course.courseName || course.course_name}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   </div>
                 </div>
-
+ 
                 <div className="application-section mb-4">
                   <h6 className="text-uppercase text-muted fw-bold small">Identity & Guardians</h6>
                   <div className="row g-3 mt-1">
@@ -297,7 +392,7 @@ export default function AdminApplications() {
                     </div>
                   </div>
                 </div>
-
+ 
                 <div className="application-section mb-4">
                   <h6 className="text-uppercase text-muted fw-bold small">Contact & Address</h6>
                   <div className="row g-3 mt-1">
@@ -362,7 +457,7 @@ export default function AdminApplications() {
                     </div>
                   </div>
                 </div>
-
+ 
                 <div className="application-section mb-3">
                   <h6 className="text-uppercase text-muted fw-bold small">Uploads</h6>
                   <div className="row g-3 mt-1">
@@ -376,17 +471,17 @@ export default function AdminApplications() {
                     </div>
                   </div>
                 </div>
-
+ 
                 <div className="d-flex justify-content-end gap-2 mt-4">
                   <button type="button" className="btn btn-outline-secondary" onClick={resetAll}>Clear</button>
                   <button className="btn btn-brand" disabled={loading}>{loading ? 'Submitting...' : 'Submit Application'}</button>
                 </div>
               </form>
-
+ 
               {msg && <div className="alert alert-info mt-3 mb-0">{msg}</div>}
             </div>
           </div>
-
+ 
         </div>
       </div>
     </AdminShell>

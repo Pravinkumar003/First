@@ -204,6 +204,7 @@ const normalizeSubjectRecord = (subject = {}, context = {}) => {
     feeCategory:
       subject.feeCategory ||
       subject.fee_category ||
+      subject.fees_categories ||
       "",
     feeAmount:
       feeAmountValue === undefined ||

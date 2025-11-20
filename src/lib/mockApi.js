@@ -315,7 +315,8 @@ const mapSubject = (row = {}) => {
     subjectNames: parseSubjectList(
       row.subjects_name || row.subject_name || row.subjectName
     ),
-    feeCategory: row.fee_category || row.feeCategory || "",
+    feeCategory:
+      row.fee_category || row.feeCategory || row.fees_categories || "",
     feeAmount:
       feeAmountValue === undefined ||
       feeAmountValue === null ||
@@ -366,6 +367,7 @@ const toSubjectRow = (subject = {}) => {
       subject.subject_code ||
       subject.subjectCode ||
       null,
+    fees_categories: subject.fees_categories || subject.feeCategory || null,
     amount: normalizedFee,
   };
   if (subjectId) {
@@ -832,7 +834,7 @@ export const api = {
       supabase
         .from(TABLES.subjects)
         .select(
-          "subject_id, academic_year, course_name, semester_number, category_id, subject_code, subject_name, amount"
+          "subject_id, academic_year, course_name, semester_number, category_id, subject_code, subject_name, fees_categories, amount"
         )
         .order("academic_year", { ascending: false })
         .order("course_name")
@@ -875,7 +877,7 @@ export const api = {
         .from(TABLES.subjects)
         .upsert(payload, { onConflict: onConflictCols })
         .select(
-          "subject_id, academic_year, course_name, semester_number, category_id, subject_code, subject_name, amount"
+          "subject_id, academic_year, course_name, semester_number, category_id, subject_code, subject_name, fees_categories, amount"
         ),
       "Unable to save subjects"
     );
@@ -902,7 +904,7 @@ export const api = {
         .update(updateRow)
         .eq("subject_id", id)
         .select(
-          "subject_id, academic_year, course_name, semester_number, category_id, subject_code, subject_name, amount"
+          "subject_id, academic_year, course_name, semester_number, category_id, subject_code, subject_name, fees_categories, amount"
         )
         .single(),
       "Unable to update subject"
