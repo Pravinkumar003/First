@@ -162,31 +162,54 @@ export default function SubjectsSection({
       extraSubjectCodes: [...(prev.extraSubjectCodes || []), ''],
     }))
   }
+  const renderSubjectRow = ({
+    titleValue,
+    onTitleChange,
+    codeValue,
+    onCodeChange,
+    action,
+    titlePlaceholder = "Subject title",
+    codePlaceholder = "Subject code",
+  }) => (
+    <div className="d-flex gap-2 align-items-center">
+      <input
+        className="form-control"
+        style={{ flex: "0 0 48%", minWidth: "48%" }}
+        placeholder={titlePlaceholder}
+        value={titleValue}
+        onChange={onTitleChange}
+      />
+      <input
+        className="form-control"
+        style={{ flex: "0 0 50%", minWidth: "50%" }}
+        placeholder={codePlaceholder}
+        value={codeValue}
+        onChange={onCodeChange}
+      />
+      {action}
+    </div>
+  );
+
   const extraInputFields = (
     <>
       {extraNames.map((value, idx) => (
-        <div key={`extra-${idx}`} className="d-flex gap-2 mt-2">
-          <input
-            className="form-control"
-            style={{ flex: "0 0 40%" }}
-            placeholder={`Subject ${idx + 2}`}
-            value={value}
-            onChange={e => updateExtraField(idx, 'name', e.target.value)}
-          />
-          <input
-            className="form-control"
-            style={{ flex: "1 1 auto" }}
-            placeholder="Subject code"
-            value={extraCodes[idx] || ''}
-            onChange={e => updateExtraField(idx, 'code', e.target.value)}
-          />
-          <button
-            type="button"
-            className="btn btn-outline-danger btn-sm"
-            onClick={() => removeExtraField(idx)}
-          >
-            Remove
-          </button>
+        <div key={`extra-${idx}`} className="mt-2">
+          {renderSubjectRow({
+            titleValue: value,
+            onTitleChange: (e) => updateExtraField(idx, 'name', e.target.value),
+            codeValue: extraCodes[idx] || '',
+            onCodeChange: (e) => updateExtraField(idx, 'code', e.target.value),
+            action: (
+            <button
+              type="button"
+              className="btn btn-outline-danger btn-sm"
+              onClick={() => removeExtraField(idx)}
+            >
+              Remove
+            </button>
+          ),
+          titlePlaceholder: `Subject ${idx + 2}`,
+          })}
         </div>
       ))}
       <button type="button" className="btn btn-sm btn-outline-primary mt-3" onClick={addExtraField}>
@@ -399,41 +422,34 @@ export default function SubjectsSection({
                   </div>
                 )
               })}
-              <div className="d-flex gap-2 mt-2">
-                <input
-                  className="form-control"
-                  style={{ flex: "0 0 40%" }}
-                  placeholder="Or type custom subject"
-                  value={subjectForm.subjectName}
-                  onChange={e => setSubjectForm({ ...subjectForm, subjectName: e.target.value, subjectSelections: [] })}
-                />
-                <input
-                  className="form-control"
-                  style={{ flex: "1 1 auto" }}
-                  placeholder="Subject code"
-                  value={subjectForm.subjectCode}
-                  onChange={e => setSubjectForm({ ...subjectForm, subjectCode: e.target.value })}
-                />
+              <div className="mt-2">
+                {renderSubjectRow({
+                  titleValue: subjectForm.subjectName,
+                  onTitleChange: (e) =>
+                    setSubjectForm({
+                      ...subjectForm,
+                      subjectName: e.target.value,
+                      subjectSelections: [],
+                    }),
+                  codeValue: subjectForm.subjectCode,
+                  onCodeChange: (e) =>
+                    setSubjectForm({ ...subjectForm, subjectCode: e.target.value }),
+                  titlePlaceholder: "Or type custom subject",
+                })}
               </div>
               {extraInputFields}
             </div>
           ) : (
             <>
-              <div className="d-flex gap-2">
-                <input
-                  className="form-control"
-                  style={{ flex: "0 0 40%" }}
-                  placeholder="Subject title"
-                  value={subjectForm.subjectName}
-                  onChange={e => setSubjectForm({ ...subjectForm, subjectName: e.target.value })}
-                />
-                <input
-                  className="form-control"
-                  style={{ flex: "1 1 auto" }}
-                  placeholder="Subject code"
-                  value={subjectForm.subjectCode}
-                  onChange={e => setSubjectForm({ ...subjectForm, subjectCode: e.target.value })}
-                />
+              <div className="mt-2">
+                {renderSubjectRow({
+                  titleValue: subjectForm.subjectName,
+                  onTitleChange: (e) =>
+                    setSubjectForm({ ...subjectForm, subjectName: e.target.value }),
+                  codeValue: subjectForm.subjectCode,
+                  onCodeChange: (e) =>
+                    setSubjectForm({ ...subjectForm, subjectCode: e.target.value }),
+                })}
               </div>
               {extraInputFields}
             </>
