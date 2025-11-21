@@ -35,7 +35,7 @@ export default function Departments() {
   });
 
   const [selectedCategories, setSelectedCategories] = useState([]);
-  const [categoryAmount, setCategoryAmount] = useState("");
+  const [categoryAmounts, setCategoryAmounts] = useState({});
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const categoryDropdownRef = useRef(null);
 
@@ -379,15 +379,30 @@ export default function Departments() {
   };
 
   // ---------------- CATEGORY FEES (CHECKBOX) ----------------
-  const toggleCategory = (catId) => {
-    setSelectedCategories((prev) =>
-      prev.includes(catId)
-        ? prev.filter((id) => id !== catId)
-        : [...prev, catId]
-    );
-  };
+  const toggleCategory = (catId) => {
+    setSelectedCategories((prev) => {
+      const isSelected = prev.includes(catId);
+      if (isSelected) {
+        setCategoryAmounts((amounts) => {
+          const { [catId]: removed, ...rest } = amounts;
+          return rest;
+        });
+        return prev.filter((id) => id !== catId);
+      }
 
-  const fetchCategoryFees = async () => {
+      setCategoryAmounts((amounts) => ({
+        ...amounts,
+        [catId]: amounts[catId] ?? "",
+      }));
+      return [...prev, catId];
+    });
+  };
+
+  const handleCategoryAmountChange = (catId, value) => {
+    setCategoryAmounts((prev) => ({ ...prev, [catId]: value }));
+  };
+
+  const fetchCategoryFees = async () => {
     try {
       const { data, error } = await supabase
         .from("fee_structure")
@@ -400,25 +415,28 @@ export default function Departments() {
 
       data.forEach((item) => {
         const key = `${item.academic_year}_${item.group}_${item.course}_${item.semester}`;
-        if (!feesMap.has(key)) {
-          feesMap.set(key, {
-            id: item.id,
-            feeCategories: [],
-            amount: item.amount,
-            academic_year: String(item.academic_year),
-            group: item.group,
-            course_code: item.course,
-            semester: String(item.semester || ""),
-            created_at: item.created_at,
-          });
-        }
-        if (item.fee_cat) {
-          feesMap.get(key).feeCategories.push({
-            id: item.id,
-            name: item.fee_cat,
-            amount: item.amount,
-          });
-        }
+      if (!feesMap.has(key)) {
+        feesMap.set(key, {
+          id: item.id,
+          feeCategories: [],
+          amount: 0,
+          academic_year: String(item.academic_year),
+          group: item.group,
+          course_code: item.course,
+          semester: String(item.semester || ""),
+          created_at: item.created_at,
+        });
+      }
+      if (item.fee_cat) {
+        const entry = feesMap.get(key);
+        const amountValue = Number(item.amount) || 0;
+        entry.feeCategories.push({
+          id: item.id,
+          name: item.fee_cat,
+          amount: amountValue,
+        });
+        entry.amount += amountValue;
+      }
       });
 
       const formattedData = Array.from(feesMap.values());
@@ -432,83 +450,89 @@ export default function Departments() {
     }
   };
 
-  const handleCategoryOK = async () => {
-    if (selectedCategories.length === 0) {
-      showToast("Select at least one fee category", { type: "warning" });
-      return;
-    }
+  const handleCategoryOK = async () => {
+    if (selectedCategories.length === 0) {
+      showToast("Select at least one fee category", { type: "warning" });
+      return;
+    }
 
-    if (!categoryAmount) {
-      showToast("Enter amount", { type: "warning" });
-      return;
-    }
+    const missingAmountCategory = selectedCategories.find(
+      (catId) => !(categoryAmounts[catId] ?? "").toString().trim().length
+    );
+    if (missingAmountCategory) {
+      showToast("Enter an amount for each selected fee category", {
+        type: "warning",
+      });
+      return;
+    }
 
-    if (!form.year || !form.group || !form.courseCode || !form.semester) {
-      showToast("Select Academic Year, Group, Course & Semester", {
-        type: "warning",
-      });
-      return;
-    }
+    const invalidAmountCategory = selectedCategories.find((catId) =>
+      Number.isNaN(
+        parseFloat((categoryAmounts[catId] ?? "").toString().trim())
+      )
+    );
+    if (invalidAmountCategory) {
+      showToast("Enter valid numbers for all fee category amounts", {
+        type: "warning",
+      });
+      return;
+    }
 
-    try {
-      // Convert selected IDs into category names
-      const selectedNames = feeCats
-        .filter((cat) => selectedCategories.includes(cat.id))
-        .map((cat) => cat.name);
+    if (!form.year || !form.group || !form.courseCode || !form.semester) {
+      showToast("Select Academic Year, Group, Course & Semester", {
+        type: "warning",
+      });
+      return;
+    }
 
-      const categoryString = selectedNames.join(", ");
-      const amountValue = Number(categoryAmount);
+    try {
+      const entries = selectedCategories.map((catId) => {
+        const category = feeCats.find((cat) => cat.id === catId);
+        return {
+          academic_year: form.year,
+          group: form.group,
+          course: form.courseCode,
+          semester: form.semester,
+          fee_cat: category?.name || "",
+          amount: parseFloat(
+            (categoryAmounts[catId] ?? "").toString().trim()
+          ),
+          created_at: new Date().toISOString(),
+        };
+      });
 
-      // Delete old row (if any)
-      await supabase
-        .from("fee_structure")
-        .delete()
-        .eq("academic_year", form.year)
-        .eq("group", form.group)
-        .eq("course", form.courseCode)
-        .eq("semester", form.semester);
+      await supabase
+        .from("fee_structure")
+        .delete()
+        .eq("academic_year", form.year)
+        .eq("group", form.group)
+        .eq("course", form.courseCode)
+        .eq("semester", form.semester);
 
-      // Insert ONE new row
-      const { error } = await supabase.from("fee_structure").insert([
-        {
-          academic_year: form.year,
-          group: form.group,
-          course: form.courseCode,
-          semester: form.semester,
-          fee_cat: categoryString, // all categories in one string
-          amount: amountValue, // one common amount
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      const { error } = await supabase.from("fee_structure").insert(entries);
 
-      if (error) throw error;
+      if (error) throw error;
 
-      // Refresh data and reset form
-      await Promise.all([
-        fetchCategoryFees(),
-        // Reset form state
-        (() => {
-          setSelectedCategories([]);
-          setCategoryAmount("");
-          setForm({
-            year: "",
-            group: "",
-            courseCode: "",
-            semester: "",
-          });
-          setSubjects([]);
-        })()
-      ]);
+      await fetchCategoryFees();
+      setSelectedCategories([]);
+      setCategoryAmounts({});
+      setForm({
+        year: "",
+        group: "",
+        courseCode: "",
+        semester: "",
+      });
+      setSubjects([]);
 
-      showToast("Fee saved successfully", { type: "success" });
-    } catch (error) {
-      console.error("Error:", error);
-      showToast("Failed to save fees", {
-        type: "danger",
-        title: "Category fees",
-      });
-    }
-  };
+      showToast("Fee saved successfully", { type: "success" });
+    } catch (error) {
+      console.error("Error:", error);
+      showToast("Failed to save fees", {
+        type: "danger",
+        title: "Category fees",
+      });
+    }
+  };
 
   const submitAllCategories = async () => {
     if (categoryFees.length === 0) {
@@ -1079,27 +1103,47 @@ export default function Departments() {
             )}
           </div>
 
-          {/* Amount Input with Submit Button */}
-          <div className="col-md-3 d-flex flex-column">
-            <div className="input-group mb-2">
-              <span className="input-group-text">₹</span>
-              <input
-                type="number"
-                className="form-control"
-                placeholder="Amount"
-                value={categoryAmount}
-                onChange={(e) => setCategoryAmount(e.target.value)}
-              />
-            </div>
-            <div className="mt-auto">
-              <button
-                className="btn btn-primary w-100"
-                onClick={handleCategoryOK}
-              >
-                Submit
-              </button>
-            </div>
-          </div>
+          {/* Amount Input with Submit Button */}
+          <div className="col-md-3 d-flex flex-column">
+            <div className="flex-grow-1">
+              {selectedCategories.length === 0 ? (
+                <div className="border rounded p-3 text-muted text-center">
+                  Select at least one fee category to set amounts.
+                </div>
+              ) : (
+                selectedCategories.map((catId) => {
+                  const category = feeCats.find((cat) => cat.id === catId);
+                  return (
+                    <div key={catId} className="mb-2">
+                      <label className="form-label mb-1">
+                        {category?.name || "Category"} Amount
+                      </label>
+                      <div className="input-group">
+                        <span className="input-group-text">₹</span>
+                        <input
+                          type="number"
+                          className="form-control"
+                          placeholder="Amount"
+                          value={categoryAmounts[catId] ?? ""}
+                          onChange={(e) =>
+                            handleCategoryAmountChange(catId, e.target.value)
+                          }
+                        />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div className="mt-auto">
+              <button
+                className="btn btn-primary w-100"
+                onClick={handleCategoryOK}
+              >
+                Submit
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1326,12 +1370,22 @@ export default function Departments() {
                             ?.name || fees.course_code}
                         </td>
                         <td>{fees.semester}</td>
-                        <td>
-                          {categoryDisplays.map((cat) => cat.name).join(", ")}
-                        </td>
-                        <td>
-                          ₹{parseInt(fees.amount).toLocaleString("en-IN")}
-                        </td>
+                          <td>
+                            {categoryDisplays
+                              .map(
+                                (cat) =>
+                                  `${cat.name} (₹${parseInt(
+                                    cat.amount || 0
+                                  ).toLocaleString("en-IN")})`
+                              )
+                              .join(", ")}
+                          </td>
+                          <td>
+                            ₹
+                            {parseInt(Number(fees.amount || 0)).toLocaleString(
+                              "en-IN"
+                            )}
+                          </td>
                         <td>
                           <div className="d-flex gap-2">
                             <button
