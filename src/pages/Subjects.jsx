@@ -168,13 +168,15 @@ export default function SubjectsSection({
         <div key={`extra-${idx}`} className="d-flex gap-2 mt-2">
           <input
             className="form-control"
+            style={{ flex: "0 0 40%" }}
             placeholder={`Subject ${idx + 2}`}
             value={value}
             onChange={e => updateExtraField(idx, 'name', e.target.value)}
           />
           <input
             className="form-control"
-            placeholder="Code"
+            style={{ flex: "1 1 auto" }}
+            placeholder="Subject code"
             value={extraCodes[idx] || ''}
             onChange={e => updateExtraField(idx, 'code', e.target.value)}
           />
@@ -367,7 +369,14 @@ export default function SubjectsSection({
           </select>
         </div>
         <div className="col-12 col-sm-6 col-xl-3">
-          <label className="form-label fw-bold mb-1">Subject Title <span className="text-danger">*</span></label>
+          <div className="d-flex justify-content-between align-items-baseline mb-1">
+            <label className="form-label fw-bold mb-0">
+              Subject Title <span className="text-danger">*</span>
+            </label>
+            <label className="form-label fw-bold mb-0">
+              Subject code <span className="text-danger">*</span>
+            </label>
+          </div>
           {(catItems[subjectForm.category] || []).length ? (
             <div className="subject-checkbox-group">
               {catItems[subjectForm.category].map(item => {
@@ -393,12 +402,14 @@ export default function SubjectsSection({
               <div className="d-flex gap-2 mt-2">
                 <input
                   className="form-control"
+                  style={{ flex: "0 0 40%" }}
                   placeholder="Or type custom subject"
                   value={subjectForm.subjectName}
                   onChange={e => setSubjectForm({ ...subjectForm, subjectName: e.target.value, subjectSelections: [] })}
                 />
                 <input
                   className="form-control"
+                  style={{ flex: "1 1 auto" }}
                   placeholder="Subject code"
                   value={subjectForm.subjectCode}
                   onChange={e => setSubjectForm({ ...subjectForm, subjectCode: e.target.value })}
@@ -409,9 +420,16 @@ export default function SubjectsSection({
           ) : (
             <>
               <div className="d-flex gap-2">
-                <input className="form-control" placeholder="Subject title" value={subjectForm.subjectName} onChange={e => setSubjectForm({ ...subjectForm, subjectName: e.target.value })} />
                 <input
                   className="form-control"
+                  style={{ flex: "0 0 40%" }}
+                  placeholder="Subject title"
+                  value={subjectForm.subjectName}
+                  onChange={e => setSubjectForm({ ...subjectForm, subjectName: e.target.value })}
+                />
+                <input
+                  className="form-control"
+                  style={{ flex: "1 1 auto" }}
                   placeholder="Subject code"
                   value={subjectForm.subjectCode}
                   onChange={e => setSubjectForm({ ...subjectForm, subjectCode: e.target.value })}
