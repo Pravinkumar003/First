@@ -6,6 +6,9 @@ import { api } from "../lib/mockApi";
 import { validateRequiredFields } from "../lib/validation";
 import { showToast } from "../store/ui";
 
+const normalizeCategoryValue = (value) =>
+  value === undefined || value === null ? "" : String(value).trim().toUpperCase();
+
 export default function Payments() {
   // Master data
   const [years, setYears] = useState([]);
@@ -13,15 +16,16 @@ export default function Payments() {
   const [courses, setCourses] = useState([]);
   const [students, setStudents] = useState([]);
   const [subjects, setSubjects] = useState([]);
-  const [feeDefinitions, setFeeDefinitions] = useState([]);
 
   // Form
   const [form, setForm] = useState({
+    category: "",
     year: "",
     group: "",
     group_code: "",
     courseCode: "",
     semester: "",
+    student_id: "",
   });
   const [displayCount, setDisplayCount] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -33,13 +37,77 @@ export default function Payments() {
   const [quickPaymentAmount, setQuickPaymentAmount] = useState("");
 
   const hasActiveFilters = Boolean(
-    form.year || form.group_code || form.courseCode || form.semester
+    form.category ||
+      form.year ||
+      form.group_code ||
+      form.courseCode ||
+      form.semester
   );
 
   const firstDefined = (...values) =>
     values.find(
       (value) => value !== undefined && value !== null && value !== ""
     );
+  const categoryOptions = useMemo(() => {
+    const categories = new Set();
+    years.forEach((year) => {
+      if (year.category) categories.add(year.category);
+    });
+    groups.forEach((group) => {
+      if (group.category) categories.add(group.category);
+    });
+    const order = { UG: 0, PG: 1 };
+    return Array.from(categories).sort((a, b) => {
+      const keyA = order[a] ?? 99;
+      const keyB = order[b] ?? 99;
+      if (keyA !== keyB) return keyA - keyB;
+      return a.localeCompare(b);
+    });
+  }, [years, groups]);
+
+  const availableYears = useMemo(() => {
+    if (!form.category) return years;
+    const normalizedCategory = normalizeCategoryValue(form.category);
+    return years.filter(
+      (year) => normalizeCategoryValue(year.category) === normalizedCategory
+    );
+  }, [years, form.category]);
+
+  const availableGroups = useMemo(() => {
+    if (!form.category) return groups;
+    const normalizedCategory = normalizeCategoryValue(form.category);
+    return groups.filter(
+      (group) => normalizeCategoryValue(group.category) === normalizedCategory
+    );
+  }, [groups, form.category]);
+
+  const visibleGroupOptions = useMemo(() => {
+    if (form.category && availableGroups.length > 0) {
+      return availableGroups;
+    }
+    return groups;
+  }, [form.category, availableGroups, groups]);
+
+  const availableCourses = useMemo(() => {
+    if (!form.category) return courses;
+    if (!visibleGroupOptions.length) return courses;
+    const allowedGroupCodes = new Set(
+      visibleGroupOptions.map((group) => group.code).filter(Boolean)
+    );
+    const allowedGroupNames = new Set(
+      visibleGroupOptions.map((group) => group.name).filter(Boolean)
+    );
+    return courses.filter((course) => {
+      const candidates = [
+        course.group_code,
+        course.group_name,
+        course.groupCode,
+      ].filter(Boolean);
+      return candidates.some(
+        (key) => allowedGroupCodes.has(key) || allowedGroupNames.has(key)
+      );
+    });
+  }, [courses, visibleGroupOptions, form.category]);
 
   const getMatchedGroup = (student) =>
     groups.find(
@@ -61,6 +129,13 @@ export default function Payments() {
         c.courseName === student.courseCode
     );
 
+  const matchesCategoryForStudent = (student) => {
+    if (!form.category) return true;
+    const targetCategory = normalizeCategoryValue(form.category);
+    if (!targetCategory) return true;
+    return normalizeCategoryValue(student.category) === targetCategory;
+  };
+
   const filteredStudents = useMemo(() => {
     return students.filter((s) => {
       const matchesYear = !form.year || s.academic_year === form.year;
@@ -74,9 +149,23 @@ export default function Payments() {
         !form.semester ||
         !s.semester ||
         String(s.semester) === String(form.semester);
-      return matchesYear && matchesGroup && matchesCourse && matchesSemester;
+      const matchesCategory = matchesCategoryForStudent(s);
+      return (
+        matchesYear &&
+        matchesGroup &&
+        matchesCourse &&
+        matchesSemester &&
+        matchesCategory
+      );
     });
-  }, [students, form.year, form.group_code, form.courseCode, form.semester]);
+  }, [
+    students,
+    form.year,
+    form.group_code,
+    form.courseCode,
+    form.semester,
+    form.category,
+  ]);
 
   const subjectsForActiveStudent = useMemo(() => {
     if (!activePaymentStudent) return [];
@@ -137,26 +226,35 @@ export default function Payments() {
         groupsData,
         coursesData,
         studentsData,
-        feesData,
         subjectsData,
       ] = await Promise.all([
         api.listAcademicYears?.(),
         api.listGroups?.(),
         api.listCourses?.(),
         api.listStudents?.(),
-        api.listFees?.(),
         api.listSubjects?.(),
       ]);
 
-      const normalizedYears = (yearsData || []).filter(
-        (y) => y?.active !== false
-      );
+    const normalizedYears = (yearsData || [])
+        .filter((y) => y?.active !== false)
+        .map((year) => {
+          const rawCategory = year.category ?? year.Category;
+          return {
+            ...year,
+            category: normalizeCategoryValue(rawCategory),
+          };
+        });
 
-      const normalizedGroups = (groupsData || []).map((g) => ({
-        id: g.group_id ?? g.id,
-        code: g.group_code ?? g.code,
-        name: g.group_name ?? g.name,
-      }));
+    const normalizedGroups = (groupsData || []).map((g) => {
+        const rawCategory = g.category ?? g.Category;
+        return {
+          id: g.group_id ?? g.id,
+          code: g.group_code ?? g.code,
+          group_code: g.group_code ?? g.code,
+          name: g.group_name ?? g.name,
+          category: normalizeCategoryValue(rawCategory),
+        };
+      });
 
       const normalizedCourses = (coursesData || []).map((c) => ({
         id: c.course_id ?? c.id,
@@ -166,23 +264,43 @@ export default function Payments() {
         group_name: c.group_name || c.groupCode,
       }));
 
-      const normalizedStudents = (studentsData || []).map((s) => ({
-        ...s,
-        academic_year: s.academic_year || "",
-        group_name: s.group_name || s.group || s.group_code || "",
-        group: s.group_name || s.group || s.group_code || "",
-        group_code: s.group_code || s.group || s.group_name || "",
-        course_name: s.course_name || s.course_id || s.courseCode || "",
-        course_code: s.course_code || s.course_name || s.course_id || "",
-        semester: s.semester ?? s.semester_number ?? "",
-      }));
+      const yearCategoryMap = new Map(
+        normalizedYears.map((year) => [year.academic_year, year.category])
+      );
+
+      const groupCategoryMap = new Map();
+      normalizedGroups.forEach((group) => {
+        if (!group.category) return;
+        const keys = [group.code, group.name].filter(Boolean);
+        keys.forEach((key) => groupCategoryMap.set(key, group.category));
+      });
+
+      const normalizedStudents = (studentsData || []).map((s) => {
+        const academicYear = s.academic_year || "";
+        const groupCategory =
+          groupCategoryMap.get(s.group_code) ??
+          groupCategoryMap.get(s.group) ??
+          groupCategoryMap.get(s.group_name);
+        const studentCategory =
+          groupCategory || yearCategoryMap.get(academicYear) || "";
+        return {
+          ...s,
+          academic_year: academicYear,
+          group_name: s.group_name || s.group || s.group_code || "",
+          group: s.group_name || s.group || s.group_code || "",
+          group_code: s.group_code || s.group || s.group_name || "",
+          course_name: s.course_name || s.course_id || s.courseCode || "",
+          course_code: s.course_code || s.course_name || s.course_id || "",
+          semester: s.semester ?? s.semester_number ?? "",
+          category: studentCategory,
+        };
+      });
 
       setYears(normalizedYears);
       setGroups(normalizedGroups);
       setCourses(normalizedCourses);
       setStudents(normalizedStudents);
       setSubjects(subjectsData || []);
-      setFeeDefinitions(feesData || []);
     } catch (e) {
       console.error("Error loading payment masters:", e);
     }
@@ -359,8 +477,37 @@ export default function Payments() {
         <h4 className="fw-bold mb-3">Filter Students</h4>
 
         <div className="row g-3">
-          {/* Academic Year */}
+          {/* Category */}
           <div className="col-md-3">
+            <label className="form-label fw-bold">Category</label>
+            <select
+              className="form-select"
+              value={form.category}
+              onChange={(e) => {
+                const selectedCategory = normalizeCategoryValue(e.target.value);
+                setForm({
+                  ...form,
+                  category: selectedCategory,
+                  year: "",
+                  group: "",
+                  group_code: "",
+                  courseCode: "",
+                  semester: "",
+                  student_id: "",
+                });
+              }}
+            >
+              <option value="">Select Category</option>
+              {categoryOptions.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Academic Year */}
+          <div className="col-md-2">
             <label className="form-label fw-bold">Academic Year</label>
             <select
               className="form-select"
@@ -378,7 +525,7 @@ export default function Payments() {
               }
             >
               <option value="">Select Year</option>
-              {years.map((y) => (
+              {availableYears.map((y) => (
                 <option key={y.id} value={y.academic_year}>
                   {y.academic_year}
                 </option>
@@ -387,16 +534,19 @@ export default function Payments() {
           </div>
 
           {/* Group */}
-          <div className="col-md-3">
+          <div className="col-md-2">
             <label className="form-label fw-bold">Group</label>
             <select
               className="form-select"
               value={form.group_code}
               onChange={(e) => {
                 const value = e.target.value;
-                const row = groups.find(
-                  (g) => g.code === value || g.group_code === value
-                );
+                const groupOptions = visibleGroupOptions;
+                const row =
+                  groupOptions.find(
+                    (g) => g.code === value || g.group_code === value
+                  ) ??
+                  groups.find((g) => g.code === value || g.group_code === value);
 
                 setForm((prev) => ({
                   ...prev,
@@ -409,11 +559,17 @@ export default function Payments() {
               }}
             >
               <option value="">Select Group</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.code}>
-                  {g.name}
-                </option>
-              ))}
+              {availableGroups.length > 0
+                ? availableGroups.map((g) => (
+                    <option key={g.id} value={g.code}>
+                      {g.name}
+                    </option>
+                  ))
+                : groups.map((g) => (
+                    <option key={g.id} value={g.code}>
+                      {g.name}
+                    </option>
+                  ))}
             </select>
           </div>
 
@@ -425,12 +581,17 @@ export default function Payments() {
               value={form.courseCode}
               disabled={!form.group_code}
               onChange={(e) =>
-                setForm({ ...form, courseCode: e.target.value, semester: "" })
+                setForm({
+                  ...form,
+                  courseCode: e.target.value,
+                  semester: "",
+                  student_id: "",
+                })
               }
             >
               <option value="">Select Course</option>
 
-              {courses
+              {availableCourses
                 .filter((c) => {
                   if (!form.group_code) return true;
                   return (
@@ -448,7 +609,7 @@ export default function Payments() {
           </div>
 
           {/* Semester */}
-          <div className="col-md-3">
+          <div className="col-md-2">
             <label className="form-label fw-bold">Semester</label>
             <select
               className="form-select"
@@ -501,8 +662,8 @@ export default function Payments() {
           )}
           {!hasActiveFilters ? (
             <div className="text-muted small">
-              Select Academic Year, Group, Course, or Semester to see matching
-              students.
+              Select Category, Academic Year, Group, Course, or Semester to see
+              matching students.
             </div>
           ) : limitedStudents.length === 0 ? (
             <div className="text-muted small">

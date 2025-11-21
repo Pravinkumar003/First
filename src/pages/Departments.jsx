@@ -44,16 +44,24 @@ export default function Departments() {
   const normalizeCategory = (value) => (value || "").trim().toLowerCase();
 
   const categoryOptions = useMemo(() => {
-    const seen = new Set();
-    const values = [];
+    const seen = new Map();
     groups.forEach((group) => {
       const category = (group.category || group.Category || "").trim();
-      if (category && !seen.has(category)) {
-        seen.add(category);
-        values.push(category);
+      if (!category) return;
+      const key = category.toUpperCase();
+      if (!seen.has(key)) {
+        seen.set(key, category);
       }
     });
-    return values.sort((a, b) => a.localeCompare(b));
+    const order = { UG: 0, PG: 1 };
+    return Array.from(seen.entries())
+      .sort(([aKey, aValue], [bKey, bValue]) => {
+        const orderA = order[aKey] ?? 99;
+        const orderB = order[bKey] ?? 99;
+        if (orderA !== orderB) return orderA - orderB;
+        return aValue.localeCompare(bValue);
+      })
+      .map(([, value]) => value);
   }, [groups]);
 
   const categoryFilterValue = normalizeCategory(form.category);
