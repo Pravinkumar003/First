@@ -895,21 +895,18 @@ export default function Payments() {
                             onChange={(event) =>
                               setSelectedSupplementarySemester(event.target.value)
                             }
-                            disabled={!availableSupplementarySemesters.length}
                           >
-                            {availableSupplementarySemesters.length ? (
-                              <>
-                                <option value="" disabled hidden>
-                                  Select previous odd semester
+                            <option value="">
+                              Select previous odd semester
+                            </option>
+                            {availableSupplementarySemesters.length > 0 ? (
+                              availableSupplementarySemesters.map((sem) => (
+                                <option key={sem} value={String(sem)}>
+                                  Sem {sem}
                                 </option>
-                                {availableSupplementarySemesters.map((sem) => (
-                                  <option key={sem} value={String(sem)}>
-                                    Sem {sem}
-                                  </option>
-                                ))}
-                              </>
+                              ))
                             ) : (
-                              <option value="">
+                              <option value="" disabled>
                                 Supplementary unavailable for this semester
                               </option>
                             )}
