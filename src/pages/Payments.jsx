@@ -38,7 +38,17 @@ export default function Payments() {
   const [modalSemester, setModalSemester] = useState("");
   const [selectedSupplementarySemester, setSelectedSupplementarySemester] = useState("");
   const [selectedSubjectNames, setSelectedSubjectNames] = useState(() => new Set());
-  const [subjectAmounts, setSubjectAmounts] = useState({});
+  const [modalFeeInfo, setModalFeeInfo] = useState(null);
+  const [loadingModalFee, setLoadingModalFee] = useState(false);
+  const examFeeData = useMemo(() => {
+    if (!modalFeeInfo?.categories?.length) return null;
+    const categories = modalFeeInfo.categories.filter((cat) =>
+      /exam/i.test(cat.name || "")
+    );
+    if (!categories.length) return null;
+    const total = categories.reduce((sum, cat) => sum + cat.amount, 0);
+    return { categories, total };
+  }, [modalFeeInfo]);
 
   const hasActiveFilters = Boolean(
     form.category ||
@@ -198,11 +208,9 @@ export default function Payments() {
     showToast(`Payment requested for ${names}.`, { type: "info" });
   };
 
-  const updateSubjectAmount = (key, value) => {
-    setSubjectAmounts((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
+  const formatCurrency = (value) => {
+    const num = Number(value || 0);
+    return `₹${num.toLocaleString("en-IN")}`;
   };
 
   const getMatchedGroup = (student) =>
@@ -382,6 +390,73 @@ export default function Payments() {
     }
   }, [location, students, navigate]);
 
+  useEffect(() => {
+    const loadFeeInfo = async () => {
+      if (!modalStudent || !modalCourseCode || modalSemester === "") {
+        setModalFeeInfo(null);
+        return;
+      }
+      const academicYear =
+        modalStudent.academic_year || modalStudent.academicYear || "";
+      const groupValue =
+        modalStudent.group ||
+        modalStudent.group_name ||
+        modalStudent.group_code ||
+        "";
+      const courseValue = modalCourseCode;
+      const semesterValue =
+        modalSemester === "" ||
+        modalSemester === undefined ||
+        modalSemester === null
+          ? ""
+          : String(modalSemester);
+      if (!academicYear || !groupValue || !courseValue || semesterValue === "") {
+        setModalFeeInfo(null);
+        return;
+      }
+      setLoadingModalFee(true);
+      try {
+        const { data, error } = await supabase
+          .from("fee_structure")
+          .select("fee_cat, amount")
+          .eq("academic_year", academicYear)
+          .eq("group", groupValue)
+          .eq("course", courseValue)
+          .eq("semester", semesterValue);
+        if (error) throw error;
+        if (!data || data.length === 0) {
+          setModalFeeInfo(null);
+          return;
+        }
+        const map = new Map();
+        let total = 0;
+        data.forEach((item) => {
+          const name = item.fee_cat || "Fee";
+          const amount = Number(item.amount) || 0;
+          total += amount;
+          if (map.has(name)) {
+            map.get(name).amount += amount;
+          } else {
+            map.set(name, { name, amount });
+          }
+        });
+        setModalFeeInfo({
+          total,
+          categories: Array.from(map.values()),
+        });
+      } catch (error) {
+        console.error("Failed to load fee info", error);
+        showToast("Unable to load fee info for this semester.", {
+          type: "danger",
+        });
+        setModalFeeInfo(null);
+      } finally {
+        setLoadingModalFee(false);
+      }
+    };
+    loadFeeInfo();
+  }, [modalStudent, modalCourseCode, modalSemester]);
+
   const save = async (override = {}) => {
     // Payment form has been removed as per requirements
     return false;
@@ -396,7 +471,7 @@ export default function Payments() {
     setModalSemester(semesterValue);
     setModalCourseCode(courseValue);
     setModalOpen(true);
-    setSubjectAmounts({});
+    setModalFeeInfo(null);
   };
 
   const closeStudentModal = () => {
@@ -847,8 +922,23 @@ export default function Payments() {
                         </div>
                       </div>
                       <div className="d-flex align-items-center justify-content-between mb-3">
-                        <div className="small text-muted">
-                          {selectedSubjectCount} of {totalModalSubjectCount} subjects selected
+                        <div className="small text-muted d-flex align-items-center gap-3">
+                          <span>
+                            {selectedSubjectCount} of {totalModalSubjectCount} subjects selected
+                          </span>
+                          {!loadingModalFee && examFeeData?.categories?.length ? (
+                            <span className="border rounded px-2 bg-light text-dark">
+                              {`Regular exam fees: ${formatCurrency(
+                                examFeeData.categories[0].amount
+                              )}`}
+                            </span>
+                          ) : (
+                            <span className="border rounded px-2 bg-light text-dark">
+                              {loadingModalFee
+                                ? "Loading exam fee…"
+                                : "Exam fees not configured"}
+                            </span>
+                          )}
                         </div>
                         <button
                           type="button"
@@ -885,23 +975,6 @@ export default function Payments() {
                                 >
                                   {entry.name}
                                 </label>
-                              </div>
-                              <div className="input-group input-group-sm w-auto">
-                                <span className="input-group-text">Amount</span>
-                                <input
-                                  type="number"
-                                  className="form-control"
-                                  min="0"
-                                  step="1"
-                                  value={subjectAmounts[entry.key] ?? ""}
-                                  placeholder="Enter amount"
-                                  onChange={(event) =>
-                                    updateSubjectAmount(
-                                      entry.key,
-                                      event.target.value
-                                    )
-                                  }
-                                />
                               </div>
                             </div>
                           </li>
