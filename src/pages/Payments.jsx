@@ -36,6 +36,7 @@ export default function Payments() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalCourseCode, setModalCourseCode] = useState("");
   const [modalSemester, setModalSemester] = useState("");
+  const [supplementaryCycle, setSupplementaryCycle] = useState("odd");
 
   const hasActiveFilters = Boolean(
     form.category ||
@@ -304,6 +305,12 @@ export default function Payments() {
     return false;
   };
 
+  const deriveCycle = (semesterValue) => {
+    const numeric = Number(semesterValue);
+    if (Number.isNaN(numeric)) return "odd";
+    return numeric % 2 === 0 ? "even" : "odd";
+  };
+
   const openStudentModal = (student) => {
     setActivePaymentStudent(student);
     setModalStudent(student);
@@ -312,6 +319,7 @@ export default function Payments() {
       form.courseCode || student.courseCode || student.course_code || "";
     setModalSemester(semesterValue);
     setModalCourseCode(courseValue);
+    setSupplementaryCycle(deriveCycle(semesterValue));
     setModalOpen(true);
   };
 
@@ -725,21 +733,67 @@ export default function Payments() {
                       </div>
                     </div>
                   </div>
-                  <div className="mt-4">
-                    <h6 className="fw-semibold mb-2">
-                      Subjects for {modalSemester ? `Sem ${modalSemester}` : "the selected semester"}
-                    </h6>
+                    <div className="mt-4">
+                      <div className="d-flex align-items-center justify-content-between mb-3">
+                        <h6 className="fw-semibold mb-0">
+                          Subjects for{" "}
+                          {modalSemester ? `Sem ${modalSemester}` : "the selected semester"}
+                        </h6>
+                        <div className="w-50 d-flex justify-content-end">
+                          <label className="form-label mb-0 me-2 fw-semibold">
+                            Supplementary
+                          </label>
+                          <select
+                            className="form-select form-select-sm w-auto"
+                            value={supplementaryCycle}
+                            onChange={(event) =>
+                              setSupplementaryCycle(event.target.value)
+                            }
+                          >
+                            {["odd", "even"].map((cycle) => (
+                              <option
+                                key={cycle}
+                                value={cycle}
+                                disabled={
+                                  modalSemester !== "" &&
+                                  modalSemester !== undefined &&
+                                  modalSemester !== null &&
+                                  deriveCycle(modalSemester) !== cycle
+                                }
+                              >
+                                {cycle === "odd"
+                                  ? "Odd Semesters"
+                                  : "Even Semesters"}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
                     {subjectsForModal.length === 0 ? (
                       <div className="alert alert-warning mb-0">
                         No subjects configured for this course/semester.
                       </div>
                     ) : (
                       <ul className="list-group list-group-flush">
-                        {subjectsForModal.map((subject) => (
-                          <li key={subject.id} className="list-group-item">
-                            {subject.subjectName || subject.subjectCode || "Unnamed subject"}
-                          </li>
-                        ))}
+                        {subjectsForModal.flatMap((subject) => {
+                          const names = (
+                            subject.subjectNames?.filter(Boolean) ||
+                            []
+                          ).length
+                            ? subject.subjectNames
+                            : [
+                                subject.subjectName,
+                                subject.subjectCode,
+                              ].filter(Boolean);
+                          return names.map((name, index) => (
+                            <li
+                              key={`${subject.id}-${name}-${index}`}
+                              className="list-group-item"
+                            >
+                              {name}
+                            </li>
+                          ));
+                        })}
                       </ul>
                     )}
                   </div>
