@@ -491,6 +491,7 @@ export default function Departments() {
         return {
           academic_year: form.year,
           group: form.group,
+          category: form.category,
           course: form.courseCode,
           semester: form.semester,
           fee_cat: category?.name || "",
