@@ -48,6 +48,8 @@ export default function Payments() {
     values.find(
       (value) => value !== undefined && value !== null && value !== ""
     );
+  const normalizeSearchValue = (value) =>
+    (value || "").toString().trim().toLowerCase();
   const categoryOptions = useMemo(() => {
     const categories = new Set();
     years.forEach((year) => {
@@ -88,26 +90,19 @@ export default function Payments() {
     return groups;
   }, [form.category, availableGroups, groups]);
 
-  const availableCourses = useMemo(() => {
-    if (!form.category) return courses;
-    if (!visibleGroupOptions.length) return courses;
-    const allowedGroupCodes = new Set(
-      visibleGroupOptions.map((group) => group.code).filter(Boolean)
-    );
-    const allowedGroupNames = new Set(
-      visibleGroupOptions.map((group) => group.name).filter(Boolean)
+  const filteredCoursesForGroup = useMemo(() => {
+    if (!form.group_code && !form.group) return courses;
+    const targets = new Set(
+      [form.group_code, form.group].map(normalizeSearchValue).filter(Boolean)
     );
     return courses.filter((course) => {
-      const candidates = [
-        course.group_code,
-        course.group_name,
-        course.groupCode,
-      ].filter(Boolean);
-      return candidates.some(
-        (key) => allowedGroupCodes.has(key) || allowedGroupNames.has(key)
-      );
+      return ["group_code", "group_name", "groupCode"].some((key) => {
+        const value = course[key];
+        if (!value) return false;
+        return targets.has(normalizeSearchValue(value));
+      });
     });
-  }, [courses, visibleGroupOptions, form.category]);
+  }, [courses, form.group_code, form.group]);
 
   const getMatchedGroup = (student) =>
     groups.find(
@@ -591,20 +586,11 @@ export default function Payments() {
             >
               <option value="">Select Course</option>
 
-              {availableCourses
-                .filter((c) => {
-                  if (!form.group_code) return true;
-                  return (
-                    c.group_code === form.group_code ||
-                    c.group_name === form.group_code ||
-                    c.groupCode === form.group_code
-                  );
-                })
-                .map((c) => (
-                  <option key={c.id} value={c.courseCode}>
-                    {c.courseName}
-                  </option>
-                ))}
+              {filteredCoursesForGroup.map((c) => (
+                <option key={c.id} value={c.courseCode}>
+                  {c.courseName}
+                </option>
+              ))}
             </select>
           </div>
 
