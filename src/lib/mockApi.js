@@ -286,8 +286,15 @@ const toSubCategoryRow = ({ name, subjects }) => ({
 const mapSubject = (row = {}) => {
   const semesterValue = row.semester_number ?? row.semester ?? "";
   const feeAmountValue = row.amount ?? row.fee_amount;
+  const subjectCodeSource =
+    row.subject_code ||
+    row.subjectCode ||
+    row.subject_name ||
+    row.subjectName ||
+    "";
+  const subjectCodes = parseSubjectList(subjectCodeSource);
   const subjectCode =
-    row.subject_code || row.subjectName || row.subject_name || "";
+    subjectCodes.length > 0 ? subjectCodes[0] : subjectCodeSource;
   const subjectName = row.subject_name || row.subjectName || subjectCode;
   return {
     id: row.subject_id ?? row.id,
@@ -311,6 +318,7 @@ const mapSubject = (row = {}) => {
       row.subject_category?.category_name ||
       "",
     subjectCode,
+    subjectCodes,
     subjectName,
     subjectNames: parseSubjectList(
       row.subjects_name || row.subject_name || row.subjectName

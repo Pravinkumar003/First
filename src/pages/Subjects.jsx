@@ -85,6 +85,7 @@ export default function SubjectsSection({
     return Number.isNaN(numeric) ? raw : numeric
   }
   const extraNames = subjectForm.extraSubjectNames || []
+  const extraCodes = subjectForm.extraSubjectCodes || []
   const groupNameByCode = useMemo(() => groups.reduce((acc, group) => {
     const code = group.groupCode || group.code || group.group_code || ''
     if (!code) return acc
@@ -128,24 +129,37 @@ export default function SubjectsSection({
   }
   const pendingCombos = buildComboRows(pendingSubjects)
   const savedCombos = buildComboRows(subjects)
-  const updateExtraName = (idx, value) => {
+  const updateExtraField = (idx, field, value) => {
     setSubjectForm(prev => {
-      const list = [...(prev.extraSubjectNames || [])]
-      list[idx] = value
-      return { ...prev, extraSubjectNames: list }
+      const names = [...(prev.extraSubjectNames || [])]
+      const codes = [...(prev.extraSubjectCodes || [])]
+      if (field === 'name') names[idx] = value
+      else codes[idx] = value
+      return {
+        ...prev,
+        extraSubjectNames: names,
+        extraSubjectCodes: codes,
+      }
     })
   }
-  const removeExtraName = (idx) => {
+  const removeExtraField = (idx) => {
     setSubjectForm(prev => {
-      const list = [...(prev.extraSubjectNames || [])]
-      list.splice(idx, 1)
-      return { ...prev, extraSubjectNames: list }
+      const names = [...(prev.extraSubjectNames || [])]
+      const codes = [...(prev.extraSubjectCodes || [])]
+      names.splice(idx, 1)
+      codes.splice(idx, 1)
+      return {
+        ...prev,
+        extraSubjectNames: names,
+        extraSubjectCodes: codes,
+      }
     })
   }
-  const addExtraNameField = () => {
+  const addExtraField = () => {
     setSubjectForm(prev => ({
       ...prev,
-      extraSubjectNames: [...(prev.extraSubjectNames || []), '']
+      extraSubjectNames: [...(prev.extraSubjectNames || []), ''],
+      extraSubjectCodes: [...(prev.extraSubjectCodes || []), ''],
     }))
   }
   const extraInputFields = (
@@ -156,18 +170,24 @@ export default function SubjectsSection({
             className="form-control"
             placeholder={`Subject ${idx + 2}`}
             value={value}
-            onChange={e => updateExtraName(idx, e.target.value)}
+            onChange={e => updateExtraField(idx, 'name', e.target.value)}
+          />
+          <input
+            className="form-control"
+            placeholder="Code"
+            value={extraCodes[idx] || ''}
+            onChange={e => updateExtraField(idx, 'code', e.target.value)}
           />
           <button
             type="button"
             className="btn btn-outline-danger btn-sm"
-            onClick={() => removeExtraName(idx)}
+            onClick={() => removeExtraField(idx)}
           >
             Remove
           </button>
         </div>
       ))}
-      <button type="button" className="btn btn-sm btn-outline-primary mt-3" onClick={addExtraNameField}>
+      <button type="button" className="btn btn-sm btn-outline-primary mt-3" onClick={addExtraField}>
         Add another subject
       </button>
     </>
@@ -370,12 +390,33 @@ export default function SubjectsSection({
                   </div>
                 )
               })}
-              <input className="form-control mt-2" placeholder="Or type custom subject" value={subjectForm.subjectName} onChange={e => setSubjectForm({ ...subjectForm, subjectName: e.target.value, subjectSelections: [] })} />
+              <div className="d-flex gap-2 mt-2">
+                <input
+                  className="form-control"
+                  placeholder="Or type custom subject"
+                  value={subjectForm.subjectName}
+                  onChange={e => setSubjectForm({ ...subjectForm, subjectName: e.target.value, subjectSelections: [] })}
+                />
+                <input
+                  className="form-control"
+                  placeholder="Subject code"
+                  value={subjectForm.subjectCode}
+                  onChange={e => setSubjectForm({ ...subjectForm, subjectCode: e.target.value })}
+                />
+              </div>
               {extraInputFields}
             </div>
           ) : (
             <>
-              <input className="form-control" placeholder="Subject title" value={subjectForm.subjectName} onChange={e => setSubjectForm({ ...subjectForm, subjectName: e.target.value })} />
+              <div className="d-flex gap-2">
+                <input className="form-control" placeholder="Subject title" value={subjectForm.subjectName} onChange={e => setSubjectForm({ ...subjectForm, subjectName: e.target.value })} />
+                <input
+                  className="form-control"
+                  placeholder="Subject code"
+                  value={subjectForm.subjectCode}
+                  onChange={e => setSubjectForm({ ...subjectForm, subjectCode: e.target.value })}
+                />
+              </div>
               {extraInputFields}
             </>
           )}

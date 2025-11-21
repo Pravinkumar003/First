@@ -65,6 +65,7 @@ const buildSubjectForm = (category = "") => ({
   category,
   categoryId: "",
   subjectName: "",
+  subjectCode: "",
   extraSubjectNames: [],
   subjectSelections: [],
   feeCategory: "",
@@ -146,6 +147,14 @@ const normalizeSubjectRecord = (subject = {}, context = {}) => {
       : subject.subjectName
       ? [subject.subjectName]
       : [];
+  const subjectCodes =
+    subject.subjectCodes && Array.isArray(subject.subjectCodes)
+      ? subject.subjectCodes
+      : subject.subjectCode
+      ? [subject.subjectCode]
+      : subject.subject_code
+      ? [subject.subject_code]
+      : [];
 
   const courseKey =
     subject.courseName ||
@@ -201,6 +210,7 @@ const normalizeSubjectRecord = (subject = {}, context = {}) => {
     category: categoryName,
     subjectCode,
     subjectName,
+    subjectCode,
     feeCategory:
       subject.feeCategory ||
       subject.fee_category ||
@@ -213,6 +223,7 @@ const normalizeSubjectRecord = (subject = {}, context = {}) => {
         ? ""
         : Number(feeAmountValue),
     subjectNames,
+    subjectCodes,
   };
 };
 const buildSubjectBatchKey = (subject = {}) => {
@@ -1047,6 +1058,8 @@ export default function Setup() {
       category,
       subjectName,
       extraSubjectNames = [],
+      extraSubjectCodes = [],
+      subjectCode,
       subjectSelections = [],
       feeCategory,
       feeAmount,
@@ -1058,12 +1071,26 @@ export default function Setup() {
 
     const hasSelection = selectedNames.length > 0;
 
-    const manualNames = [
-      subjectName,
-      ...(Array.isArray(extraSubjectNames) ? extraSubjectNames : []),
+    const manualEntries = [
+      {
+        name: subjectName,
+        code: subjectCode,
+      },
+      ...(Array.isArray(extraSubjectNames)
+        ? extraSubjectNames.map((name, idx) => ({
+            name,
+            code:
+              Array.isArray(extraSubjectCodes) && idx < extraSubjectCodes.length
+                ? extraSubjectCodes[idx]
+                : "",
+          }))
+        : []),
     ]
-      .map((name) => (name || "").trim())
-      .filter(Boolean);
+      .map((entry) => ({
+        name: (entry.name || "").trim(),
+        code: (entry.code || "").trim(),
+      }))
+      .filter((entry) => entry.name);
 
     if (
       !academicYearId ||
@@ -1079,7 +1106,26 @@ export default function Setup() {
       return;
     }
 
-    if (!hasSelection && manualNames.length === 0) {
+    if (
+      hasSelection &&
+      (!subjectCode || !subjectCode.trim())
+    ) {
+      showToast("Enter a subject code for your selected subject(s).", {
+        type: "warning",
+        title: "Subject code required",
+      });
+      return;
+    }
+
+    if (!hasSelection && manualEntries.length > 0 && manualEntries.some((entry) => !entry.code)) {
+      showToast("Enter a subject code for every typed subject.", {
+        type: "warning",
+        title: "Subject code required",
+      });
+      return;
+    }
+
+    if (!hasSelection && manualEntries.length === 0) {
       showToast("Enter at least one subject name.", {
         type: "warning",
         title: "Subject name required",
@@ -1087,7 +1133,12 @@ export default function Setup() {
       return;
     }
 
-    const names = hasSelection ? selectedNames : manualNames;
+    const names = hasSelection
+      ? selectedNames
+      : manualEntries.map((entry) => entry.name);
+    const codes = hasSelection
+      ? Array(names.length).fill((subjectCode || "").trim())
+      : manualEntries.map((entry) => entry.code);
     const academicYearName = resolveYearName(academicYearId);
     const categoryId = categoryIdMap[category] || "";
     const courseMeta = courses.find(
@@ -1109,10 +1160,13 @@ export default function Setup() {
       semester: Number(semester),
       category,
       categoryId,
-      subjectCode: name,
+      subject_code: (codes[idx] || "").trim(),
+      subjectCode: (codes[idx] || "").trim(),
+      subject_name: name,
       subjectName: name,
       feeCategory,
       feeAmount: feeAmount ? Number(feeAmount) : "",
+      course_name: courseName,
     }));
 
     if (editingSubjectId) {
@@ -1135,7 +1189,9 @@ export default function Setup() {
     setSubjectForm((prev) => ({
       ...prev,
       subjectName: "",
+      subjectCode: "",
       extraSubjectNames: [],
+      extraSubjectCodes: [],
       subjectSelections: [],
       feeCategory: "",
       feeAmount: "",
@@ -1151,10 +1207,42 @@ export default function Setup() {
     );
 
     const options = catItems[rec.category] || [];
+    const courseMeta =
+      courseLookup[rec.courseCode] ||
+      courseLookup[rec.courseName] ||
+      courseLookup[rec.course_name] ||
+      {};
+    const resolvedGroupCode =
+      rec.groupCode ||
+      rec.group_code ||
+      courseMeta.groupCode ||
+      courseMeta.group_code ||
+      "";
+    const resolvedCourseCode =
+      rec.courseCode ||
+      rec.course_code ||
+      courseMeta.courseCode ||
+      courseMeta.course_code ||
+      rec.courseName ||
+      rec.course_name ||
+      "";
+    const resolvedCourseName =
+      courseMeta.courseName ||
+      courseMeta.course_name ||
+      rec.courseName ||
+      rec.course_name ||
+      resolvedCourseCode;
 
     const names = rec.subjectNames?.length
       ? rec.subjectNames
       : [rec.subjectName].filter(Boolean);
+    const codes =
+      rec.subjectCodes?.length
+        ? rec.subjectCodes
+        : rec.subjectCode
+        ? [rec.subjectCode]
+        : [];
+    const primaryCode = codes[0] || (rec.subjectCode || "");
 
     const allPreset =
       names.length > 0 &&
@@ -1166,6 +1254,9 @@ export default function Setup() {
 
     setSubjectForm({
       ...rec,
+      groupCode: resolvedGroupCode,
+      courseCode: resolvedCourseCode,
+      courseName: resolvedCourseName,
       categoryId: fixedCategoryId,
       semester:
         rec.semester === undefined || rec.semester === null
@@ -1173,8 +1264,12 @@ export default function Setup() {
           : rec.semester.toString(),
       feeCategory: rec.feeCategory || "",
       feeAmount: rec.feeAmount?.toString() || "",
+      subjectCode: primaryCode,
       subjectName: allPreset ? "" : names[0] || "",
       extraSubjectNames: allPreset ? [] : names.slice(1),
+      extraSubjectCodes: allPreset
+        ? []
+        : names.slice(1).map((_, idx) => codes[idx + 1] || primaryCode),
       subjectSelections: allPreset ? names : [],
     });
 
@@ -1225,6 +1320,7 @@ export default function Setup() {
               ? null
               : Number(item.feeAmount),
           names: [],
+          codes: [],
           subject_id: Number.isFinite(numericSubjectId)
             ? numericSubjectId
             : null,
@@ -1233,6 +1329,10 @@ export default function Setup() {
 
       const name = (item.subjectName || item.subjectCode || "").toString();
       if (name) grouped[key].names.push(name);
+
+      const codeValue = (item.subjectCode || item.subject_code || "").toString();
+      grouped[key].codes = grouped[key].codes || [];
+      grouped[key].codes.push(codeValue);
 
       if (!grouped[key].subject_id && (item.subjectId || item.id)) {
         grouped[key].subject_id = item.subjectId || item.id;
@@ -1246,6 +1346,7 @@ export default function Setup() {
         semester_number: g.semester_number,
         category_id: g.category_id,
         subject_name: JSON.stringify(g.names || []),
+        subject_code: JSON.stringify(g.codes || []),
         amount: g.amount,
       };
       if (g.subject_id) row.subject_id = g.subject_id;
@@ -1304,7 +1405,9 @@ export default function Setup() {
         category: "",
         categoryId: "",
         subjectName: "",
+        subjectCode: "",
         extraSubjectNames: [],
+        extraSubjectCodes: [],
         subjectSelections: [],
       }));
       setEditingSubjectId("");
