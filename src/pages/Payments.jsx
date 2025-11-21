@@ -159,9 +159,15 @@ export default function Payments() {
   const modalSubjectEntries = useMemo(() => {
     return subjectsForModal.flatMap((subject) => {
       const names = resolveModalSubjectNames(subject);
+      const code =
+        subject.subjectCode ||
+        subject.subject_code ||
+        subject.subject_code ||
+        "";
       return names.map((name, index) => ({
         key: `${subject.id}-${name}-${index}`,
         name,
+        code: code || undefined,
       }));
     });
   }, [subjectsForModal]);
@@ -217,6 +223,15 @@ export default function Payments() {
         g.name === student.group ||
         g.name === student.group_name
     );
+
+  const formatGroupLabel = (student, match) => {
+    return (
+      match?.name ||
+      student.group_name ||
+      student.group ||
+      "Group unknown"
+    );
+  };
 
   const getMatchedCourse = (student) =>
     courses.find(
@@ -727,12 +742,7 @@ export default function Payments() {
                       s.full_name || s.name || "Unnamed student";
                     const academicYear = s.academic_year || "Year not set";
                     const matchedGroup = getMatchedGroup(s);
-                    const groupLabel =
-                      matchedGroup?.name ||
-                      s.group_name ||
-                      s.group ||
-                      s.group_code ||
-                      "Group unknown";
+                    const groupLabel = formatGroupLabel(s, matchedGroup);
                     const matchedCourse = getMatchedCourse(s);
                     const courseLabel =
                       matchedCourse?.courseName ||
@@ -867,7 +877,7 @@ export default function Payments() {
                         <h5 className="fw-bold">About this student</h5>
                         <div className="d-flex flex-column gap-2 mt-3">
                           <div className="fs-5">
-                            {getMatchedGroup(modalStudent)?.name || modalStudent.group_name || modalStudent.group || modalStudent.group_code || "Group unknown"}
+                            {formatGroupLabel(modalStudent, getMatchedGroup(modalStudent))}
                           </div>
                           <div className="fs-5">
                             {getMatchedCourse(modalStudent)?.courseName || modalStudent.course_name || modalStudent.course_code || modalStudent.course_id || "Course unknown"}
@@ -962,10 +972,15 @@ export default function Payments() {
                                   onChange={() => toggleSubjectSelection(entry.name)}
                                 />
                                 <label
-                                  className="form-check-label"
+                                  className="form-check-label d-flex flex-column"
                                   htmlFor={`subject-checkbox-${entry.key}`}
                                 >
-                                  {entry.name}
+                                  <span>{entry.name}</span>
+                                  {entry.code && (
+                                    <small className="text-muted">
+                                      {entry.code}
+                                    </small>
+                                  )}
                                 </label>
                               </div>
                             </div>
