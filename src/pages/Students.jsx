@@ -1,7 +1,7 @@
 import AdminShell from "../components/AdminShell";
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../../supabaseClient";
-import { trackPromise } from "../store/ui";
+import { trackPromise, showToast } from "../store/ui";
 import { toast } from "react-toastify";
 import { validateRequiredFields } from "../lib/validation";
 import { api } from "../lib/mockApi";
@@ -315,15 +315,31 @@ export default function Students() {
     setEditingStudent(null);
   };
  
+  const [pendingDeleteStudentId, setPendingDeleteStudentId] = useState(null);
+
   const handleDelete = async (studentId) => {
-    if (window.confirm("Are you sure you want to delete this student?")) {
+    if (pendingDeleteStudentId === studentId) {
+      setPendingDeleteStudentId(null);
       try {
         await api.deleteStudent(studentId);
-        setStudents(students.filter((s) => s.id !== studentId));
+        setStudents((prev) => prev.filter((s) => s.id !== studentId));
+        showToast("Student deleted.", { type: "info" });
       } catch (error) {
         console.error("Error deleting student:", error);
+        showToast("Unable to delete student.", { type: "danger" });
       }
+      return;
     }
+    setPendingDeleteStudentId(studentId);
+    showToast(
+      "Click delete again within 5 seconds to confirm removing this student.",
+      { type: "warning" }
+    );
+    setTimeout(() => {
+      setPendingDeleteStudentId((prev) =>
+        prev === studentId ? null : prev
+      );
+    }, 5000);
   };
  
   // Open status modal with current student's status
