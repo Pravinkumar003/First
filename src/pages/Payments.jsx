@@ -147,13 +147,8 @@ export default function Payments() {
   }, [modalSemester]);
 
   useEffect(() => {
-    if (availableSupplementarySemesters.length) {
-      setSelectedSupplementarySemester(
-        String(availableSupplementarySemesters[0])
-      );
-    } else {
-      setSelectedSupplementarySemester("");
-    }
+    // default to placeholder prompt
+    setSelectedSupplementarySemester("");
   }, [availableSupplementarySemesters]);
 
   const resolveModalSubjectNames = (subject) => {
