@@ -887,7 +887,7 @@ export default function Payments() {
                         </h6>
                         <div className="w-50 d-flex justify-content-end">
                           <label className="form-label mb-0 me-2 fw-semibold">
-                            Supplementary
+                            Supplementary Module
                           </label>
                           <select
                             className="form-select form-select-sm w-auto"
