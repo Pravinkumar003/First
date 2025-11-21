@@ -36,7 +36,7 @@ export default function Payments() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalCourseCode, setModalCourseCode] = useState("");
   const [modalSemester, setModalSemester] = useState("");
-  const [supplementaryCycle, setSupplementaryCycle] = useState("odd");
+  const [selectedSupplementarySemester, setSelectedSupplementarySemester] = useState("");
   const [selectedSubjectNames, setSelectedSubjectNames] = useState(() => new Set());
 
   const hasActiveFilters = Boolean(
@@ -123,6 +123,28 @@ export default function Payments() {
       return courseMatch && semesterMatch;
     });
   }, [subjects, modalCourseCode, modalSemester]);
+  const availableSupplementarySemesters = useMemo(() => {
+    const numeric = Number(modalSemester);
+    if (!Number.isFinite(numeric) || numeric <= 1 || numeric % 2 === 0) {
+      return [];
+    }
+    const options = [];
+    for (let sem = numeric - 2; sem >= 1; sem -= 2) {
+      options.push(sem);
+    }
+    return options;
+  }, [modalSemester]);
+
+  useEffect(() => {
+    if (availableSupplementarySemesters.length) {
+      setSelectedSupplementarySemester(
+        String(availableSupplementarySemesters[0])
+      );
+    } else {
+      setSelectedSupplementarySemester("");
+    }
+  }, [availableSupplementarySemesters]);
+
   const resolveModalSubjectNames = (subject) => {
     const fromList = subject.subjectNames?.filter(Boolean) || [];
     if (fromList.length) return fromList;
@@ -347,12 +369,6 @@ export default function Payments() {
     return false;
   };
 
-  const deriveCycle = (semesterValue) => {
-    const numeric = Number(semesterValue);
-    if (Number.isNaN(numeric)) return "odd";
-    return numeric % 2 === 0 ? "even" : "odd";
-  };
-
   const openStudentModal = (student) => {
     setActivePaymentStudent(student);
     setModalStudent(student);
@@ -361,7 +377,6 @@ export default function Payments() {
       form.courseCode || student.courseCode || student.course_code || "";
     setModalSemester(semesterValue);
     setModalCourseCode(courseValue);
-    setSupplementaryCycle(deriveCycle(semesterValue));
     setModalOpen(true);
   };
 
@@ -787,27 +802,28 @@ export default function Payments() {
                           </label>
                           <select
                             className="form-select form-select-sm w-auto"
-                            value={supplementaryCycle}
+                            value={selectedSupplementarySemester}
                             onChange={(event) =>
-                              setSupplementaryCycle(event.target.value)
+                              setSelectedSupplementarySemester(event.target.value)
                             }
+                            disabled={!availableSupplementarySemesters.length}
                           >
-                            {["odd", "even"].map((cycle) => (
-                              <option
-                                key={cycle}
-                                value={cycle}
-                                disabled={
-                                  modalSemester !== "" &&
-                                  modalSemester !== undefined &&
-                                  modalSemester !== null &&
-                                  deriveCycle(modalSemester) !== cycle
-                                }
-                              >
-                                {cycle === "odd"
-                                  ? "Odd Semesters"
-                                  : "Even Semesters"}
+                            {availableSupplementarySemesters.length ? (
+                              <>
+                                <option value="" disabled hidden>
+                                  Select previous odd semester
+                                </option>
+                                {availableSupplementarySemesters.map((sem) => (
+                                  <option key={sem} value={String(sem)}>
+                                    Sem {sem}
+                                  </option>
+                                ))}
+                              </>
+                            ) : (
+                              <option value="">
+                                Supplementary unavailable for this semester
                               </option>
-                            ))}
+                            )}
                           </select>
                         </div>
                       </div>
