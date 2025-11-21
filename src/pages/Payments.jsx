@@ -38,6 +38,7 @@ export default function Payments() {
   const [modalSemester, setModalSemester] = useState("");
   const [selectedSupplementarySemester, setSelectedSupplementarySemester] = useState("");
   const [selectedSubjectNames, setSelectedSubjectNames] = useState(() => new Set());
+  const [subjectAmounts, setSubjectAmounts] = useState({});
 
   const hasActiveFilters = Boolean(
     form.category ||
@@ -185,6 +186,23 @@ export default function Payments() {
       return;
     }
     setSelectedSubjectNames(new Set(uniqueModalSubjectNames));
+  };
+  const handlePaySubjects = () => {
+    if (!selectedSubjectNames.size) {
+      showToast("Select at least one subject before continuing.", {
+        type: "warning",
+      });
+      return;
+    }
+    const names = Array.from(selectedSubjectNames).join(", ");
+    showToast(`Payment requested for ${names}.`, { type: "info" });
+  };
+
+  const updateSubjectAmount = (key, value) => {
+    setSubjectAmounts((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
   };
 
   const getMatchedGroup = (student) =>
@@ -378,6 +396,7 @@ export default function Payments() {
     setModalSemester(semesterValue);
     setModalCourseCode(courseValue);
     setModalOpen(true);
+    setSubjectAmounts({});
   };
 
   const closeStudentModal = () => {
@@ -851,20 +870,39 @@ export default function Payments() {
                             key={entry.key}
                             className="list-group-item"
                           >
-                            <div className="form-check">
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                id={`subject-checkbox-${entry.key}`}
-                                checked={selectedSubjectNames.has(entry.name)}
-                                onChange={() => toggleSubjectSelection(entry.name)}
-                              />
-                              <label
-                                className="form-check-label"
-                                htmlFor={`subject-checkbox-${entry.key}`}
-                              >
-                                {entry.name}
-                              </label>
+                            <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                              <div className="form-check mb-0">
+                                <input
+                                  className="form-check-input"
+                                  type="checkbox"
+                                  id={`subject-checkbox-${entry.key}`}
+                                  checked={selectedSubjectNames.has(entry.name)}
+                                  onChange={() => toggleSubjectSelection(entry.name)}
+                                />
+                                <label
+                                  className="form-check-label"
+                                  htmlFor={`subject-checkbox-${entry.key}`}
+                                >
+                                  {entry.name}
+                                </label>
+                              </div>
+                              <div className="input-group input-group-sm w-auto">
+                                <span className="input-group-text">Amount</span>
+                                <input
+                                  type="number"
+                                  className="form-control"
+                                  min="0"
+                                  step="1"
+                                  value={subjectAmounts[entry.key] ?? ""}
+                                  placeholder="Enter amount"
+                                  onChange={(event) =>
+                                    updateSubjectAmount(
+                                      entry.key,
+                                      event.target.value
+                                    )
+                                  }
+                                />
+                              </div>
                             </div>
                           </li>
                         ))}
@@ -873,6 +911,13 @@ export default function Payments() {
                   </div>
                 </div>
                 <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handlePaySubjects}
+                  >
+                    Pay
+                  </button>
                   <button
                     type="button"
                     className="btn btn-secondary"
