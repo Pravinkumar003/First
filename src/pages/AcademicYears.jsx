@@ -155,14 +155,35 @@ export default function AcademicYearsSection({
         </div>
         <div className="col-md-3">
           <label className="form-label fw-bold mb-1">Academic Year</label>
-          <input
-            className={`form-control ${error && 'is-invalid'}`}
-            placeholder={yearForm.category === 'UG' ? 'e.g., 2022-2025' : 'e.g., 2022-2024'}
-            required
-            value={yearForm.name}
-            onChange={handleYearChange}
-            disabled={!yearForm.category}
-          />
+          {yearForm.category ? (
+            <select
+              className={`form-select ${error && 'is-invalid'}`}
+              value={yearForm.name}
+              onChange={(e) => {
+                setYearForm(prev => ({ ...prev, name: e.target.value }));
+                setError('');
+              }}
+              required
+            >
+              <option value="">Select Academic Year</option>
+              {Array.from({ length: 11 }, (_, i) => {
+                const startYear = 2020 + i;
+                const endYear = yearForm.category === 'UG' ? startYear + 3 : startYear + 2;
+                const yearRange = `${startYear}-${endYear}`;
+                return (
+                  <option key={yearRange} value={yearRange}>
+                    {yearRange}
+                  </option>
+                );
+              })}
+            </select>
+          ) : (
+            <input
+              className="form-control"
+              placeholder="Select category first"
+              disabled
+            />
+          )}
           {error && <div className="invalid-feedback d-block">{error}</div>}
         </div>
         <div className="col-md-3 d-flex align-items-center">
