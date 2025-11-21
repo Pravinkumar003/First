@@ -956,37 +956,48 @@ export default function Payments() {
                         No subjects configured for this course/semester.
                       </div>
                     ) : (
-                      <ul className="list-group list-group-flush">
-                        {modalSubjectEntries.map((entry) => (
-                          <li
-                            key={entry.key}
-                            className="list-group-item"
-                          >
-                            <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                          <div className="form-check mb-0 w-100">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id={`subject-checkbox-${entry.key}`}
-                              checked={selectedSubjectNames.has(entry.name)}
-                              onChange={() => toggleSubjectSelection(entry.name)}
-                            />
-                            <label
-                              className="form-check-label d-flex align-items-center gap-3 w-100"
-                              htmlFor={`subject-checkbox-${entry.key}`}
+                      <>
+                        <div className="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
+                          <span className="text-muted small fw-semibold">Subject</span>
+                          <span className="text-muted small fw-semibold">Subject code</span>
+                        </div>
+                        <ul className="list-group list-group-flush">
+                          {modalSubjectEntries.map((entry) => (
+                            <li
+                              key={entry.key}
+                              className="list-group-item"
                             >
-                              <span className="flex-grow-1">{entry.name}</span>
-                              {entry.code && (
-                                <span className="fw-semibold">
-                                  {entry.code}
-                                </span>
-                              )}
-                            </label>
-                          </div>
+                            <div className="form-check mb-0 w-100">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id={`subject-checkbox-${entry.key}`}
+                                checked={selectedSubjectNames.has(entry.name)}
+                                onChange={() => toggleSubjectSelection(entry.name)}
+                              />
+                                <label
+                                  className="form-check-label d-flex gap-1 w-100 align-items-center"
+                                  htmlFor={`subject-checkbox-${entry.key}`}
+                                >
+                                  <span
+                                    className="flex-grow-1 text-truncate"
+                                    style={{ whiteSpace: "nowrap" }}
+                                  >
+                                    {entry.name}
+                                  </span>
+                                  {entry.code ? (
+                                    <span className="text-muted small">
+                                      {entry.code}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted small">&nbsp;</span>
+                                  )}
+                                </label>
                             </div>
-                          </li>
-                        ))}
-                      </ul>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
                     )}
                   </div>
                 </div>

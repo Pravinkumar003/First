@@ -210,7 +210,6 @@ const normalizeSubjectRecord = (subject = {}, context = {}) => {
     category: categoryName,
     subjectCode,
     subjectName,
-    subjectCode,
     feeCategory:
       subject.feeCategory ||
       subject.fee_category ||
