@@ -15,6 +15,7 @@ export default function Payments() {
   const [groups, setGroups] = useState([]);
   const [courses, setCourses] = useState([]);
   const [students, setStudents] = useState([]);
+  const [subjects, setSubjects] = useState([]);
 
   // Form
   const [form, setForm] = useState({
@@ -33,6 +34,8 @@ export default function Payments() {
 
   const [modalStudent, setModalStudent] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [modalCourseCode, setModalCourseCode] = useState("");
+  const [modalSemester, setModalSemester] = useState("");
 
   const hasActiveFilters = Boolean(
     form.category ||
@@ -102,6 +105,23 @@ export default function Payments() {
     });
   }, [courses, form.group_code, form.group]);
 
+  const subjectsForModal = useMemo(() => {
+    if (!modalCourseCode || modalSemester === "") return [];
+    const normalizedCourse = normalizeSearchValue(modalCourseCode);
+    const semesterValue =
+      modalSemester === "" || modalSemester === undefined || modalSemester === null
+        ? ""
+        : String(modalSemester);
+    return subjects.filter((subject) => {
+      const courseMatch =
+        normalizeSearchValue(subject.courseCode) === normalizedCourse ||
+        normalizeSearchValue(subject.courseName) === normalizedCourse;
+      const semesterMatch =
+        subject.semester === "" ? semesterValue === "" : String(subject.semester) === semesterValue;
+      return courseMatch && semesterMatch;
+    });
+  }, [subjects, modalCourseCode, modalSemester]);
+
   const getMatchedGroup = (student) =>
     groups.find(
       (g) =>
@@ -170,11 +190,13 @@ export default function Payments() {
         groupsData,
         coursesData,
         studentsData,
+        subjectsData,
       ] = await Promise.all([
         api.listAcademicYears?.(),
         api.listGroups?.(),
         api.listCourses?.(),
         api.listStudents?.(),
+        api.listSubjects?.(),
       ]);
 
     const normalizedYears = (yearsData || [])
@@ -242,6 +264,7 @@ export default function Payments() {
       setGroups(normalizedGroups);
       setCourses(normalizedCourses);
       setStudents(normalizedStudents);
+      setSubjects(subjectsData || []);
     } catch (e) {
       console.error("Error loading payment masters:", e);
     }
@@ -284,6 +307,11 @@ export default function Payments() {
   const openStudentModal = (student) => {
     setActivePaymentStudent(student);
     setModalStudent(student);
+    const semesterValue = form.semester || student.semester || "";
+    const courseValue =
+      form.courseCode || student.courseCode || student.course_code || "";
+    setModalSemester(semesterValue);
+    setModalCourseCode(courseValue);
     setModalOpen(true);
   };
 
@@ -696,6 +724,24 @@ export default function Payments() {
                         </div>
                       </div>
                     </div>
+                  </div>
+                  <div className="mt-4">
+                    <h6 className="fw-semibold mb-2">
+                      Subjects for {modalSemester ? `Sem ${modalSemester}` : "the selected semester"}
+                    </h6>
+                    {subjectsForModal.length === 0 ? (
+                      <div className="alert alert-warning mb-0">
+                        No subjects configured for this course/semester.
+                      </div>
+                    ) : (
+                      <ul className="list-group list-group-flush">
+                        {subjectsForModal.map((subject) => (
+                          <li key={subject.id} className="list-group-item">
+                            {subject.subjectName || subject.subjectCode || "Unnamed subject"}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 </div>
                 <div className="modal-footer">
