@@ -963,26 +963,26 @@ export default function Payments() {
                             className="list-group-item"
                           >
                             <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                              <div className="form-check mb-0">
-                                <input
-                                  className="form-check-input"
-                                  type="checkbox"
-                                  id={`subject-checkbox-${entry.key}`}
-                                  checked={selectedSubjectNames.has(entry.name)}
-                                  onChange={() => toggleSubjectSelection(entry.name)}
-                                />
-                                <label
-                                  className="form-check-label d-flex flex-column"
-                                  htmlFor={`subject-checkbox-${entry.key}`}
-                                >
-                                  <span>{entry.name}</span>
-                                  {entry.code && (
-                                    <small className="text-muted">
-                                      {entry.code}
-                                    </small>
-                                  )}
-                                </label>
-                              </div>
+                          <div className="form-check mb-0 w-100">
+                            <input
+                              className="form-check-input"
+                              type="checkbox"
+                              id={`subject-checkbox-${entry.key}`}
+                              checked={selectedSubjectNames.has(entry.name)}
+                              onChange={() => toggleSubjectSelection(entry.name)}
+                            />
+                            <label
+                              className="form-check-label d-flex align-items-center gap-3 w-100"
+                              htmlFor={`subject-checkbox-${entry.key}`}
+                            >
+                              <span className="flex-grow-1">{entry.name}</span>
+                              {entry.code && (
+                                <span className="fw-semibold">
+                                  {entry.code}
+                                </span>
+                              )}
+                            </label>
+                          </div>
                             </div>
                           </li>
                         ))}
