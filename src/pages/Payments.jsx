@@ -37,6 +37,7 @@ export default function Payments() {
   const [modalCourseCode, setModalCourseCode] = useState("");
   const [modalSemester, setModalSemester] = useState("");
   const [supplementaryCycle, setSupplementaryCycle] = useState("odd");
+  const [selectedSubjectNames, setSelectedSubjectNames] = useState(() => new Set());
 
   const hasActiveFilters = Boolean(
     form.category ||
@@ -122,6 +123,47 @@ export default function Payments() {
       return courseMatch && semesterMatch;
     });
   }, [subjects, modalCourseCode, modalSemester]);
+  const resolveModalSubjectNames = (subject) => {
+    const fromList = subject.subjectNames?.filter(Boolean) || [];
+    if (fromList.length) return fromList;
+    return [subject.subjectName, subject.subjectCode].filter(Boolean);
+  };
+  const modalSubjectEntries = useMemo(() => {
+    return subjectsForModal.flatMap((subject) => {
+      const names = resolveModalSubjectNames(subject);
+      return names.map((name, index) => ({
+        key: `${subject.id}-${name}-${index}`,
+        name,
+      }));
+    });
+  }, [subjectsForModal]);
+  const uniqueModalSubjectNames = useMemo(
+    () => Array.from(new Set(modalSubjectEntries.map((entry) => entry.name))),
+    [modalSubjectEntries]
+  );
+  useEffect(() => {
+    setSelectedSubjectNames(new Set(uniqueModalSubjectNames));
+  }, [uniqueModalSubjectNames]);
+  const selectedSubjectCount = selectedSubjectNames.size;
+  const totalModalSubjectCount = uniqueModalSubjectNames.length;
+  const allModalSubjectsSelected =
+    totalModalSubjectCount > 0 &&
+    selectedSubjectCount === totalModalSubjectCount;
+  const toggleSubjectSelection = (name) => {
+    setSelectedSubjectNames((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+  const toggleSelectAllSubjects = () => {
+    if (allModalSubjectsSelected) {
+      setSelectedSubjectNames(new Set());
+      return;
+    }
+    setSelectedSubjectNames(new Set(uniqueModalSubjectNames));
+  };
 
   const getMatchedGroup = (student) =>
     groups.find(
@@ -734,7 +776,7 @@ export default function Payments() {
                     </div>
                   </div>
                     <div className="mt-4">
-                      <div className="d-flex align-items-center justify-content-between mb-3">
+                    <div className="d-flex align-items-center justify-content-between mb-3">
                         <h6 className="fw-semibold mb-0">
                           Subjects for{" "}
                           {modalSemester ? `Sem ${modalSemester}` : "the selected semester"}
@@ -769,31 +811,47 @@ export default function Payments() {
                           </select>
                         </div>
                       </div>
-                    {subjectsForModal.length === 0 ? (
+                      <div className="d-flex align-items-center justify-content-between mb-3">
+                        <div className="small text-muted">
+                          {selectedSubjectCount} of {totalModalSubjectCount} subjects selected
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-outline-primary btn-sm"
+                          onClick={toggleSelectAllSubjects}
+                          disabled={!totalModalSubjectCount}
+                        >
+                          {allModalSubjectsSelected ? "Clear selection" : "Select all"}
+                        </button>
+                      </div>
+                    {modalSubjectEntries.length === 0 ? (
                       <div className="alert alert-warning mb-0">
                         No subjects configured for this course/semester.
                       </div>
                     ) : (
                       <ul className="list-group list-group-flush">
-                        {subjectsForModal.flatMap((subject) => {
-                          const names = (
-                            subject.subjectNames?.filter(Boolean) ||
-                            []
-                          ).length
-                            ? subject.subjectNames
-                            : [
-                                subject.subjectName,
-                                subject.subjectCode,
-                              ].filter(Boolean);
-                          return names.map((name, index) => (
-                            <li
-                              key={`${subject.id}-${name}-${index}`}
-                              className="list-group-item"
-                            >
-                              {name}
-                            </li>
-                          ));
-                        })}
+                        {modalSubjectEntries.map((entry) => (
+                          <li
+                            key={entry.key}
+                            className="list-group-item"
+                          >
+                            <div className="form-check">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id={`subject-checkbox-${entry.key}`}
+                                checked={selectedSubjectNames.has(entry.name)}
+                                onChange={() => toggleSubjectSelection(entry.name)}
+                              />
+                              <label
+                                className="form-check-label"
+                                htmlFor={`subject-checkbox-${entry.key}`}
+                              >
+                                {entry.name}
+                              </label>
+                            </div>
+                          </li>
+                        ))}
                       </ul>
                     )}
                   </div>
