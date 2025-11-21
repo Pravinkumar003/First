@@ -15,7 +15,6 @@ export default function Payments() {
   const [groups, setGroups] = useState([]);
   const [courses, setCourses] = useState([]);
   const [students, setStudents] = useState([]);
-  const [subjects, setSubjects] = useState([]);
 
   // Form
   const [form, setForm] = useState({
@@ -30,11 +29,10 @@ export default function Payments() {
   const [displayCount, setDisplayCount] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
 
-  const [saving, setSaving] = useState(false);
-
   const [activePaymentStudent, setActivePaymentStudent] = useState(null);
-  const [subjectSelection, setSubjectSelection] = useState({});
-  const [quickPaymentAmount, setQuickPaymentAmount] = useState("");
+
+  const [modalStudent, setModalStudent] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   const hasActiveFilters = Boolean(
     form.category ||
@@ -162,55 +160,6 @@ export default function Payments() {
     form.category,
   ]);
 
-  const subjectsForActiveStudent = useMemo(() => {
-    if (!activePaymentStudent) return [];
-    const { course_code, course_name, courseCode, course, semester } =
-      activePaymentStudent;
-    const courseValues = new Set(
-      [course_code, course_name, courseCode, course].filter(Boolean)
-    );
-    const semesterValue =
-      semester === "" || semester === undefined || semester === null
-        ? null
-        : Number(semester);
-
-    return subjects.filter((subject) => {
-      const matchesCourse =
-        courseValues.size === 0 ||
-        courseValues.has(subject.courseCode) ||
-        courseValues.has(subject.courseName);
-      const subjectSemester =
-        subject.semester === "" ||
-        subject.semester === undefined ||
-        subject.semester === null
-          ? null
-          : Number(subject.semester);
-      const matchesSemester =
-        semesterValue === null ||
-        subjectSemester === null ||
-        semesterValue === subjectSemester;
-      return matchesCourse && matchesSemester;
-    });
-  }, [
-    subjects,
-    activePaymentStudent?.student_id,
-    activePaymentStudent?.course_code,
-    activePaymentStudent?.course_name,
-    activePaymentStudent?.courseCode,
-    activePaymentStudent?.course,
-    activePaymentStudent?.semester,
-  ]);
-
-  const selectedSubjectCount = Object.values(subjectSelection || {}).filter(
-    Boolean
-  ).length;
-  const hasSelectedSubjects = selectedSubjectCount > 0;
-
-  useEffect(() => {
-    setSubjectSelection({});
-    setQuickPaymentAmount("");
-  }, [activePaymentStudent?.student_id]);
-
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -221,13 +170,11 @@ export default function Payments() {
         groupsData,
         coursesData,
         studentsData,
-        subjectsData,
       ] = await Promise.all([
         api.listAcademicYears?.(),
         api.listGroups?.(),
         api.listCourses?.(),
         api.listStudents?.(),
-        api.listSubjects?.(),
       ]);
 
     const normalizedYears = (yearsData || [])
@@ -295,7 +242,6 @@ export default function Payments() {
       setGroups(normalizedGroups);
       setCourses(normalizedCourses);
       setStudents(normalizedStudents);
-      setSubjects(subjectsData || []);
     } catch (e) {
       console.error("Error loading payment masters:", e);
     }
@@ -335,94 +281,15 @@ export default function Payments() {
     return false;
   };
 
-  const handlePayNowClick = (student) => {
-    navigate("/admin/studentpayoverview", {
-      state: { studentId: student.student_id, selectedFilters: form },
-    });
+  const openStudentModal = (student) => {
+    setActivePaymentStudent(student);
+    setModalStudent(student);
+    setModalOpen(true);
   };
 
-  const toggleSubjectSelection = (subjectId) => {
-    setSubjectSelection((prev) => ({
-      ...prev,
-      [subjectId]: !prev[subjectId],
-    }));
-  };
-
-  const handleQuickPayment = async () => {
-    if (!activePaymentStudent) return;
-    if (!hasSelectedSubjects) {
-      showToast("Select at least one subject before paying.", {
-        type: "warning",
-      });
-      return;
-    }
-    if (!quickPaymentAmount || Number(quickPaymentAmount) <= 0) {
-      showToast("Enter a valid payment amount.", { type: "warning" });
-      return;
-    }
-
-    const selectedSubjectNames = subjectsForActiveStudent
-      .filter((subject) => subjectSelection[subject.id])
-      .map((subject) => subject.subjectName)
-      .filter(Boolean);
-
-    const matchedGroup = getMatchedGroup(activePaymentStudent);
-    const matchedCourse = getMatchedCourse(activePaymentStudent);
-    const resolvedYear = firstDefined(
-      form.year,
-      activePaymentStudent.academic_year,
-      activePaymentStudent.year
-    );
-    const resolvedGroupCode = firstDefined(
-      form.group_code,
-      activePaymentStudent.group_code,
-      matchedGroup?.code
-    );
-    const resolvedGroupName = firstDefined(
-      form.group,
-      activePaymentStudent.group_name,
-      activePaymentStudent.group,
-      matchedGroup?.name
-    );
-    const resolvedCourseCode = firstDefined(
-      form.courseCode,
-      activePaymentStudent.course_code,
-      activePaymentStudent.courseCode,
-      matchedCourse?.courseCode
-    );
-    const resolvedCourseName = firstDefined(
-      activePaymentStudent.course_name,
-      activePaymentStudent.courseName,
-      matchedCourse?.courseName
-    );
-    const resolvedSemester = firstDefined(
-      form.semester,
-      activePaymentStudent.semester
-    );
-
-    const override = {
-      student_id: activePaymentStudent.student_id,
-      amount: quickPaymentAmount,
-      ...(resolvedYear ? { year: resolvedYear } : {}),
-      ...(resolvedGroupCode ? { group_code: resolvedGroupCode } : {}),
-      ...(resolvedGroupName ? { group: resolvedGroupName } : {}),
-      ...(resolvedCourseCode ? { courseCode: resolvedCourseCode } : {}),
-      ...(resolvedCourseName ? { courseName: resolvedCourseName } : {}),
-      ...(resolvedSemester !== undefined
-        ? { semester: String(resolvedSemester) }
-        : {}),
-      ...(selectedSubjectNames.length
-        ? { reference: `Subjects: ${selectedSubjectNames.join(", ")}` }
-        : {}),
-    };
-
-    const success = await save(override);
-
-    if (success) {
-      setActivePaymentStudent(null);
-      setSubjectSelection({});
-      setQuickPaymentAmount("");
-    }
+  const closeStudentModal = () => {
+    setModalOpen(false);
+    setModalStudent(null);
   };
 
   const matchedStudentCount = hasActiveFilters ? filteredStudents.length : 0;
@@ -473,7 +340,7 @@ export default function Payments() {
 
         <div className="row g-3">
           {/* Category */}
-          <div className="col-md-3">
+    <div className="col-md-3">
             <label className="form-label fw-bold">Category</label>
             <select
               className="form-select"
@@ -744,109 +611,18 @@ export default function Payments() {
                           <td>{groupLabel}</td>
                           <td>{courseLabel}</td>
                           <td className="text-end">
-                            <button
-                              className={`btn btn-sm ${
-                                isActive
-                                  ? "btn-outline-secondary"
-                                  : "btn-outline-primary"
-                              }`}
-                              onClick={() => handlePayNowClick(s)}
-                            >
-                              Apply for Exam
-                            </button>
-                          </td>
-                        </tr>
-                        {isActive && (
-                          <tr>
-                            <td colSpan="7">
-                              <div className="bg-white border rounded-3 p-3 shadow-sm">
-                                <div className="d-flex justify-content-between align-items-center mb-3">
-                                  <div>
-                                    <div className="fw-semibold">Subjects</div>
-                                    <div className="text-muted small">
-                                      {selectedSubjectCount} selected
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <span className="text-muted small">
-                                      Select subjects to pay
-                                    </span>
-                                  </div>
-                                </div>
-                                {subjectsForActiveStudent.length === 0 ? (
-                                  <div className="alert alert-light py-2 mb-3">
-                                    No subjects configured for this course or
-                                    semester yet.
-                                  </div>
-                                ) : (
-                                  <div className="row g-3">
-                                    {subjectsForActiveStudent.map((subject) => (
-                                      <div
-                                        key={`subject-${subject.id}`}
-                                        className="col-md-6"
-                                      >
-                                        <label className="form-check w-100">
-                                          <input
-                                            type="checkbox"
-                                            className="form-check-input"
-                                            checked={
-                                              !!subjectSelection[subject.id]
-                                            }
-                                            onChange={() =>
-                                              toggleSubjectSelection(subject.id)
-                                            }
-                                          />
-                                          <span className="form-check-label ms-2">
-                                            <strong>
-                                              {subject.subjectName ||
-                                                subject.subjectCode}
-                                            </strong>
-                                            <span className="text-muted small ms-2">
-                                              ({subject.subjectCode})
-                                            </span>
-                                          </span>
-                                        </label>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                                <div className="row g-2 align-items-end mt-3">
-                                  <div className="col-md-6">
-                                    <label className="form-label fw-semibold">
-                                      Amount (INR)
-                                    </label>
-                                    <input
-                                      type="number"
-                                      className="form-control"
-                                      min="0"
-                                      value={quickPaymentAmount}
-                                      onChange={(e) =>
-                                        setQuickPaymentAmount(e.target.value)
-                                      }
-                                      placeholder="Enter amount"
-                                    />
-                                  </div>
-                                  <div className="col-md-6">
-                                    <button
-                                      type="button"
-                                      className="btn btn-brand w-100"
-                                      disabled={
-                                        !hasSelectedSubjects ||
-                                        !quickPaymentAmount ||
-                                        saving
-                                      }
-                                      onClick={handleQuickPayment}
-                                    >
-                                      {saving
-                                        ? "Processing..."
-                                        : "Pay selected subjects"}
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
+                    <button
+                      className={`btn btn-sm ${
+                        isActive
+                          ? "btn-outline-secondary"
+                          : "btn-outline-primary"
+                      }`}
+                      onClick={() => openStudentModal(s)}
+                    >
+                      Apply for Exam
+                    </button>
+                  </td>
+                </tr>
                       </Fragment>
                     );
                   })}
@@ -856,6 +632,86 @@ export default function Payments() {
           )}
         </div>
       </div>
+      {modalOpen && modalStudent && (
+        <>
+          <div className="modal-backdrop show"></div>
+          <div
+            className="modal show d-block"
+            tabIndex="-1"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="modal-dialog modal-lg modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Student Payment Overview</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    aria-label="Close"
+                    onClick={closeStudentModal}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <div className="card card-soft p-4">
+                    <div className="row align-items-center">
+                      <div className="col-md-4 d-flex align-items-center gap-3">
+                        {(modalStudent.photo_url || modalStudent.photo) ? (
+                          <img
+                            src={modalStudent.photo_url || modalStudent.photo}
+                            alt={modalStudent.full_name || modalStudent.name || "Student"}
+                            className="rounded-circle"
+                            style={{ width: 96, height: 96, objectFit: "cover" }}
+                          />
+                        ) : (
+                          <div
+                            className="bg-secondary text-white rounded-circle d-inline-flex align-items-center justify-content-center"
+                            style={{ width: 96, height: 96, fontSize: 20 }}
+                          >
+                            {(modalStudent.full_name || modalStudent.name || "S").slice(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                        <div>
+                          <h5 className="mb-1">
+                            {modalStudent.full_name || modalStudent.name || "Unnamed Student"}
+                          </h5>
+                          <div className="text-muted">
+                            ID: {modalStudent.student_id || "N/A"}
+                          </div>
+                          <div className="text-muted">Vijayam College Arts & Science</div>
+                        </div>
+                      </div>
+                      <div className="col-md-7 d-flex flex-column justify-content-center align-items-end text-end">
+                        <h5 className="fw-bold">About this student</h5>
+                        <div className="d-flex flex-column gap-2 mt-3">
+                          <div className="fs-5">
+                            {getMatchedGroup(modalStudent)?.name || modalStudent.group_name || modalStudent.group || modalStudent.group_code || "Group unknown"}
+                          </div>
+                          <div className="fs-5">
+                            {getMatchedCourse(modalStudent)?.courseName || modalStudent.course_name || modalStudent.course_code || modalStudent.course_id || "Course unknown"}
+                          </div>
+                          <div className="fs-5">
+                            {modalStudent.academic_year || "Academic year not set"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={closeStudentModal}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </AdminShell>
   );
 }
