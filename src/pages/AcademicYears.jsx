@@ -1,7 +1,5 @@
 import { useState } from 'react';
-import { showToast } from '../store/ui';
-import ToastStack from '../components/ToastStack.jsx';
-
+ 
 const inferCategoryFromYearName = (yearName = '') => {
   if (!yearName) return 'UG';
   const sanitized = yearName.trim().replace(/[^0-9-]/g, '');
@@ -11,7 +9,7 @@ const inferCategoryFromYearName = (yearName = '') => {
   const end = Number(match[2]);
   return end - start === 2 ? 'PG' : 'UG';
 };
-
+ 
 export default function AcademicYearsSection({
   yearForm,
   setYearForm,
@@ -23,20 +21,20 @@ export default function AcademicYearsSection({
   onCancelEdit,
 }) {
   const [error, setError] = useState('');
-
+ 
   const validateYearFormat = (yearStr, category) => {
     if (!yearStr) return false;
-    
+   
     // Check if the format is YYYY-YYYY
     const yearRegex = /^(\d{4})-(\d{4})$/;
     if (!yearRegex.test(yearStr)) return false;
-    
+   
     const [startYear, endYear] = yearStr.split('-').map(Number);
     const expectedDuration = category === 'UG' ? 3 : 2;
-    
+   
     return (endYear - startYear) === expectedDuration;
   };
-
+ 
   const handleYearChange = (e) => {
     const value = e.target.value;
     const prevValue = yearForm.name || '';
@@ -59,17 +57,17 @@ export default function AcademicYearsSection({
       return;
     }
     setYearForm(prev => ({ ...prev, name: value }));
-    
+   
     if (!value) {
       setError('');
       return;
     }
-    
+   
     if (!yearForm.category) {
       setError('Please select a category first');
       return;
     }
-    
+   
     if (!validateYearFormat(value, yearForm.category)) {
       const expectedYears = yearForm.category === 'UG' ? '3 years' : '2 years';
       setError(`Please enter a valid ${yearForm.category} duration (${expectedYears})`);
@@ -77,7 +75,7 @@ export default function AcademicYearsSection({
       setError('');
     }
   };
-  
+ 
   const getCategory = (year) => {
     const rawCategory =
       (year.category && String(year.category)) ||
@@ -87,7 +85,7 @@ export default function AcademicYearsSection({
     if (normalized) return normalized.toUpperCase();
     return inferCategoryFromYearName(year.name || year.academic_year);
   };
-
+ 
   // Group academic years by category (normalize to uppercase)
   const groupedYears = academicYears.reduce(
     (acc, year) => {
@@ -102,27 +100,23 @@ export default function AcademicYearsSection({
   );
   const ugYears = groupedYears.UG || [];
   const pgYears = groupedYears.PG || [];
-  const usedYearNames = {
-    UG: new Set(ugYears.map((year) => year.name || year.academic_year || "")),
-    PG: new Set(pgYears.map((year) => year.name || year.academic_year || "")),
-  };
-
+ 
   const handleAddYear = async () => {
     if (!yearForm.category) {
       setError('Please select a category first');
       return;
     }
-    
+   
     if (!validateYearFormat(yearForm.name, yearForm.category)) {
       const expectedYears = yearForm.category === 'UG' ? '3 years' : '2 years';
       setError(`Please enter a valid ${yearForm.category} duration (${expectedYears})`);
       return;
     }
-    
+   
     setError('');
     await addYear();
   };
-
+ 
   const handleEditYear = (year) => {
     const category = getCategory(year);
     editYear(year);
@@ -133,25 +127,14 @@ export default function AcademicYearsSection({
     });
     setError('');
   };
-
-  const [pendingDeleteYear, setPendingDeleteYear] = useState(null);
-
+ 
   const handleDeleteYear = async (id) => {
-    if (pendingDeleteYear === id) {
-      setPendingDeleteYear(null);
+    if (window.confirm('Are you sure you want to delete this academic year?')) {
       await deleteYear(id);
-      showToast("Academic year deleted.", { type: "info" });
-      return;
     }
-    setPendingDeleteYear(id);
-    showToast("Click delete again to confirm removal.", { type: "warning" });
-    setTimeout(() => {
-      setPendingDeleteYear((prev) => (prev === id ? null : prev));
-    }, 5000);
   };
   return (
-    <>
-      <section className="setup-section mb-4">
+    <section className="setup-section mb-4">
       <h5 className="section-title">Academic Years</h5>
       <div className="row g-2">
         <div className="col-md-2">
@@ -172,41 +155,29 @@ export default function AcademicYearsSection({
         </div>
         <div className="col-md-3">
           <label className="form-label fw-bold mb-1">Academic Year</label>
-              {yearForm.category ? (
-                <select
-                  className={`form-select ${error && 'is-invalid'}`}
-                  value={yearForm.name}
-                  onChange={(e) => {
-                    setYearForm(prev => ({ ...prev, name: e.target.value }));
-                    setError('');
-                  }}
-                  required
-                >
-                  <option value="">Select Academic Year</option>
-                  {Array.from({ length: 11 }, (_, i) => {
-                    const startYear = 2020 + i;
-                    const endYear = yearForm.category === 'UG' ? startYear + 3 : startYear + 2;
-                    const yearRange = `${startYear}-${endYear}`;
-                    const isAlreadyAssigned =
-                      usedYearNames[yearForm.category]?.has(yearRange);
-                    const isCurrentSelection = editingYearId && yearForm.name === yearRange;
-                    return (
-                      <option
-                        key={yearRange}
-                        value={yearRange}
-                        disabled={isAlreadyAssigned && !isCurrentSelection}
-                        style={
-                          isAlreadyAssigned && !isCurrentSelection
-                            ? { color: "#6c757d" }
-                            : undefined
-                        }
-                      >
-                        {yearRange}
-                      </option>
-                    );
-                  })}
-                </select>
-              ) : (
+          {yearForm.category ? (
+            <select
+              className={`form-select ${error && 'is-invalid'}`}
+              value={yearForm.name}
+              onChange={(e) => {
+                setYearForm(prev => ({ ...prev, name: e.target.value }));
+                setError('');
+              }}
+              required
+            >
+              <option value="">Select Academic Year</option>
+              {Array.from({ length: 11 }, (_, i) => {
+                const startYear = 2020 + i;
+                const endYear = yearForm.category === 'UG' ? startYear + 3 : startYear + 2;
+                const yearRange = `${startYear}-${endYear}`;
+                return (
+                  <option key={yearRange} value={yearRange}>
+                    {yearRange}
+                  </option>
+                );
+              })}
+            </select>
+          ) : (
             <input
               className="form-control"
               placeholder="Select category first"
@@ -214,22 +185,6 @@ export default function AcademicYearsSection({
             />
           )}
           {error && <div className="invalid-feedback d-block">{error}</div>}
-        </div>
-        <div className="col-md-3 d-flex align-items-center">
-          <div className="form-check">
-            <input
-              className="form-check-input"
-              type="checkbox"
-              id="activeYear"
-              checked={yearForm.active}
-              onChange={(e) =>
-                setYearForm({ ...yearForm, active: e.target.checked })
-              }
-            />
-            <label className="form-check-label ms-2" htmlFor="activeYear">
-              Active
-            </label>
-          </div>
         </div>
         <div className="col-md-4 text-end">
           <button className="btn btn-brand me-2" onClick={handleAddYear}>
@@ -268,13 +223,6 @@ export default function AcademicYearsSection({
                       </div>
                     </div>
                     <div className="d-flex gap-2 align-items-center">
-                      <span
-                        className={`status-pill ${
-                          y.active ? "status-pill--active" : "status-pill--inactive"
-                        }`}
-                      >
-                        {y.active ? "Active" : "Inactive"}
-                      </span>
                       <button
                         type="button"
                         className="btn btn-sm btn-outline-primary"
@@ -296,7 +244,7 @@ export default function AcademicYearsSection({
               </>
             )}
           </div>
-          
+         
           {/* PG Years Column */}
           <div className="col-md-6">
             {groupedYears['PG'] && (
@@ -318,13 +266,6 @@ export default function AcademicYearsSection({
                         </div>
                       </div>
                       <div className="d-flex gap-2 align-items-center">
-                        <span
-                          className={`status-pill ${
-                            y.active ? "status-pill--active" : "status-pill--inactive"
-                          }`}
-                        >
-                          {y.active ? "Active" : "Inactive"}
-                        </span>
                         <button
                           type="button"
                           className="btn btn-sm btn-outline-primary"
@@ -348,8 +289,6 @@ export default function AcademicYearsSection({
           </div>
         </div>
       )}
-      </section>
-      <ToastStack />
-    </>
+    </section>
   );
 }
