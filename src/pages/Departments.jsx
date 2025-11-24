@@ -433,42 +433,34 @@ export default function Departments() {
 
   const fetchCategoryFees = async () => {
     try {
-      const { data, error } = await supabase
-        .from("fee_structure")
-        .select("*")
-        .order("created_at", { ascending: false });
+    const { data, error } = await supabase
+      .from("fee_structure")
+      .select("*")
+      .order("created_at", { ascending: false });
 
       if (error) throw error;
 
       const feesMap = new Map();
 
-      data.forEach((item) => {
-        const key = `${item.academic_year}_${item.group}_${item.course}_${item.semester}`;
-      if (!feesMap.has(key)) {
-        feesMap.set(key, {
+      const formattedData = (data || []).map((item) => {
+        const categories = item.fee_categories || [];
+        const amounts = item.fee_amounts || [];
+        return {
           id: item.id,
-          feeCategories: [],
-          amount: 0,
-          academic_year: String(item.academic_year),
-          group: item.group,
-          course_code: item.course,
-          semester: String(item.semester || ""),
+          feeCategories: categories.map((name, index) => ({
+            name,
+            amount: Number(amounts[index] || 0),
+          })),
+          amount: Number(item.total_fee || 0),
+          academic_year: String(item.academic_year || ""),
+          group: item.group_code || "",
+          group_code: item.group_code || "",
+          course_code: item.course_code || "",
+          semester: String(item.semester ?? ""),
+          category: item.category || "",
           created_at: item.created_at,
-        });
-      }
-      if (item.fee_cat) {
-        const entry = feesMap.get(key);
-        const amountValue = Number(item.amount) || 0;
-        entry.feeCategories.push({
-          id: item.id,
-          name: item.fee_cat,
-          amount: amountValue,
-        });
-        entry.amount += amountValue;
-      }
+        };
       });
-
-      const formattedData = Array.from(feesMap.values());
       setCategoryFees(formattedData);
     } catch (error) {
       console.error("Error fetching category fees:", error);
@@ -515,31 +507,54 @@ export default function Departments() {
     }
 
     try {
-      const entries = selectedCategories.map((catId) => {
+      if (!isEditingCategoryEntry) {
+        const { data: duplicate, error: duplicateError } = await supabase
+          .from("fee_structure")
+          .select("id")
+          .eq("academic_year", form.year)
+          .eq("group_code", form.group)
+          .eq("course_code", form.courseCode)
+          .eq("semester", Number(form.semester))
+          .limit(1)
+          .maybeSingle();
+
+        if (duplicateError) throw duplicateError;
+        if (duplicate) {
+          showToast(
+            "Fee entries already exist for the selected year/group/course/semester. Please edit the existing entry instead of creating a duplicate.",
+            { type: "warning", title: "Duplicate fees" }
+          );
+          return;
+        }
+      }
+      const feeNames = selectedCategories.map((catId) => {
         const category = feeCats.find((cat) => cat.id === catId);
-        return {
-          academic_year: form.year,
-          group: form.group,
-          category: form.category,
-          course: form.courseCode,
-          semester: form.semester,
-          fee_cat: category?.name || "",
-          amount: parseFloat(
-            (categoryAmounts[catId] ?? "").toString().trim()
-          ),
-          created_at: new Date().toISOString(),
-        };
+        return category?.name || "";
       });
+      const feeAmounts = selectedCategories.map((catId) =>
+        parseFloat((categoryAmounts[catId] ?? "").toString().trim())
+      );
+      const totalFee = feeAmounts.reduce((sum, amount) => sum + (amount || 0), 0);
 
       await supabase
         .from("fee_structure")
         .delete()
         .eq("academic_year", form.year)
-        .eq("group", form.group)
-        .eq("course", form.courseCode)
-        .eq("semester", form.semester);
+        .eq("group_code", form.group)
+        .eq("course_code", form.courseCode)
+        .eq("semester", Number(form.semester));
 
-      const { error } = await supabase.from("fee_structure").insert(entries);
+      const { error } = await supabase.from("fee_structure").insert({
+        academic_year: form.year,
+        group_code: form.group,
+        course_code: form.courseCode,
+        semester: Number(form.semester),
+        category: form.category,
+        fee_categories: feeNames,
+        fee_amounts: feeAmounts,
+        total_fee: totalFee,
+        created_at: new Date().toISOString(),
+      });
 
       if (error) throw error;
 

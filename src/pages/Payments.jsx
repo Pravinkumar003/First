@@ -36,11 +36,16 @@ export default function Payments() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalCourseCode, setModalCourseCode] = useState("");
   const [modalSemester, setModalSemester] = useState("");
-  const [selectedSupplementarySemester, setSelectedSupplementarySemester] = useState("");
+  const [selectedSupplementarySemesters, setSelectedSupplementarySemesters] =
+    useState([]);
   const [selectedSubjectNames, setSelectedSubjectNames] = useState(() => new Set());
   const [modalFeeInfo, setModalFeeInfo] = useState(null);
   const [loadingModalFee, setLoadingModalFee] = useState(false);
   const [modalStep, setModalStep] = useState(1);
+  const [showFeeBreakdownModal, setShowFeeBreakdownModal] = useState(false);
+  const [supplementaryFeeRates, setSupplementaryFeeRates] = useState(null);
+  const [loadingSupplementaryFeeRates, setLoadingSupplementaryFeeRates] =
+    useState(false);
   const examFeeData = useMemo(() => {
     if (!modalFeeInfo?.categories?.length) return null;
     const categories = modalFeeInfo.categories.filter((cat) =>
@@ -137,23 +142,27 @@ export default function Payments() {
   }, [subjects, modalCourseCode, modalSemester]);
 
   const subjectsForSupplementarySemester = useMemo(() => {
-    if (!modalCourseCode || selectedSupplementarySemester === "") return [];
+    if (!modalCourseCode || selectedSupplementarySemesters.length === 0) return [];
     const normalizedCourse = normalizeSearchValue(modalCourseCode);
-    const semesterValue =
-      selectedSupplementarySemester === "" ||
-      selectedSupplementarySemester === undefined ||
-      selectedSupplementarySemester === null
-        ? ""
-        : String(selectedSupplementarySemester);
+    const semesterSet = new Set(
+      selectedSupplementarySemesters.map((semester) =>
+        semester === "" || semester === undefined || semester === null
+          ? ""
+          : String(semester)
+      )
+    );
     return subjects.filter((subject) => {
       const courseMatch =
         normalizeSearchValue(subject.courseCode) === normalizedCourse ||
         normalizeSearchValue(subject.courseName) === normalizedCourse;
-      const semesterMatch =
-        subject.semester === "" ? semesterValue === "" : String(subject.semester) === semesterValue;
+      const semesterValue =
+        subject.semester === "" || subject.semester === undefined || subject.semester === null
+          ? ""
+          : String(subject.semester);
+      const semesterMatch = semesterSet.has(semesterValue);
       return courseMatch && semesterMatch;
     });
-  }, [subjects, modalCourseCode, selectedSupplementarySemester]);
+  }, [subjects, modalCourseCode, selectedSupplementarySemesters]);
   const availableSupplementarySemesters = useMemo(() => {
     const numeric = Number(modalSemester);
     if (!Number.isFinite(numeric) || numeric <= 1 || numeric % 2 === 0) {
@@ -167,15 +176,15 @@ export default function Payments() {
   }, [modalSemester]);
 
   useEffect(() => {
-    setSelectedSupplementarySemester((prev) =>
-      availableSupplementarySemesters.includes(Number(prev))
-        ? prev
-        : ""
+    setSelectedSupplementarySemesters((prev) =>
+      prev.filter((sem) =>
+        availableSupplementarySemesters.includes(Number(sem))
+      )
     );
   }, [availableSupplementarySemesters]);
 
-  const displayedSubjectLabel = selectedSupplementarySemester
-    ? `Supplementary Sem ${selectedSupplementarySemester}`
+  const displayedSubjectLabel = selectedSupplementarySemesters.length
+    ? "Supplementary subjects"
     : modalSemester
       ? `Sem ${modalSemester}`
       : "the selected semester";
@@ -205,9 +214,34 @@ export default function Payments() {
     () => buildSubjectEntries(subjectsForCurrentSemester),
     [subjectsForCurrentSemester]
   );
+  const supplementarySubjectsBySemester = useMemo(() => {
+    if (!subjectsForSupplementarySemester.length || !selectedSupplementarySemesters.length) {
+      return [];
+    }
+    const semesterMap = new Map();
+    subjectsForSupplementarySemester.forEach((subject) => {
+      const semesterValue =
+        subject.semester === "" ||
+        subject.semester === undefined ||
+        subject.semester === null
+          ? ""
+          : String(subject.semester);
+      if (!selectedSupplementarySemesters.includes(semesterValue)) {
+        return;
+      }
+      if (!semesterMap.has(semesterValue)) {
+        semesterMap.set(semesterValue, []);
+      }
+      semesterMap.get(semesterValue).push(subject);
+    });
+    return selectedSupplementarySemesters.map((semester) => ({
+      semester,
+      entries: buildSubjectEntries(semesterMap.get(semester) || []),
+    }));
+  }, [subjectsForSupplementarySemester, selectedSupplementarySemesters]);
   const supplementarySubjectEntries = useMemo(
-    () => buildSubjectEntries(subjectsForSupplementarySemester),
-    [subjectsForSupplementarySemester]
+    () => supplementarySubjectsBySemester.flatMap((group) => group.entries),
+    [supplementarySubjectsBySemester]
   );
   const combinedSubjectEntries = useMemo(
     () => [...currentSubjectEntries, ...supplementarySubjectEntries],
@@ -227,6 +261,18 @@ export default function Payments() {
       ),
     [supplementarySubjectEntries, selectedSubjectNames]
   );
+  const supplementarySelectedBySemester = useMemo(
+    () =>
+      supplementarySubjectsBySemester
+        .map((group) => ({
+          semester: group.semester,
+          entries: group.entries.filter((entry) =>
+            selectedSubjectNames.has(entry.name)
+          ),
+        }))
+        .filter((group) => group.entries.length > 0),
+    [supplementarySubjectsBySemester, selectedSubjectNames]
+  );
 
   const uniqueModalSubjectNames = useMemo(
     () => Array.from(new Set(combinedSubjectEntries.map((entry) => entry.name))),
@@ -238,6 +284,36 @@ export default function Payments() {
   }, [uniqueModalSubjectNames]);
   const currentSelectedCount = currentSelectedEntries.length;
   const supplementarySelectedCount = supplementarySelectedEntries.length;
+  const supplementaryFeeAmount = useMemo(() => {
+    if (!supplementaryFeeRates || supplementarySelectedCount === 0) {
+      return 0;
+    }
+    if (supplementarySelectedCount === 1) {
+      return supplementaryFeeRates.paper1;
+    }
+    if (supplementarySelectedCount === 2) {
+      return supplementaryFeeRates.paper2;
+    }
+    return supplementaryFeeRates.paper3;
+  }, [supplementaryFeeRates, supplementarySelectedCount]);
+  const otherFeeCategories = useMemo(() => {
+    const categories = modalFeeInfo?.categories || [];
+    return categories.filter(
+      (category) => !/exam/i.test((category?.name || "").toString())
+    );
+  }, [modalFeeInfo]);
+  const otherFeeTotal = useMemo(
+    () =>
+      otherFeeCategories.reduce(
+        (sum, category) => sum + Number(category?.amount || 0),
+        0
+      ),
+    [otherFeeCategories]
+  );
+  const hasExamFees = Boolean(examFeeData?.categories?.length);
+  const hasOtherFees = otherFeeCategories.length > 0;
+  const totalFeeBreakdownAmount =
+    (examFeeData?.total || 0) + otherFeeTotal + supplementaryFeeAmount;
   const selectedSubjectCount =
     currentSelectedCount + supplementarySelectedCount;
   const totalModalSubjectCount = uniqueModalSubjectNames.length;
@@ -261,6 +337,14 @@ export default function Payments() {
     }
     setSelectedSubjectNames(new Set(uniqueModalSubjectNames));
   };
+  const toggleSupplementarySemesterSelection = (semesterValue) => {
+    setSelectedSupplementarySemesters((prev) => {
+      if (prev.includes(semesterValue)) {
+        return prev.filter((sem) => sem !== semesterValue);
+      }
+      return [...prev, semesterValue];
+    });
+  };
   const handleAdvanceToSummary = () => {
     if (!selectedSubjectNames.size) {
       showToast("Select at least one subject before continuing.", {
@@ -278,39 +362,8 @@ export default function Payments() {
       });
       return;
     }
-    const names = Array.from(selectedSubjectNames).join(", ");
-    showToast(`Payment requested for ${names}.`, { type: "info" });
+    setShowFeeBreakdownModal(true);
   };
-
-  const renderSubjectEntry = (entry) => (
-    <li key={entry.key} className="list-group-item">
-      <div className="form-check mb-0 w-100">
-        <input
-          className="form-check-input"
-          type="checkbox"
-          id={`subject-checkbox-${entry.key}`}
-          checked={selectedSubjectNames.has(entry.name)}
-          onChange={() => toggleSubjectSelection(entry.name)}
-        />
-        <label
-          className="form-check-label d-flex gap-1 w-100 align-items-center"
-          htmlFor={`subject-checkbox-${entry.key}`}
-        >
-          <span
-            className="flex-grow-1 text-truncate"
-            style={{ whiteSpace: "nowrap" }}
-          >
-            {entry.name}
-          </span>
-          {entry.code ? (
-            <span className="text-muted small">{entry.code}</span>
-          ) : (
-            <span className="text-muted small">Code unavailable</span>
-          )}
-        </label>
-      </div>
-    </li>
-  );
 
   const renderSelectionLine = (entry) => (
     <div
@@ -324,10 +377,36 @@ export default function Payments() {
     </div>
   );
 
+  const renderSubjectRow = (entry) => (
+    <tr key={entry.key}>
+      <td className="align-middle text-center" style={{ width: "1px" }}>
+        <input
+          className="form-check-input"
+          type="checkbox"
+          id={`subject-checkbox-${entry.key}`}
+          checked={selectedSubjectNames.has(entry.name)}
+          onChange={() => toggleSubjectSelection(entry.name)}
+          aria-label={`Select ${entry.name}`}
+        />
+      </td>
+      <td className="align-middle text-truncate" style={{ maxWidth: 400 }}>
+        {entry.name}
+      </td>
+      <td className="align-middle text-muted small text-nowrap">
+        {entry.code || "Code unavailable"}
+      </td>
+    </tr>
+  );
+
   const formatCurrency = (value) => {
     const num = Number(value || 0);
     return `₹${num.toLocaleString("en-IN")}`;
   };
+
+  const regularExamFeeAmount = examFeeData?.total || 0;
+  const regularExamFeeDisplay = examFeeData
+    ? formatCurrency(regularExamFeeAmount)
+    : "Not configured";
 
   const getMatchedGroup = (student) =>
     groups.find(
@@ -541,34 +620,28 @@ export default function Payments() {
       }
       setLoadingModalFee(true);
       try {
-        const { data, error } = await supabase
-          .from("fee_structure")
-          .select("fee_cat, amount")
-          .eq("academic_year", academicYear)
-          .eq("group", groupValue)
-          .eq("course", courseValue)
-          .eq("semester", semesterValue);
-        if (error) throw error;
-        if (!data || data.length === 0) {
-          setModalFeeInfo(null);
-          return;
-        }
-        const map = new Map();
-        let total = 0;
-        data.forEach((item) => {
-          const name = item.fee_cat || "Fee";
-          const amount = Number(item.amount) || 0;
-          total += amount;
-          if (map.has(name)) {
-            map.get(name).amount += amount;
-          } else {
-            map.set(name, { name, amount });
-          }
-        });
-        setModalFeeInfo({
-          total,
-          categories: Array.from(map.values()),
-        });
+      const { data, error } = await supabase
+        .from("fee_structure")
+        .select("fee_categories, fee_amounts, total_fee")
+        .eq("academic_year", academicYear)
+        .eq("group_code", groupValue)
+        .eq("course_code", courseValue)
+        .eq("semester", Number(semesterValue))
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        setModalFeeInfo(null);
+        return;
+      }
+      const categories = (data.fee_categories || []).map((name, index) => ({
+        name: name || "Fee",
+        amount: Number(data.fee_amounts?.[index] || 0),
+      }));
+      setModalFeeInfo({
+        total: Number(data.total_fee || 0),
+        categories,
+      });
       } catch (error) {
         console.error("Failed to load fee info", error);
         showToast("Unable to load fee info for this semester.", {
@@ -581,6 +654,57 @@ export default function Payments() {
     };
     loadFeeInfo();
   }, [modalStudent, modalCourseCode, modalSemester]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadSupplementaryFees = async () => {
+      setLoadingSupplementaryFeeRates(true);
+      try {
+        const { data, error } = await supabase
+          .from("Supplementary")
+          .select("Paper-1, Paper-2, Paper-3")
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if (error) {
+          if (error.code !== "42P01") {
+            console.error("Failed to load supplementary fees:", error);
+          }
+          if (isMounted) {
+            setSupplementaryFeeRates(null);
+          }
+          return;
+        }
+        if (!data || data.length === 0) {
+          if (isMounted) {
+            setSupplementaryFeeRates(null);
+          }
+          return;
+        }
+        if (!isMounted) return;
+        const latest = data[0];
+        if (isMounted) {
+          setSupplementaryFeeRates({
+            paper1: Number(latest["Paper-1"]) || 0,
+            paper2: Number(latest["Paper-2"]) || 0,
+            paper3: Number(latest["Paper-3"]) || 0,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load supplementary fees:", error);
+        if (isMounted) {
+          setSupplementaryFeeRates(null);
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingSupplementaryFeeRates(false);
+        }
+      }
+    };
+    loadSupplementaryFees();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const save = async (override = {}) => {
     // Payment form has been removed as per requirements
@@ -605,6 +729,24 @@ export default function Payments() {
     setModalOpen(false);
     setModalStudent(null);
     setModalStep(1);
+    setShowFeeBreakdownModal(false);
+  };
+  const closeFeeBreakdownModalOnly = () => {
+    setShowFeeBreakdownModal(false);
+  };
+  const handleFeeModalBack = () => {
+    closeFeeBreakdownModalOnly();
+  };
+  const handleFeeModalClose = () => {
+    closeFeeBreakdownModalOnly();
+    closeStudentModal();
+  };
+  const handleFeeModalPayNow = () => {
+    showToast("Payment initiated; please complete the transaction externally.", {
+      type: "info",
+      title: "Payment",
+    });
+    setShowFeeBreakdownModal(false);
   };
 
   const matchedStudentCount = hasActiveFilters ? filteredStudents.length : 0;
@@ -689,6 +831,7 @@ export default function Payments() {
             <select
               className="form-select"
               value={form.year}
+              disabled={!form.category}
               onChange={(e) =>
                 setForm({
                   ...form,
@@ -716,6 +859,7 @@ export default function Payments() {
             <select
               className="form-select"
               value={form.group_code}
+              disabled={!form.year}
               onChange={(e) => {
                 const value = e.target.value;
                 const groupOptions = visibleGroupOptions;
@@ -1021,7 +1165,9 @@ export default function Payments() {
                               availableSupplementarySemesters.map((sem) => {
                                 const semValue = String(sem);
                                 const isActive =
-                                  selectedSupplementarySemester === semValue;
+                                  selectedSupplementarySemesters.includes(
+                                    semValue
+                                  );
                                 return (
                                   <button
                                     key={sem}
@@ -1032,8 +1178,8 @@ export default function Payments() {
                                         : "btn-outline-primary"
                                     }`}
                                     onClick={() =>
-                                      setSelectedSupplementarySemester(
-                                        isActive ? "" : semValue
+                                      toggleSupplementarySemesterSelection(
+                                        semValue
                                       )
                                     }
                                   >
@@ -1057,7 +1203,6 @@ export default function Payments() {
                           )}
                           {supplementarySelectedCount > 0 && (
                             <div className="text-muted small">
-                              {supplementarySelectedCount} of {supplementaryTotalCount} supplementary subjects selected
                             </div>
                           )}
                           <div className="d-flex flex-wrap gap-2">
@@ -1084,6 +1229,44 @@ export default function Payments() {
                             </button>
                           </div>
                         </div>
+                      {modalStep === 1 && (
+                        loadingSupplementaryFeeRates ? (
+                          <div className="text-muted small mb-3">
+                            Loading supplementary fees...
+                          </div>
+                        ) : supplementaryFeeRates ? (
+                          <div className="mb-3 border rounded px-3 py-2 bg-white">
+                            <div className="d-flex justify-content-between align-items-center mb-1">
+                              <span className="fw-semibold">Supplementary fee rates</span>
+                              <span className="text-muted small">per paper count</span>
+                            </div>
+                            <div className="d-flex flex-wrap gap-4 small">
+                              <div>
+                                <span className="text-muted small">1 paper:</span>
+                                <div className="fw-semibold">
+                                  {formatCurrency(supplementaryFeeRates.paper1)}
+                                </div>
+                              </div>
+                              <div>
+                                <span className="text-muted small">2 papers:</span>
+                                <div className="fw-semibold">
+                                  {formatCurrency(supplementaryFeeRates.paper2)}
+                                </div>
+                              </div>
+                              <div>
+                                <span className="text-muted small">3+ papers:</span>
+                                <div className="fw-semibold">
+                                  {formatCurrency(supplementaryFeeRates.paper3)}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-muted small mb-3">
+                            Supplementary fees not configured yet.
+                          </div>
+                        )
+                      )}
                     {modalStep === 1 ? (
                       combinedSubjectEntries.length === 0 ? (
                         <div className="alert alert-warning mb-0">
@@ -1097,31 +1280,71 @@ export default function Payments() {
                           </div>
                           {currentSubjectEntries.length > 0 && (
                             <div className="border rounded mb-3">
-                              <div className="px-3 py-2 bg-light border-bottom">
+                              <div className="px-3 py-2 bg-light border-bottom d-flex justify-content-between align-items-center">
                                 <span className="fw-semibold">Current semester subjects</span>
+                                <span className="text-muted small">
+                                  {currentSelectedCount} of {currentTotalCount} selected
+                                </span>
                               </div>
-                              <ul className="list-group list-group-flush">
-                                {currentSubjectEntries.map(renderSubjectEntry)}
-                              </ul>
+                              <div className="table-responsive">
+                                <table className="table table-sm table-hover mb-0">
+                                  <thead>
+                                    <tr>
+                                      <th scope="col" className="text-center" style={{ width: "1px" }}>
+                                        Select
+                                      </th>
+                                      <th scope="col">Subject</th>
+                                      <th scope="col">Subject code</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>{currentSubjectEntries.map(renderSubjectRow)}</tbody>
+                                </table>
+                              </div>
                             </div>
                           )}
-                          {supplementarySubjectEntries.length > 0 && (
-                            <div className="border rounded">
-                              <div className="px-3 py-2 bg-light border-bottom">
-                                <div className="d-flex justify-content-between align-items-center">
-                                  <span className="fw-semibold">
-                                    Supplementary Sem {selectedSupplementarySemester}
-                                  </span>
-                                  <span className="text-muted small">
-                                    {supplementarySelectedCount} of {supplementaryTotalCount} supplementary subjects selected
-                                  </span>
+                          {supplementarySubjectsBySemester.length > 0 &&
+                            supplementarySubjectsBySemester.map((group) => {
+                              const selectedInGroup = group.entries.filter((entry) =>
+                                selectedSubjectNames.has(entry.name)
+                              ).length;
+                              return (
+                                <div
+                                  className="border rounded mb-3"
+                                  key={`suppl-sem-${group.semester}`}
+                                >
+                                  <div className="px-3 py-2 bg-light border-bottom d-flex justify-content-between align-items-center">
+                                    <div>
+                                      <span className="fw-semibold">
+                                        Supplementary Sem {group.semester}
+                                      </span>
+                                    </div>
+                                    <span className="text-muted small">
+                                      {selectedInGroup} of {group.entries.length} supplementary subjects selected
+                                    </span>
+                                  </div>
+                                  <div className="table-responsive">
+                                    {group.entries.length > 0 ? (
+                                      <table className="table table-sm table-hover mb-0">
+                                        <thead>
+                                          <tr>
+                                            <th scope="col" className="text-center" style={{ width: "1px" }}>
+                                              Select
+                                            </th>
+                                            <th scope="col">Subject</th>
+                                            <th scope="col">Subject code</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>{group.entries.map(renderSubjectRow)}</tbody>
+                                      </table>
+                                    ) : (
+                                      <div className="p-3 text-muted small">
+                                        No supplementary subjects configured for Sem {group.semester}.
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                              <ul className="list-group list-group-flush">
-                                {supplementarySubjectEntries.map(renderSubjectEntry)}
-                              </ul>
-                            </div>
-                          )}
+                              );
+                            })}
                         </>
                       )
                     ) : (
@@ -1150,15 +1373,56 @@ export default function Payments() {
                               {currentSelectedEntries.map(renderSelectionLine)}
                             </div>
                           )}
-                        {supplementarySelectedEntries.length > 0 && (
+                        {supplementarySelectedBySemester.length > 0 && (
                           <div>
-                            <div className="text-muted small mb-1">
-                              Supplementary Sem {selectedSupplementarySemester} —{" "}
-                              {supplementarySelectedCount} of {supplementaryTotalCount} selected
+                            {supplementarySelectedBySemester.map((group) => (
+                              <div className="mb-3" key={`review-suppl-${group.semester}`}>
+                                <div className="text-muted small mb-1">
+                                  Supplementary Semester {group.semester} — {group.entries.length} selected
+                                </div>
+                                {group.entries.map(renderSelectionLine)}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {supplementarySelectedCount > 0 && (
+                          <div className="mt-3 border-top pt-3">
+                            <div className="d-flex justify-content-between align-items-center mb-1">
+                              <span className="fw-semibold">
+                                Supplementary fee (
+                                {supplementarySelectedCount}{" "}
+                                {supplementarySelectedCount === 1 ? "paper" : "papers"})
+                              </span>
+                              <span className="fw-semibold">
+                                {formatCurrency(supplementaryFeeAmount)}
+                              </span>
                             </div>
-                              {supplementarySelectedEntries.map(renderSelectionLine)}
+                          </div>
+                        )}
+                        <div className="mt-3">
+                          <div className="card border rounded shadow-sm">
+                            <div className="card-body p-3">
+                              <div className="d-flex justify-content-between mb-1 small text-muted">
+                                <span>Regular exam fees</span>
+                                <span>{regularExamFeeDisplay}</span>
+                              </div>
+                              {supplementarySelectedCount > 0 && (
+                                <div className="d-flex justify-content-between mb-1 small text-muted">
+                                  <span>Supplementary fee</span>
+                                  <span>{formatCurrency(supplementaryFeeAmount)}</span>
+                                </div>
+                              )}
+                              <div className="d-flex justify-content-between fw-semibold">
+                                <span>Total payable</span>
+                                <span>
+                                  {formatCurrency(
+                                    regularExamFeeAmount + supplementaryFeeAmount
+                                  )}
+                                </span>
+                              </div>
                             </div>
-                          )}
+                          </div>
+                        </div>
                         </div>
                       </div>
                     )}
@@ -1193,6 +1457,95 @@ export default function Payments() {
             </div>
           </div>
         </>
+      )}
+      {showFeeBreakdownModal && (
+        <div
+          className="modal d-block"
+          tabIndex="-1"
+          role="dialog"
+          aria-modal="true"
+          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+        >
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Fee breakdown</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    aria-label="Close"
+                    onClick={handleFeeModalClose}
+                  ></button>
+                </div>
+              <div className="modal-body">
+                <div className="card border rounded shadow-sm mb-3">
+                  <div className="card-body">
+                    <div className="d-flex justify-content-between align-items-baseline">
+                      <div>
+                        <h6 className="mb-0">Exam & supplementary fees</h6>
+                      </div>
+                      <span className="fs-5 fw-semibold">
+                        {formatCurrency((examFeeData?.total || 0) + supplementaryFeeAmount)}
+                      </span>
+                    </div>
+                    {hasExamFees ? (
+                      <div className="text-muted small mt-2">
+                        {supplementarySelectedCount} supplementary subject
+                        {supplementarySelectedCount === 1 ? "" : "s"} selected.
+                      </div>
+                    ) : (
+                      <div className="alert alert-warning mb-0 mt-3">
+                        Exam fees are not configured for this semester.
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="card border rounded shadow-sm">
+                  <div className="card-body">
+                    <div className="d-flex justify-content-between align-items-baseline">
+                      <div>
+                        <h6 className="mb-0">Other Fees</h6>
+                      </div>
+                      <span className="fs-5 fw-semibold">
+                        {formatCurrency(otherFeeTotal)}
+                      </span>
+                    </div>
+                  
+                  </div>
+                </div>
+                <div className="d-flex justify-content-between align-items-center mt-4 border-top pt-3">
+                  <span className="fs-6 fw-semibold">Grand total</span>
+                  <span className="fs-5 fw-bold">
+                    {formatCurrency(totalFeeBreakdownAmount)}
+                  </span>
+                </div>
+              </div>
+                <div className="modal-footer d-flex justify-content-end gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary"
+                    onClick={handleFeeModalBack}
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={handleFeeModalClose}
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handleFeeModalPayNow}
+                  >
+                    Pay now
+                  </button>
+                </div>
+            </div>
+          </div>
+        </div>
       )}
     </AdminShell>
   );
