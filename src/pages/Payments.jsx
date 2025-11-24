@@ -40,6 +40,7 @@ export default function Payments() {
   const [selectedSubjectNames, setSelectedSubjectNames] = useState(() => new Set());
   const [modalFeeInfo, setModalFeeInfo] = useState(null);
   const [loadingModalFee, setLoadingModalFee] = useState(false);
+  const [modalStep, setModalStep] = useState(1);
   const examFeeData = useMemo(() => {
     if (!modalFeeInfo?.categories?.length) return null;
     const categories = modalFeeInfo.categories.filter((cat) =>
@@ -212,6 +213,20 @@ export default function Payments() {
     () => [...currentSubjectEntries, ...supplementarySubjectEntries],
     [currentSubjectEntries, supplementarySubjectEntries]
   );
+  const currentSelectedEntries = useMemo(
+    () =>
+      currentSubjectEntries.filter((entry) =>
+        selectedSubjectNames.has(entry.name)
+      ),
+    [currentSubjectEntries, selectedSubjectNames]
+  );
+  const supplementarySelectedEntries = useMemo(
+    () =>
+      supplementarySubjectEntries.filter((entry) =>
+        selectedSubjectNames.has(entry.name)
+      ),
+    [supplementarySubjectEntries, selectedSubjectNames]
+  );
 
   const uniqueModalSubjectNames = useMemo(
     () => Array.from(new Set(combinedSubjectEntries.map((entry) => entry.name))),
@@ -219,9 +234,15 @@ export default function Payments() {
   );
   useEffect(() => {
     setSelectedSubjectNames(new Set());
+    setModalStep(1);
   }, [uniqueModalSubjectNames]);
-  const selectedSubjectCount = selectedSubjectNames.size;
+  const currentSelectedCount = currentSelectedEntries.length;
+  const supplementarySelectedCount = supplementarySelectedEntries.length;
+  const selectedSubjectCount =
+    currentSelectedCount + supplementarySelectedCount;
   const totalModalSubjectCount = uniqueModalSubjectNames.length;
+  const currentTotalCount = currentSubjectEntries.length;
+  const supplementaryTotalCount = supplementarySubjectEntries.length;
   const allModalSubjectsSelected =
     totalModalSubjectCount > 0 &&
     selectedSubjectCount === totalModalSubjectCount;
@@ -240,6 +261,16 @@ export default function Payments() {
     }
     setSelectedSubjectNames(new Set(uniqueModalSubjectNames));
   };
+  const handleAdvanceToSummary = () => {
+    if (!selectedSubjectNames.size) {
+      showToast("Select at least one subject before continuing.", {
+        type: "warning",
+      });
+      return;
+    }
+    setModalStep(2);
+  };
+
   const handlePaySubjects = () => {
     if (!selectedSubjectNames.size) {
       showToast("Select at least one subject before continuing.", {
@@ -279,6 +310,18 @@ export default function Payments() {
         </label>
       </div>
     </li>
+  );
+
+  const renderSelectionLine = (entry) => (
+    <div
+      key={`${entry.key}-summary`}
+      className="d-flex justify-content-between py-1 border-bottom"
+    >
+      <span className="text-truncate">{entry.name}</span>
+      <span className="text-muted small">
+        {entry.code || "Code unavailable"}
+      </span>
+    </div>
   );
 
   const formatCurrency = (value) => {
@@ -555,11 +598,13 @@ export default function Payments() {
     setModalOpen(true);
     setModalFeeInfo(null);
     setSelectedSubjectNames(new Set());
+    setModalStep(1);
   };
 
   const closeStudentModal = () => {
     setModalOpen(false);
     setModalStudent(null);
+    setModalStep(1);
   };
 
   const matchedStudentCount = hasActiveFilters ? filteredStudents.length : 0;
@@ -1005,9 +1050,16 @@ export default function Payments() {
                         </div>
                       </div>
                         <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-                          <div className="text-muted small">
-                            {selectedSubjectCount} of {totalModalSubjectCount} subjects selected
-                          </div>
+                          {selectedSubjectCount > 0 && (
+                            <div className="text-muted small">
+                              {selectedSubjectCount} of {totalModalSubjectCount} subjects selected
+                            </div>
+                          )}
+                          {supplementarySelectedCount > 0 && (
+                            <div className="text-muted small">
+                              {supplementarySelectedCount} of {supplementaryTotalCount} supplementary subjects selected
+                            </div>
+                          )}
                           <div className="d-flex flex-wrap gap-2">
                             {!loadingModalFee && examFeeData?.categories?.length ? (
                               <span className="border rounded px-2 bg-light text-dark">
@@ -1032,49 +1084,102 @@ export default function Payments() {
                             </button>
                           </div>
                         </div>
-                    {combinedSubjectEntries.length === 0 ? (
-                      <div className="alert alert-warning mb-0">
-                        No subjects configured for this course/semester.
-                      </div>
-                    ) : (
-                      <>
-                        <div className="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
-                          <span className="text-muted small fw-semibold">Subject</span>
-                          <span className="text-muted small fw-semibold">Subject code</span>
+                    {modalStep === 1 ? (
+                      combinedSubjectEntries.length === 0 ? (
+                        <div className="alert alert-warning mb-0">
+                          No subjects configured for this course/semester.
                         </div>
-                        {currentSubjectEntries.length > 0 && (
-                          <div className="border rounded mb-3">
-                            <div className="px-3 py-2 bg-light border-bottom">
-                              <span className="fw-semibold">Current semester subjects</span>
-                            </div>
-                            <ul className="list-group list-group-flush">
-                              {currentSubjectEntries.map(renderSubjectEntry)}
-                            </ul>
+                      ) : (
+                        <>
+                          <div className="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
+                            <span className="text-muted small fw-semibold">Subject</span>
+                            <span className="text-muted small fw-semibold">Subject code</span>
                           </div>
-                        )}
-                        {supplementarySubjectEntries.length > 0 && (
-                          <div className="border rounded">
-                            <div className="px-3 py-2 bg-light border-bottom">
-                              <span className="fw-semibold">
-                                Supplementary Sem {selectedSupplementarySemester}
-                              </span>
+                          {currentSubjectEntries.length > 0 && (
+                            <div className="border rounded mb-3">
+                              <div className="px-3 py-2 bg-light border-bottom">
+                                <span className="fw-semibold">Current semester subjects</span>
+                              </div>
+                              <ul className="list-group list-group-flush">
+                                {currentSubjectEntries.map(renderSubjectEntry)}
+                              </ul>
                             </div>
-                            <ul className="list-group list-group-flush">
-                              {supplementarySubjectEntries.map(renderSubjectEntry)}
-                            </ul>
+                          )}
+                          {supplementarySubjectEntries.length > 0 && (
+                            <div className="border rounded">
+                              <div className="px-3 py-2 bg-light border-bottom">
+                                <div className="d-flex justify-content-between align-items-center">
+                                  <span className="fw-semibold">
+                                    Supplementary Sem {selectedSupplementarySemester}
+                                  </span>
+                                  <span className="text-muted small">
+                                    {supplementarySelectedCount} of {supplementaryTotalCount} supplementary subjects selected
+                                  </span>
+                                </div>
+                              </div>
+                              <ul className="list-group list-group-flush">
+                                {supplementarySubjectEntries.map(renderSubjectEntry)}
+                              </ul>
+                            </div>
+                          )}
+                        </>
+                      )
+                    ) : (
+                      <div className="card border border-primary shadow-sm mb-3">
+                        <div className="card-body">
+                          <div className="d-flex align-items-center justify-content-between mb-3">
+                            <div>
+                              <h6 className="fw-semibold mb-1">Review selections</h6>
+                              <p className="text-muted small mb-0">
+                                {selectedSubjectCount} subjects selected
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-secondary"
+                              onClick={() => setModalStep(1)}
+                            >
+                              Back
+                            </button>
                           </div>
-                        )}
-                      </>
+                          {currentSelectedEntries.length > 0 && (
+                            <div className="mb-3">
+                              <div className="text-muted small mb-1">
+                                Current semester
+                              </div>
+                              {currentSelectedEntries.map(renderSelectionLine)}
+                            </div>
+                          )}
+                        {supplementarySelectedEntries.length > 0 && (
+                          <div>
+                            <div className="text-muted small mb-1">
+                              Supplementary Sem {selectedSupplementarySemester} —{" "}
+                              {supplementarySelectedCount} of {supplementaryTotalCount} selected
+                            </div>
+                              {supplementarySelectedEntries.map(renderSelectionLine)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
-                <div className="modal-footer">
+                <div className="modal-footer d-flex gap-2">
+                  {modalStep === 2 && (
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary"
+                      onClick={() => setModalStep(1)}
+                    >
+                      Back
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="btn btn-primary"
-                    onClick={handlePaySubjects}
+                    onClick={modalStep === 1 ? handleAdvanceToSummary : handlePaySubjects}
                   >
-                    Pay
+                    {modalStep === 1 ? "Next" : "Confirm"}
                   </button>
                   <button
                     type="button"
