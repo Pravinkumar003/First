@@ -24,6 +24,7 @@ export default function Departments() {
   const [feeCategoryName, setFeeCategoryName] = useState("");
   const [editingFeeCategoryId, setEditingFeeCategoryId] = useState(null);
   const [categoryFees, setCategoryFees] = useState([]);
+  const [editingCategoryEntryKey, setEditingCategoryEntryKey] = useState(null);
 
   const [form, setForm] = useState({
     category: "",
@@ -543,14 +544,7 @@ export default function Departments() {
       if (error) throw error;
 
       await fetchCategoryFees();
-      setSelectedCategories([]);
-      setCategoryAmounts({});
-      setForm({
-        year: "",
-        group: "",
-        courseCode: "",
-        semester: "",
-      });
+      resetFeeEntryForm();
       setSubjects([]);
 
       showToast("Fee saved successfully", { type: "success" });
@@ -642,6 +636,8 @@ export default function Departments() {
       : selectedCategoryNames.join(", ")
     : "Select fee categories";
 
+  const isEditingCategoryEntry = Boolean(editingCategoryEntryKey);
+
   const handleEditCategoryFee = (fees) => {
     const lookupAcademicYear = String(fees.academic_year || "").trim();
     const matchingYear = years.find((year) => {
@@ -689,6 +685,26 @@ export default function Departments() {
       courseCode: fees.course_code,
       semester: fees.semester,
     }));
+    setEditingCategoryEntryKey(
+      `${fees.academic_year}-${fees.group}-${fees.course_code}-${fees.semester}`
+    );
+  };
+
+  const resetFeeEntryForm = () => {
+    setSelectedCategories([]);
+    setCategoryAmounts({});
+    setForm((prev) => ({
+      ...prev,
+      year: "",
+      group: "",
+      courseCode: "",
+      semester: "",
+    }));
+    setEditingCategoryEntryKey(null);
+  };
+
+  const cancelCategoryEdit = () => {
+    resetFeeEntryForm();
   };
 
   // Fetch Supplementary Fees from Supabase
@@ -1226,13 +1242,22 @@ export default function Departments() {
                 })
               )}
             </div>
-            <div className="mt-auto">
+            <div className="mt-auto d-flex gap-2">
               <button
-                className="btn btn-primary w-100"
+                className="btn btn-primary flex-grow-1"
                 onClick={handleCategoryOK}
               >
                 Submit
               </button>
+              {isEditingCategoryEntry && (
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary flex-grow-1"
+                  onClick={cancelCategoryEdit}
+                >
+                  Cancel
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1242,29 +1267,26 @@ export default function Departments() {
       {filteredCategoryFees.length > 0 && (
         <div className="card card-soft p-4 mb-4">
           <h4 className="fw-bold mb-3">Fee Category Records</h4>
-          {filteredCategoryFees.map((fees, index) => {
-            const year = fees.academic_year;
-            const group = fees.group;
-            const course = fees.course_code;
-            const semester = fees.semester;
-            const categoryDisplays = fees.feeCategories || [];
-
-            return (
-              <div key={index} className="mb-4">
-                <table className="table table-bordered align-middle">
-                  <thead>
-                    <tr>
-                      <th>YEAR</th>
-                      <th>GROUP</th>
-                      <th>COURSE</th>
-                      <th>SEMESTER</th>
-                      <th>FEE CATEGORIES</th>
-                      <th>FEE AMOUNT</th>
-                      <th>ACTIONS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
+          <div className="table-responsive">
+            <table className="table mb-0">
+              <thead>
+                <tr>
+                  <th>YEAR</th>
+                  <th>GROUP</th>
+                  <th>COURSE</th>
+                  <th>SEMESTER</th>
+                  <th>FEE CATEGORIES</th>
+                  <th>TOTAL FEE</th>
+                  <th>ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredCategoryFees.map((fees) => {
+                  const categoryDisplays = fees.feeCategories || [];
+                  return (
+                    <tr
+                      key={`${fees.academic_year}-${fees.group}-${fees.course_code}-${fees.semester}`}
+                    >
                       <td>{fees.academic_year}</td>
                       <td>
                         {groups.find((g) => g.code === fees.group)?.name ||
@@ -1276,18 +1298,32 @@ export default function Departments() {
                       </td>
                       <td>{fees.semester}</td>
                       <td>
-                        {categoryDisplays
-                          .map(
-                            (cat) =>
-                              `${cat.name} (₹${parseInt(
-                                cat.amount || 0
-                              ).toLocaleString("en-IN")})`
-                          )
-                          .join(", ")}
+                        {categoryDisplays.length === 0 ? (
+                          <span className="text-muted">No categories</span>
+                        ) : (
+                          categoryDisplays.map((cat) => (
+                            <div
+                              key={cat.id}
+                              className="mb-2 d-flex justify-content-between align-items-center"
+                            >
+                              <span className="fw-semibold">{cat.name}</span>
+                              <span className="text-muted">
+                                &#8377;
+                                {parseInt(cat.amount || 0).toLocaleString(
+                                  "en-IN"
+                                )}
+                              </span>
+                            </div>
+                          ))
+                        )}
                       </td>
                       <td>
-                        ₹
-                        {parseInt(Number(fees.amount || 0)).toLocaleString("en-IN")}
+                        <span className="fw-semibold">
+                          &#8377;
+                          {parseInt(Number(fees.amount || 0)).toLocaleString(
+                            "en-IN"
+                          )}
+                        </span>
                       </td>
                       <td>
                         <div className="d-flex gap-2">
@@ -1317,14 +1353,13 @@ export default function Departments() {
                         </div>
                       </td>
                     </tr>
-                  </tbody>
-                </table>
-              </div>
-            );
-          })}
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
-
       {/* Supplementary Fees Section */}
       <div className="card card-soft p-3 mb-4">
         <h4 className="fw-bold mb-3">Supplementary Fees</h4>
