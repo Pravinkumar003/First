@@ -24,7 +24,6 @@ export default function Departments() {
   const [feeCategoryName, setFeeCategoryName] = useState("");
   const [editingFeeCategoryId, setEditingFeeCategoryId] = useState(null);
   const [categoryFees, setCategoryFees] = useState([]);
-  const [editingCategoryFeeId, setEditingCategoryFeeId] = useState(null);
 
   const [form, setForm] = useState({
     category: "",
@@ -69,14 +68,14 @@ export default function Departments() {
 
   const categoryFilterValue = normalizeCategory(form.category);
 
-  // Supplementary Fees State
-  const [supplementaryFees, setSupplementaryFees] = useState([]);
-  const [paper1, setPaper1] = useState("");
-  const [paper2, setPaper2] = useState("");
-  const [paper3Plus, setPaper3Plus] = useState("");
-  const [editingFeeId, setEditingFeeId] = useState(null);
+  // Supplementary Fees State
+  const [supplementaryFees, setSupplementaryFees] = useState([]);
+  const [paper1, setPaper1] = useState("");
+  const [paper2, setPaper2] = useState("");
+  const [paper3Plus, setPaper3Plus] = useState("");
+  const [editingFeeId, setEditingFeeId] = useState(null);
 
-  // ---------------- LOAD MASTER DATA ----------------
+  // ---------------- LOAD MASTER DATA ----------------
   useEffect(() => {
     const load = async () => {
       const [ys, gs, cs] = await Promise.all([
@@ -218,196 +217,196 @@ export default function Departments() {
     }
   }, [form.year, form.group, form.courseCode, form.semester]);
 
-  // load fee categories from Supabase
-  useEffect(() => {
-    loadFeeCategories();
-  }, []);
+  // load fee categories from Supabase
+  useEffect(() => {
+    loadFeeCategories();
+  }, []);
 
-  useEffect(() => {
-    const handleDocumentClick = (event) => {
-      if (
-        categoryDropdownRef.current &&
-        !categoryDropdownRef.current.contains(event.target)
-      ) {
-        setCategoryDropdownOpen(false);
-      }
-    };
+  useEffect(() => {
+    const handleDocumentClick = (event) => {
+      if (
+        categoryDropdownRef.current &&
+        !categoryDropdownRef.current.contains(event.target)
+      ) {
+        setCategoryDropdownOpen(false);
+      }
+    };
 
-    document.addEventListener("mousedown", handleDocumentClick);
-    return () => document.removeEventListener("mousedown", handleDocumentClick);
-  }, []);
+    document.addEventListener("mousedown", handleDocumentClick);
+    return () => document.removeEventListener("mousedown", handleDocumentClick);
+  }, []);
 
-  const loadFeeCategories = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("fee_categories")
-        .select("*")
-        .order("name", { ascending: true });
+  const loadFeeCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("fee_categories")
+        .select("*")
+        .order("name", { ascending: true });
 
-      if (error) throw error;
-      setFeeCats(data || []);
-    } catch (error) {
-      console.error("Error loading fee categories:", error);
-      showToast("Failed to load fee categories.", { type: "danger" });
-    }
-  };
+      if (error) throw error;
+      setFeeCats(data || []);
+    } catch (error) {
+      console.error("Error loading fee categories:", error);
+      showToast("Failed to load fee categories.", { type: "danger" });
+    }
+  };
 
-  // Save or update fee category
-  const saveFeeCategory = async () => {
-    if (!feeCategoryName.trim()) {
-      showToast("Please enter a category name", { type: "warning" });
-      return;
-    }
+  // Save or update fee category
+  const saveFeeCategory = async () => {
+    if (!feeCategoryName.trim()) {
+      showToast("Please enter a category name", { type: "warning" });
+      return;
+    }
 
-    try {
-      if (editingFeeCategoryId) {
-        // Update existing category
-        const { error } = await supabase
-          .from("fee_categories")
-          .update({ name: feeCategoryName })
-          .eq("id", editingFeeCategoryId);
+    try {
+      if (editingFeeCategoryId) {
+        // Update existing category
+        const { error } = await supabase
+          .from("fee_categories")
+          .update({ name: feeCategoryName })
+          .eq("id", editingFeeCategoryId);
 
-        if (error) throw error;
-        showToast("Category updated successfully", { type: "success" });
-      } else {
-        // Create new category
-        const { error } = await supabase
-          .from("fee_categories")
-          .insert([{ name: feeCategoryName }]);
+        if (error) throw error;
+        showToast("Category updated successfully", { type: "success" });
+      } else {
+        // Create new category
+        const { error } = await supabase
+          .from("fee_categories")
+          .insert([{ name: feeCategoryName }]);
 
-        if (error) throw error;
-        showToast("Category added successfully", { type: "success" });
-      }
+        if (error) throw error;
+        showToast("Category added successfully", { type: "success" });
+      }
 
-      // Refresh categories
-      await loadFeeCategories();
-      setFeeCategoryName("");
-      setEditingFeeCategoryId(null);
-    } catch (error) {
-      console.error("Error saving fee category:", error);
-      showToast("Failed to save category", { type: "danger" });
-    }
-  };
+      // Refresh categories
+      await loadFeeCategories();
+      setFeeCategoryName("");
+      setEditingFeeCategoryId(null);
+    } catch (error) {
+      console.error("Error saving fee category:", error);
+      showToast("Failed to save category", { type: "danger" });
+    }
+  };
 
-  // Edit fee category
-  const editFeeCategory = (category) => {
-    setFeeCategoryName(category.name);
-    setEditingFeeCategoryId(category.id);
-  };
+  // Edit fee category
+  const editFeeCategory = (category) => {
+    setFeeCategoryName(category.name);
+    setEditingFeeCategoryId(category.id);
+  };
 
-  // Delete fee category
-  const deleteFeeCategory = async (id) => {
-    showToast("Deleting category...", { type: "info", title: "Deleting" });
+  // Delete fee category
+  const deleteFeeCategory = async (id) => {
+    showToast("Deleting category...", { type: "info", title: "Deleting" });
 
-    try {
-      // First check if this category is in use
-      const { data: inUse, error: checkError } = await supabase
-        .from("fee_structure")
-        .select("id")
-        .ilike("fee_cat", `%${feeCats.find((c) => c.id === id)?.name}%`)
-        .limit(1);
+    try {
+      // First check if this category is in use
+      const { data: inUse, error: checkError } = await supabase
+        .from("fee_structure")
+        .select("id")
+        .ilike("fee_cat", `%${feeCats.find((c) => c.id === id)?.name}%`)
+        .limit(1);
 
-      if (checkError) throw checkError;
+      if (checkError) throw checkError;
 
-      if (inUse && inUse.length > 0) {
-        showToast("Cannot delete: This category is in use", { type: "danger" });
-        return;
-      }
+      if (inUse && inUse.length > 0) {
+        showToast("Cannot delete: This category is in use", { type: "danger" });
+        return;
+      }
 
-      // Delete the category
-      const { error } = await supabase
-        .from("fee_categories")
-        .delete()
-        .eq("id", id);
+      // Delete the category
+      const { error } = await supabase
+        .from("fee_categories")
+        .delete()
+        .eq("id", id);
 
-      if (error) throw error;
+      if (error) throw error;
 
-      showToast("Category deleted successfully", { type: "success" });
-      await loadFeeCategories();
-    } catch (error) {
-      console.error("Error deleting fee category:", error);
-      showToast("Failed to delete category", { type: "danger" });
-    }
-  };
+      showToast("Category deleted successfully", { type: "success" });
+      await loadFeeCategories();
+    } catch (error) {
+      console.error("Error deleting fee category:", error);
+      showToast("Failed to delete category", { type: "danger" });
+    }
+  };
 
-  // load subjects for selected course + semester
-  useEffect(() => {
-    if (form.courseCode && form.semester) loadSubjects();
-  }, [form.courseCode, form.semester]);
+  // load subjects for selected course + semester
+  useEffect(() => {
+    if (form.courseCode && form.semester) loadSubjects();
+  }, [form.courseCode, form.semester]);
 
-  const loadSubjects = async () => {
-    const res = await api.listSubjects({
-      courseCode: form.courseCode,
-      semester: Number(form.semester),
-    });
-    setSubjects(res || []);
-  };
+  const loadSubjects = async () => {
+    const res = await api.listSubjects({
+      courseCode: form.courseCode,
+      semester: Number(form.semester),
+    });
+    setSubjects(res || []);
+  };
 
-  // ---------------- SUBJECT FEES ----------------
-  const handleSubjectOK = (sub) => {
-    const amt = amounts[sub.id];
-    if (!validateRequiredFields({ Amount: amt }, { title: "Enter amount" }))
-      return;
-    if (
-      !validateRequiredFields(
-        {
-          "Academic Year": form.year,
-          Group: form.group,
-          Course: form.courseCode,
-          Semester: form.semester,
-        },
-        { title: "Select academic details" }
-      )
-    )
-      return;
+  // ---------------- SUBJECT FEES ----------------
+  const handleSubjectOK = (sub) => {
+    const amt = amounts[sub.id];
+    if (!validateRequiredFields({ Amount: amt }, { title: "Enter amount" }))
+      return;
+    if (
+      !validateRequiredFields(
+        {
+          "Academic Year": form.year,
+          Group: form.group,
+          Course: form.courseCode,
+          Semester: form.semester,
+        },
+        { title: "Select academic details" }
+      )
+    )
+      return;
 
-    const subjectName =
-      sub.name ||
-      sub.subject_name ||
-      sub.subjectName ||
-      sub.title ||
-      "Unknown Subject";
+    const subjectName =
+      sub.name ||
+      sub.subject_name ||
+      sub.subjectName ||
+      sub.title ||
+      "Unknown Subject";
 
-    const newRecord = {
-      id: Date.now() + "_" + Math.random().toString(36),
-      subjectId: sub.id,
-      name: subjectName,
-      amount: Number(amt),
-      academic_year: form.year,
-      group: form.group,
-      course_code: form.courseCode,
-      semester: form.semester,
-    };
+    const newRecord = {
+      id: Date.now() + "_" + Math.random().toString(36),
+      subjectId: sub.id,
+      name: subjectName,
+      amount: Number(amt),
+      academic_year: form.year,
+      group: form.group,
+      course_code: form.courseCode,
+      semester: form.semester,
+    };
 
-    setSubjectFees((prev) => [...prev, newRecord]);
-    setAmounts({ ...amounts, [sub.id]: "" });
-  };
+    setSubjectFees((prev) => [...prev, newRecord]);
+    setAmounts({ ...amounts, [sub.id]: "" });
+  };
 
-  const submitAllSubjects = () => {
-    if (subjectFees.length === 0) {
-      showToast("No subject fees added!", {
-        type: "warning",
-        title: "Nothing to submit",
-      });
-      return;
-    }
+  const submitAllSubjects = () => {
+    if (subjectFees.length === 0) {
+      showToast("No subject fees added!", {
+        type: "warning",
+        title: "Nothing to submit",
+      });
+      return;
+    }
 
-    setAppliedFilter({
-      year: form.year,
-      group: form.group,
-      courseCode: form.courseCode,
-      semester: form.semester,
-    });
+    setAppliedFilter({
+      year: form.year,
+      group: form.group,
+      courseCode: form.courseCode,
+      semester: form.semester,
+    });
 
-    showToast("Subject fees submitted!", { type: "success" });
-  };
+    showToast("Subject fees submitted!", { type: "success" });
+  };
 
-  const deleteSubjectFee = (id) => {
-    setSubjectFees((prev) => prev.filter((x) => x.id !== id));
-    showToast("Subject fee removed.", { type: "info", title: "Subject fees" });
-  };
+  const deleteSubjectFee = (id) => {
+    setSubjectFees((prev) => prev.filter((x) => x.id !== id));
+    showToast("Subject fee removed.", { type: "info", title: "Subject fees" });
+  };
 
-  // ---------------- CATEGORY FEES (CHECKBOX) ----------------
+  // ---------------- CATEGORY FEES (CHECKBOX) ----------------
   const toggleCategory = (catId) => {
     setSelectedCategories((prev) => {
       const isSelected = prev.includes(catId);
@@ -432,18 +431,18 @@ export default function Departments() {
   };
 
   const fetchCategoryFees = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("fee_structure")
-        .select("*")
-        .order("created_at", { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from("fee_structure")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) throw error;
 
-      const feesMap = new Map();
+      const feesMap = new Map();
 
-      data.forEach((item) => {
-        const key = `${item.academic_year}_${item.group}_${item.course}_${item.semester}`;
+      data.forEach((item) => {
+        const key = `${item.academic_year}_${item.group}_${item.course}_${item.semester}`;
       if (!feesMap.has(key)) {
         feesMap.set(key, {
           id: item.id,
@@ -466,18 +465,18 @@ export default function Departments() {
         });
         entry.amount += amountValue;
       }
-      });
+      });
 
-      const formattedData = Array.from(feesMap.values());
-      setCategoryFees(formattedData);
-    } catch (error) {
-      console.error("Error fetching category fees:", error);
-      showToast("Error loading category fees. Please try again.", {
-        type: "danger",
-        title: "Category fees",
-      });
-    }
-  };
+      const formattedData = Array.from(feesMap.values());
+      setCategoryFees(formattedData);
+    } catch (error) {
+      console.error("Error fetching category fees:", error);
+      showToast("Error loading category fees. Please try again.", {
+        type: "danger",
+        title: "Category fees",
+      });
+    }
+  };
 
   const handleCategoryOK = async () => {
     if (selectedCategories.length === 0) {
@@ -564,426 +563,475 @@ export default function Departments() {
     }
   };
 
-  const submitAllCategories = async () => {
-    if (categoryFees.length === 0) {
-      showToast("No fee category entries added!", {
-        type: "warning",
-        title: "Nothing to submit",
-      });
-      return;
-    }
+  const submitAllCategories = async () => {
+    if (categoryFees.length === 0) {
+      showToast("No fee category entries added!", {
+        type: "warning",
+        title: "Nothing to submit",
+      });
+      return;
+    }
 
-    setAppliedFilter({
-      year: form.year,
-      group: form.group,
-      courseCode: form.courseCode,
-      semester: form.semester,
-    });
+    setAppliedFilter({
+      year: form.year,
+      group: form.group,
+      courseCode: form.courseCode,
+      semester: form.semester,
+    });
 
-    showToast("Fee categories submitted!", { type: "success" });
-  };
+    showToast("Fee categories submitted!", { type: "success" });
+  };
 
-  const deleteCategoryFee = async (id) => {
-    showToast("Deleting category fee...", { type: "info", title: "Deleting" });
-    try {
-      const { error } = await supabase
-        .from("fee_structure")
-        .delete()
-        .eq("id", id);
+  const deleteCategoryFee = async (id) => {
+    showToast("Deleting category fee...", { type: "info", title: "Deleting" });
+    try {
+      const { error } = await supabase
+        .from("fee_structure")
+        .delete()
+        .eq("id", id);
 
-      if (error) throw error;
+      if (error) throw error;
 
-      // Refresh the list
-      await fetchCategoryFees();
-    } catch (error) {
-      console.error("Error deleting category fee:", error);
-      showToast("Error deleting category fee. Please try again.", {
-        type: "danger",
-        title: "Category fees",
-      });
-    }
-  };
+      // Refresh the list
+      await fetchCategoryFees();
+    } catch (error) {
+      console.error("Error deleting category fee:", error);
+      showToast("Error deleting category fee. Please try again.", {
+        type: "danger",
+        title: "Category fees",
+      });
+    }
+  };
 
-  // ---------------- FILTER ----------------
-  const filterRecords = (list) => {
-    if (!appliedFilter) return list;
+  // ---------------- FILTER ----------------
+  const filterRecords = (list) => {
+    if (!appliedFilter) return list;
 
-    return list.filter((item) => {
-      if (appliedFilter.year && item.academic_year !== appliedFilter.year)
-        return false;
-      if (appliedFilter.group && item.group !== appliedFilter.group)
-        return false;
-      if (
-        appliedFilter.courseCode &&
-        item.course_code !== appliedFilter.courseCode
-      )
-        return false;
-      if (appliedFilter.semester && item.semester !== appliedFilter.semester)
-        return false;
-      return true;
-    });
-  };
+    return list.filter((item) => {
+      if (appliedFilter.year && item.academic_year !== appliedFilter.year)
+        return false;
+      if (appliedFilter.group && item.group !== appliedFilter.group)
+        return false;
+      if (
+        appliedFilter.courseCode &&
+        item.course_code !== appliedFilter.courseCode
+      )
+        return false;
+      if (appliedFilter.semester && item.semester !== appliedFilter.semester)
+        return false;
+      return true;
+    });
+  };
 
-  const filteredSubjectFees = filterRecords(subjectFees);
-  const filteredCategoryFees = filterRecords(categoryFees);
+  const filteredSubjectFees = filterRecords(subjectFees);
+  const filteredCategoryFees = filterRecords(categoryFees);
 
-  const canSelectYear = Boolean(form.category);
-  const canSelectGroup = Boolean(form.year);
-  const canSelectCourse = Boolean(form.group);
-  const canSelectSemester = Boolean(form.courseCode);
-  const canOpenCategoryDropdown = Boolean(form.semester);
+  const canSelectYear = Boolean(form.category);
+  const canSelectGroup = Boolean(form.year);
+  const canSelectCourse = Boolean(form.group);
+  const canSelectSemester = Boolean(form.courseCode);
+  const canOpenCategoryDropdown = Boolean(form.semester);
 
-  const selectedCategoryNames = feeCats
-    .filter((cat) => selectedCategories.includes(cat.id))
-    .map((cat) => cat.name);
+  const selectedCategoryNames = feeCats
+    .filter((cat) => selectedCategories.includes(cat.id))
+    .map((cat) => cat.name);
 
-  const categoryButtonLabel = selectedCategoryNames.length
-    ? selectedCategoryNames.length > 2
-      ? `${selectedCategoryNames.length} categories selected`
-      : selectedCategoryNames.join(", ")
-    : "Select fee categories";
+  const categoryButtonLabel = selectedCategoryNames.length
+    ? selectedCategoryNames.length > 2
+      ? `${selectedCategoryNames.length} categories selected`
+      : selectedCategoryNames.join(", ")
+    : "Select fee categories";
 
-  // Fetch Supplementary Fees from Supabase
-  const fetchSupplementaryFees = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("Supplementary")
-        .select("*")
-        .order("created_at", { ascending: false });
+  const handleEditCategoryFee = (fees) => {
+    const lookupAcademicYear = String(fees.academic_year || "").trim();
+    const matchingYear = years.find((year) => {
+      const yearLabel = String(year.name || year.academic_year || "").trim();
+      return (
+        normalizeCategory(yearLabel) === normalizeCategory(lookupAcademicYear) ||
+        normalizeCategory(year.academic_year) === normalizeCategory(lookupAcademicYear)
+      );
+    });
 
-      if (error) throw error;
-      setSupplementaryFees(data || []);
-    } catch (error) {
-      console.error("Error fetching supplementary fees:", error);
-      showToast("Error loading supplementary fees. Please try again.", {
-        type: "danger",
-        title: "Supplementary fees",
-      });
-    }
-  };
+    const derivedCategory = matchingYear
+      ? (
+          matchingYear.category ||
+          matchingYear.Category ||
+          matchingYear.category_name ||
+          matchingYear.categoryName ||
+          ""
+        ).trim()
+      : "";
 
-  // Handle Supplementary Fees Submission
-  const handleSupplementarySubmit = async (e) => {
-    e.preventDefault();
+    const amounts = {};
+    const selected = [];
+    (fees.feeCategories || []).forEach((cat) => {
+      if (!cat?.name) return;
+      const normalizedName = normalizeCategory(cat.name);
+      const feeCat = feeCats.find(
+        (fc) => normalizeCategory(fc.name || "") === normalizedName
+      );
+      if (feeCat) {
+        selected.push(feeCat.id);
+        amounts[feeCat.id] = cat.amount != null ? String(cat.amount) : "";
+      }
+    });
 
-    if (
-      !validateRequiredFields(
-        {
-          "Paper 1 Fee": paper1,
-          "Paper 2 Fee": paper2,
-          "3+ Papers Fee": paper3Plus,
-        },
-        { title: "Enter fee amounts" }
-      )
-    ) {
-      return;
-    }
+    setSelectedCategories(selected);
+    setCategoryAmounts(amounts);
 
-    // Convert to numbers and validate
-    const paper1Value = parseFloat(paper1);
-    const paper2Value = parseFloat(paper2);
-    const paper3Value = parseFloat(paper3Plus);
+    setForm((prev) => ({
+      ...prev,
+      category: derivedCategory || prev.category,
+      year: matchingYear
+        ? matchingYear.name || matchingYear.academic_year
+        : fees.academic_year,
+      group: fees.group,
+      courseCode: fees.course_code,
+      semester: fees.semester,
+    }));
+  };
 
-    if (isNaN(paper1Value) || isNaN(paper2Value) || isNaN(paper3Value)) {
-      showToast("Please enter valid numbers for all fields.", {
-        type: "warning",
-        title: "Supplementary fees",
-      });
-      return;
-    }
+  // Fetch Supplementary Fees from Supabase
+  const fetchSupplementaryFees = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("Supplementary")
+        .select("*")
+        .order("created_at", { ascending: false });
 
-    const feeData = {
-      "Paper-1": paper1Value,
-      "Paper-2": paper2Value,
-      "Paper-3": paper3Value,
-      created_at: new Date().toISOString(),
-    };
+      if (error) throw error;
+      setSupplementaryFees(data || []);
+    } catch (error) {
+      console.error("Error fetching supplementary fees:", error);
+      showToast("Error loading supplementary fees. Please try again.", {
+        type: "danger",
+        title: "Supplementary fees",
+      });
+    }
+  };
 
-    console.log("Submitting fee data:", {
-      editingFeeId,
-      feeData,
-      table: "Supplementary",
-      supabaseConnected: !!supabase,
-    });
+  // Handle Supplementary Fees Submission
+  const handleSupplementarySubmit = async (e) => {
+    e.preventDefault();
 
-    try {
-      if (editingFeeId) {
-        // Update existing fee
-        console.log("Updating existing fee with ID:", editingFeeId);
-        const { data, error } = await supabase
-          .from("Supplementary")
-          .update(feeData)
-          .eq("id", editingFeeId)
-          .select();
+    if (
+      !validateRequiredFields(
+        {
+          "Paper 1 Fee": paper1,
+          "Paper 2 Fee": paper2,
+          "3+ Papers Fee": paper3Plus,
+        },
+        { title: "Enter fee amounts" }
+      )
+    ) {
+      return;
+    }
 
-        if (error) {
-          console.error("Update error details:", error);
-          throw error;
-        }
+    // Convert to numbers and validate
+    const paper1Value = parseFloat(paper1);
+    const paper2Value = parseFloat(paper2);
+    const paper3Value = parseFloat(paper3Plus);
 
-        console.log("Update successful, updated data:", data);
-        setSupplementaryFees(
-          supplementaryFees.map((fee) =>
-            fee.id === editingFeeId ? { ...fee, ...feeData } : fee
-          )
-        );
-        setEditingFeeId(null);
-      } else {
-        // Create new fee
-        console.log("Creating new fee");
-        const { data, error } = await supabase
-          .from("Supplementary")
-          .insert([feeData])
-          .select();
+    if (isNaN(paper1Value) || isNaN(paper2Value) || isNaN(paper3Value)) {
+      showToast("Please enter valid numbers for all fields.", {
+        type: "warning",
+        title: "Supplementary fees",
+      });
+      return;
+    }
 
-        if (error) {
-          console.error("Insert error details:", error);
-          throw error;
-        }
+    const feeData = {
+      "Paper-1": paper1Value,
+      "Paper-2": paper2Value,
+      "Paper-3": paper3Value,
+      created_at: new Date().toISOString(),
+    };
 
-        console.log("Insert successful, new data:", data);
-        if (data && data.length > 0) {
-          setSupplementaryFees([data[0], ...supplementaryFees]);
-        } else {
-          console.log("No data returned from insert, refetching...");
-          await fetchSupplementaryFees();
-        }
-      }
+    console.log("Submitting fee data:", {
+      editingFeeId,
+      feeData,
+      table: "Supplementary",
+      supabaseConnected: !!supabase,
+    });
 
-      // Clear form
-      setPaper1("");
-      setPaper2("");
-      setPaper3Plus("");
-    } catch (error) {
-      console.error("Error in handleSupplementarySubmit:", {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint,
-        error: error,
-      });
+    try {
+      if (editingFeeId) {
+        // Update existing fee
+        console.log("Updating existing fee with ID:", editingFeeId);
+        const { data, error } = await supabase
+          .from("Supplementary")
+          .update(feeData)
+          .eq("id", editingFeeId)
+          .select();
 
-      // More user-friendly error message
-      let errorMessage = "Error saving supplementary fee";
-      if (error.code === "42P01") {
-        errorMessage =
-          "The Supplementary table does not exist in the database. Please create it first.";
-      } else if (error.code === "42501") {
-        errorMessage =
-          "Permission denied. Please check your database permissions.";
-      } else if (error.message) {
-        errorMessage += `: ${error.message}`;
-      }
+        if (error) {
+          console.error("Update error details:", error);
+          throw error;
+        }
 
-      showToast(errorMessage, { type: "danger", title: "Supplementary fees" });
-    }
-  };
+        console.log("Update successful, updated data:", data);
+        setSupplementaryFees(
+          supplementaryFees.map((fee) =>
+            fee.id === editingFeeId ? { ...fee, ...feeData } : fee
+          )
+        );
+        setEditingFeeId(null);
+      } else {
+        // Create new fee
+        console.log("Creating new fee");
+        const { data, error } = await supabase
+          .from("Supplementary")
+          .insert([feeData])
+          .select();
 
-  // Set up edit mode for a fee
-  const handleEditFee = (fee) => {
-    setPaper1(fee["Paper-1"].toString());
-    setPaper2(fee["Paper-2"].toString());
-    setPaper3Plus(fee["Paper-3"].toString());
-    setEditingFeeId(fee.id);
-  };
+        if (error) {
+          console.error("Insert error details:", error);
+          throw error;
+        }
 
-  // Cancel edit mode
-  const cancelEdit = () => {
-    setPaper1("");
-    setPaper2("");
-    setPaper3Plus("");
-    setEditingFeeId(null);
-  };
+        console.log("Insert successful, new data:", data);
+        if (data && data.length > 0) {
+          setSupplementaryFees([data[0], ...supplementaryFees]);
+        } else {
+          console.log("No data returned from insert, refetching...");
+          await fetchSupplementaryFees();
+        }
+      }
 
-  // Delete Supplementary Fee
-  const deleteSupplementaryFee = async (id) => {
-    try {
-      const { error } = await supabase
-        .from("Supplementary")
-        .delete()
-        .eq("id", id);
+      // Clear form
+      setPaper1("");
+      setPaper2("");
+      setPaper3Plus("");
+    } catch (error) {
+      console.error("Error in handleSupplementarySubmit:", {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        error: error,
+      });
 
-      if (error) throw error;
+      // More user-friendly error message
+      let errorMessage = "Error saving supplementary fee";
+      if (error.code === "42P01") {
+        errorMessage =
+          "The Supplementary table does not exist in the database. Please create it first.";
+      } else if (error.code === "42501") {
+        errorMessage =
+          "Permission denied. Please check your database permissions.";
+      } else if (error.message) {
+        errorMessage += `: ${error.message}`;
+      }
 
-      setSupplementaryFees(supplementaryFees.filter((fee) => fee.id !== id));
-      showToast("Supplementary fee deleted.", {
-        type: "success",
-        title: "Supplementary fees",
-      });
-    } catch (error) {
-      console.error("Error deleting supplementary fee:", error);
-      showToast("Error deleting supplementary fee. Please try again.", {
-        type: "danger",
-        title: "Supplementary fees",
-      });
-    }
-  };
+      showToast(errorMessage, { type: "danger", title: "Supplementary fees" });
+    }
+  };
 
-  // Helper function to check if a table exists
-  const checkTableExists = async (tableName) => {
-    try {
-      const { data, error } = await supabase
-        .from(tableName)
-        .select("*")
-        .limit(1);
+  // Set up edit mode for a fee
+  const handleEditFee = (fee) => {
+    setPaper1(fee["Paper-1"].toString());
+    setPaper2(fee["Paper-2"].toString());
+    setPaper3Plus(fee["Paper-3"].toString());
+    setEditingFeeId(fee.id);
+  };
 
-      if (error && error.code === "42P01") {
-        // Table doesn't exist
-        return false;
-      }
-      return true;
-    } catch (error) {
-      console.error("Error checking table existence:", error);
-      return false;
-    }
-  };
+  // Cancel edit mode
+  const cancelEdit = () => {
+    setPaper1("");
+    setPaper2("");
+    setPaper3Plus("");
+    setEditingFeeId(null);
+  };
 
-  // Fetch supplementary fees on component mount
-  useEffect(() => {
-    const init = async () => {
-      const tableExists = await checkTableExists("Supplementary");
-      console.log("Supplementary table exists:", tableExists);
-      if (tableExists) {
-        await fetchSupplementaryFees();
-      } else {
-        showToast(
-          "The Supplementary table does not exist in your Supabase database. Please create it with columns id, Paper-1, Paper-2, Paper-3, created_at.",
-          { type: "warning", title: "Supplementary fees" }
-        );
-      }
+  // Delete Supplementary Fee
+  const deleteSupplementaryFee = async (id) => {
+    try {
+      const { error } = await supabase
+        .from("Supplementary")
+        .delete()
+        .eq("id", id);
 
-      // Check and load category fees
-      const feeTableExists = await checkTableExists("fee_structure");
-      console.log("Fee structure table exists:", feeTableExists);
-      if (feeTableExists) {
-        await fetchCategoryFees();
-      } else {
-        console.log(
-          "Fee structure table does not exist. It will be created when you add your first fee."
-        );
-      }
-    };
-    init();
-  }, []);
+      if (error) throw error;
 
-  // ======================================================
-  // ====================== UI ============================
-  // ======================================================
+      setSupplementaryFees(supplementaryFees.filter((fee) => fee.id !== id));
+      showToast("Supplementary fee deleted.", {
+        type: "success",
+        title: "Supplementary fees",
+      });
+    } catch (error) {
+      console.error("Error deleting supplementary fee:", error);
+      showToast("Error deleting supplementary fee. Please try again.", {
+        type: "danger",
+        title: "Supplementary fees",
+      });
+    }
+  };
 
-  return (
-    <AdminShell>
-      <h2 className="fw-bold mb-4">Fees Management</h2>
+  // Helper function to check if a table exists
+  const checkTableExists = async (tableName) => {
+    try {
+      const { data, error } = await supabase
+        .from(tableName)
+        .select("*")
+        .limit(1);
 
-      {/* ---------------- MAIN FILTER PANEL ---------------- */}
-      <div
-        className="tab-pane fade show active"
-        id="fee-structure"
-        role="tabpanel"
-      >
-        <div className="card mb-4">
-          <div className="card-header">
-            <h5 className="mb-0">Fee Categories</h5>
-          </div>
-          <div className="card-body">
-            <div className="row g-2 align-items-end mb-3">
-              <div className="col-md-5 col-lg-4">
-                <label className="form-label text-muted fw-600">
-                  {editingFeeCategoryId
-                    ? "Edit fee category"
-                    : "Add a fee category"}
-                </label>
-                <input
-                  className="form-control"
-                  placeholder="e.g., Tuition"
-                  value={feeCategoryName}
-                  onChange={(e) => setFeeCategoryName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      saveFeeCategory();
-                    }
-                  }}
-                />
-              </div>
-              <div className="col-md-3 col-lg-2">
-                <button
-                  type="button"
-                  className="btn btn-primary w-100 mt-md-4"
-                  onClick={saveFeeCategory}
-                >
-                  {editingFeeCategoryId ? "Update Category" : "Add Category"}
-                </button>
-              </div>
-              {editingFeeCategoryId && (
-                <div className="col-md-3 col-lg-2">
-                  <button
-                    type="button"
-                    className="btn btn-outline-secondary w-100 mt-md-4"
-                    onClick={() => {
-                      setFeeCategoryName("");
-                      setEditingFeeCategoryId(null);
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </div>
+      if (error && error.code === "42P01") {
+        // Table doesn't exist
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error("Error checking table existence:", error);
+      return false;
+    }
+  };
 
-            <div className="row g-3">
-              {feeCats.map((cat) => (
-                <div key={cat.id} className="col-md-6 col-lg-4">
-                  <div className="card h-100">
-                    <div className="card-body">
-                      <div className="d-flex justify-content-between align-items-center">
-                        <div>
-                          <h6 className="mb-0">{cat.name}</h6>
-                        </div>
-                        <div className="btn-group">
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-primary"
-                            onClick={() => editFeeCategory(cat)}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-danger"
-                            onClick={() => deleteFeeCategory(cat.id)}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
+  // Fetch supplementary fees on component mount
+  useEffect(() => {
+    const init = async () => {
+      const tableExists = await checkTableExists("Supplementary");
+      console.log("Supplementary table exists:", tableExists);
+      if (tableExists) {
+        await fetchSupplementaryFees();
+      } else {
+        showToast(
+          "The Supplementary table does not exist in your Supabase database. Please create it with columns id, Paper-1, Paper-2, Paper-3, created_at.",
+          { type: "warning", title: "Supplementary fees" }
+        );
+      }
 
-              {feeCats.length === 0 && (
-                <div className="col-12">
-                  <div className="alert alert-info mb-0">
-                    No fee categories found. Add one to get started.
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+      // Check and load category fees
+      const feeTableExists = await checkTableExists("fee_structure");
+      console.log("Fee structure table exists:", feeTableExists);
+      if (feeTableExists) {
+        await fetchCategoryFees();
+      } else {
+        console.log(
+          "Fee structure table does not exist. It will be created when you add your first fee."
+        );
+      }
+    };
+    init();
+  }, []);
 
-        {/* Existing fee structure content */}
-        <div className="card">
-          <div className="card-header">
-            <h5 className="mb-0"> Fee Structure</h5>
-          </div>
-          <div className="card-body">
-            {/* Existing fee structure content */}
-          </div>
-        </div>
-      </div>
-      <div className="card card-soft p-3 mb-4">
-        <div className="row g-3">
+  // ======================================================
+  // ====================== UI ============================
+  // ======================================================
+
+  return (
+    <AdminShell>
+      <h2 className="fw-bold mb-4">Fees Management</h2>
+
+      {/* ---------------- MAIN FILTER PANEL ---------------- */}
+      <div
+        className="tab-pane fade show active"
+        id="fee-structure"
+        role="tabpanel"
+      >
+        <div className="card mb-4">
+          <div className="card-header">
+            <h5 className="mb-0">Fee Categories</h5>
+          </div>
+          <div className="card-body">
+            <div className="row g-2 align-items-end mb-3">
+              <div className="col-md-5 col-lg-4">
+                <label className="form-label text-muted fw-600">
+                  {editingFeeCategoryId
+                    ? "Edit fee category"
+                    : "Add a fee category"}
+                </label>
+                <input
+                  className="form-control"
+                  placeholder="e.g., Tuition"
+                  value={feeCategoryName}
+                  onChange={(e) => setFeeCategoryName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      saveFeeCategory();
+                    }
+                  }}
+                />
+              </div>
+              <div className="col-md-3 col-lg-2">
+                <button
+                  type="button"
+                  className="btn btn-primary w-100 mt-md-4"
+                  onClick={saveFeeCategory}
+                >
+                  {editingFeeCategoryId ? "Update Category" : "Add Category"}
+                </button>
+              </div>
+              {editingFeeCategoryId && (
+                <div className="col-md-3 col-lg-2">
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary w-100 mt-md-4"
+                    onClick={() => {
+                      setFeeCategoryName("");
+                      setEditingFeeCategoryId(null);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="row g-3">
+              {feeCats.map((cat) => (
+                <div key={cat.id} className="col-md-6 col-lg-4">
+                  <div className="card h-100">
+                    <div className="card-body">
+                      <div className="d-flex justify-content-between align-items-center">
+                        <div>
+                          <h6 className="mb-0">{cat.name}</h6>
+                        </div>
+                        <div className="btn-group">
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-primary"
+                            onClick={() => editFeeCategory(cat)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-danger"
+                            onClick={() => deleteFeeCategory(cat.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {feeCats.length === 0 && (
+                <div className="col-12">
+                  <div className="alert alert-info mb-0">
+                    No fee categories found. Add one to get started.
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Existing fee structure content */}
+        <div className="card">
+          <div className="card-header">
+            <h5 className="mb-0"> Fee Structure</h5>
+          </div>
+          <div className="card-body">
+            {/* Existing fee structure content */}
+          </div>
+        </div>
+      </div>
+      <div className="card card-soft p-3 mb-4">
+        <div className="row g-3">
         {/* Category */}
         <div className="col-md-3">
           <label className="form-label fw-bold">Category</label>
@@ -1069,7 +1117,7 @@ export default function Departments() {
               </option>
             ))}
           </select>
-          </div>
+          </div>
 
         {/* Semester */}
         <div className="col-md-2">
@@ -1106,45 +1154,45 @@ export default function Departments() {
             aria-expanded={categoryDropdownOpen}
           >
             <span className="me-2">{categoryButtonLabel}</span>
-            <span className="text-muted">▾</span>
+            <span className="text-muted">&#9662;</span>
           </button>
-            {categoryDropdownOpen && (
-              <div
-                className="bg-white border rounded mt-2 shadow-sm"
-                style={{
-                  position: "absolute",
-                  zIndex: 50,
-                  width: "100%",
-                  maxHeight: "300px",
-                  overflowY: "auto",
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="p-3 d-flex flex-column gap-2">
-                  {feeCats.map((cat) => (
-                    <div key={cat.id} className="form-check">
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id={`cat-dropdown-${cat.id}`}
-                        checked={selectedCategories.includes(cat.id)}
-                        onChange={() => toggleCategory(cat.id)}
-                      />
-                      <label
-                        className="form-check-label"
-                        htmlFor={`cat-dropdown-${cat.id}`}
-                      >
-                        {cat.name}
-                      </label>
-                    </div>
-                  ))}
-                  {feeCats.length === 0 && (
-                    <div className="text-muted">No categories available</div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+            {categoryDropdownOpen && (
+              <div
+                className="bg-white border rounded mt-2 shadow-sm"
+                style={{
+                  position: "absolute",
+                  zIndex: 50,
+                  width: "100%",
+                  maxHeight: "300px",
+                  overflowY: "auto",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-3 d-flex flex-column gap-2">
+                  {feeCats.map((cat) => (
+                    <div key={cat.id} className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id={`cat-dropdown-${cat.id}`}
+                        checked={selectedCategories.includes(cat.id)}
+                        onChange={() => toggleCategory(cat.id)}
+                      />
+                      <label
+                        className="form-check-label"
+                        htmlFor={`cat-dropdown-${cat.id}`}
+                      >
+                        {cat.name}
+                      </label>
+                    </div>
+                  ))}
+                  {feeCats.length === 0 && (
+                    <div className="text-muted">No categories available</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Amount Input with Submit Button */}
           <div className="col-md-3 d-flex flex-column">
@@ -1187,372 +1235,183 @@ export default function Departments() {
               </button>
             </div>
           </div>
-        </div>
-      </div>
+        </div>
+      </div>
 
-      {/* ---------------- CATEGORY FEE TABLE ---------------- */}
-      {filteredCategoryFees.length > 0 && (
-        <div className="card card-soft p-4 mb-4">
-          <h4 className="fw-bold mb-3">Fee Category Records</h4>
-          {filteredCategoryFees.map((fees, index) => {
-            const year = fees.academic_year;
-            const group = fees.group;
-            const course = fees.course_code;
-            const semester = fees.semester;
-            const categoryDisplays = fees.feeCategories || [];
+      {/* ---------------- CATEGORY FEE TABLE ---------------- */}
+      {filteredCategoryFees.length > 0 && (
+        <div className="card card-soft p-4 mb-4">
+          <h4 className="fw-bold mb-3">Fee Category Records</h4>
+          {filteredCategoryFees.map((fees, index) => {
+            const year = fees.academic_year;
+            const group = fees.group;
+            const course = fees.course_code;
+            const semester = fees.semester;
+            const categoryDisplays = fees.feeCategories || [];
 
-            return (
-              <div key={index} className="mb-4">
-                <table className="table table-bordered align-middle">
-                  <thead>
-                    <tr>
-                      <th>YEAR</th>
-                      <th>GROUP</th>
-                      <th>COURSE</th>
-                      <th>SEMESTER</th>
-                      <th>FEE CATEGORIES</th>
-                      <th>FEE AMOUNT</th>
-                      <th>ACTIONS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {editingCategoryFeeId === fees.id ? (
-                      // Edit mode
-                      <tr>
-                        <td colSpan="7" className="p-0">
-                          <div className="p-3 bg-light">
-                            <div className="d-flex justify-content-between align-items-center mb-3">
-                              <h6 className="mb-0">Edit Fee Categories</h6>
-                              <div className="d-flex gap-2">
-                                <button
-                                  className="btn btn-sm btn-success"
-                                  onClick={() => {
-                                    // Update the fee entry with new values
-                                    const updatedFees = categoryFees.map(
-                                      (fee) => {
-                                        if (
-                                          fee.academic_year ===
-                                            fees.academic_year &&
-                                          fee.group === fees.group &&
-                                          fee.course_code ===
-                                            fees.course_code &&
-                                          fee.semester === fees.semester
-                                        ) {
-                                          return {
-                                            ...fee,
-                                            academic_year: form.year,
-                                            group: form.group,
-                                            course_code: form.courseCode,
-                                            semester: form.semester,
-                                          };
-                                        }
-                                        return fee;
-                                      }
-                                    );
-                                    setCategoryFees(updatedFees);
-                                    setEditingCategoryFeeId(null);
-                                  }}
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  className="btn btn-sm btn-outline-secondary"
-                                  onClick={() => setEditingCategoryFeeId(null)}
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                            <div className="mb-3">
-                              <label className="form-label fw-bold">
-                                Common Amount (₹)
-                              </label>
-                              <input
-                                type="number"
-                                className="form-control"
-                                value={fees?.amount || ""}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  setCategoryFees((prev) =>
-                                    prev.map((fee) =>
-                                      fee.academic_year ===
-                                        fees.academic_year &&
-                                      fee.group === fees.group &&
-                                      fee.course_code === fees.course_code &&
-                                      fee.semester === fees.semester
-                                        ? { ...fee, amount: value }
-                                        : fee
-                                    )
-                                  );
-                                }}
-                              />
-                            </div>
-                            <div className="row g-3 mb-3">
-                              <div className="col-md-3">
-                                <label className="form-label">
-                                  Academic Year
-                                </label>
-                                <select
-                                  className="form-select form-select-sm"
-                                  value={form.year}
-                                  onChange={(e) =>
-                                    setForm({ ...form, year: e.target.value })
-                                  }
-                                >
-                                  <option value="">Select Year</option>
-                                  {years.map((y) => {
-                                    const label = y.name || y.academic_year;
-                                    return (
-                                      <option key={y.id} value={label}>
-                                        {label}
-                                      </option>
-                                    );
-                                  })}
-                                </select>
-                              </div>
-                              <div className="col-md-3">
-                                <label className="form-label">Group</label>
-                                <select
-                                  className="form-select form-select-sm"
-                                  value={form.group}
-                                  onChange={(e) =>
-                                    setForm({
-                                      ...form,
-                                      group: e.target.value,
-                                      courseCode: "",
-                                    })
-                                  }
-                                >
-                                  <option value="">Select Group</option>
-                                  {groups.map((g) => (
-                                    <option key={g.id} value={g.code}>
-                                      {g.code}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div className="col-md-3">
-                                <label className="form-label">Course</label>
-                                <select
-                                  className="form-select form-select-sm"
-                                  value={form.courseCode}
-                                  onChange={(e) =>
-                                    setForm({
-                                      ...form,
-                                      courseCode: e.target.value,
-                                      semester: "",
-                                    })
-                                  }
-                                >
-                                  <option value="">Select Course</option>
-                                  {courses
-                                    .filter(
-                                      (c) =>
-                                        !form.group ||
-                                        c.group_code === form.group
-                                    )
-                                    .map((c) => (
-                                      <option key={c.id} value={c.code}>
-                                        {c.code} - {c.name}
-                                      </option>
-                                    ))}
-                                </select>
-                              </div>
-                              <div className="col-md-3">
-                                <label className="form-label">Semester</label>
-                                <select
-                                  className="form-select form-select-sm"
-                                  value={form.semester}
-                                  onChange={(e) =>
-                                    setForm({
-                                      ...form,
-                                      semester: e.target.value,
-                                    })
-                                  }
-                                >
-                                  <option value="">Select Semester</option>
-                                  {[1, 2, 3, 4, 5, 6].map((n) => (
-                                    <option key={n} value={n}>
-                                      Sem {n}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                            </div>
-                            {fees.feeCategories?.map((cat) => (
-                              <div
-                                key={cat.id}
-                                className="d-flex align-items-center gap-3 mb-2"
-                              >
-                                <span className="w-25">{cat.name}</span>
-                                <div className="w-25">
-                                  ₹
-                                  {parseInt(cat.amount).toLocaleString("en-IN")}
-                                </div>
-                                <button
-                                  className="btn btn-sm btn-outline-danger"
-                                  onClick={() => deleteCategoryFee(cat.id)}
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      // View mode
-                      <tr>
-                        <td>{fees.academic_year}</td>
-                        <td>
-                          {groups.find((g) => g.code === fees.group)?.name ||
-                            fees.group}
-                        </td>
-                        <td>
-                          {courses.find((c) => c.code === fees.course_code)
-                            ?.name || fees.course_code}
-                        </td>
-                        <td>{fees.semester}</td>
-                          <td>
-                            {categoryDisplays
-                              .map(
-                                (cat) =>
-                                  `${cat.name} (₹${parseInt(
-                                    cat.amount || 0
-                                  ).toLocaleString("en-IN")})`
-                              )
-                              .join(", ")}
-                          </td>
-                          <td>
-                            ₹
-                            {parseInt(Number(fees.amount || 0)).toLocaleString(
-                              "en-IN"
-                            )}
-                          </td>
-                        <td>
-                          <div className="d-flex gap-2">
-                            <button
-                              className="btn btn-sm btn-warning"
-                              onClick={() => setEditingCategoryFeeId(fees.id)}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              className="btn btn-sm btn-danger"
-                              onClick={() => {
-                                showToast(
-                                  "Deleting all fee categories for this semester.",
-                                  {
-                                    type: "warning",
-                                    title: "Delete categories",
-                                  }
-                                );
-                                fees.feeCategories?.forEach((cat) =>
-                                  deleteCategoryFee(cat.id)
-                                );
-                              }}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            );
-          })}
-        </div>
-      )}
+            return (
+              <div key={index} className="mb-4">
+                <table className="table table-bordered align-middle">
+                  <thead>
+                    <tr>
+                      <th>YEAR</th>
+                      <th>GROUP</th>
+                      <th>COURSE</th>
+                      <th>SEMESTER</th>
+                      <th>FEE CATEGORIES</th>
+                      <th>FEE AMOUNT</th>
+                      <th>ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>{fees.academic_year}</td>
+                      <td>
+                        {groups.find((g) => g.code === fees.group)?.name ||
+                          fees.group}
+                      </td>
+                      <td>
+                        {courses.find((c) => c.code === fees.course_code)?.name ||
+                          fees.course_code}
+                      </td>
+                      <td>{fees.semester}</td>
+                      <td>
+                        {categoryDisplays
+                          .map(
+                            (cat) =>
+                              `${cat.name} (₹${parseInt(
+                                cat.amount || 0
+                              ).toLocaleString("en-IN")})`
+                          )
+                          .join(", ")}
+                      </td>
+                      <td>
+                        ₹
+                        {parseInt(Number(fees.amount || 0)).toLocaleString("en-IN")}
+                      </td>
+                      <td>
+                        <div className="d-flex gap-2">
+                          <button
+                            className="btn btn-sm btn-warning"
+                            onClick={() => handleEditCategoryFee(fees)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="btn btn-sm btn-danger"
+                            onClick={() => {
+                              showToast(
+                                "Deleting all fee categories for this semester.",
+                                {
+                                  type: "warning",
+                                  title: "Delete categories",
+                                }
+                              );
+                              fees.feeCategories?.forEach((cat) =>
+                                deleteCategoryFee(cat.id)
+                              );
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-      {/* Supplementary Fees Section */}
-      <div className="card card-soft p-3 mb-4">
-        <h4 className="fw-bold mb-3">Supplementary Fees</h4>
+      {/* Supplementary Fees Section */}
+      <div className="card card-soft p-3 mb-4">
+        <h4 className="fw-bold mb-3">Supplementary Fees</h4>
 
-        <form onSubmit={handleSupplementarySubmit} className="mb-4">
-          <div className="row g-3">
-            <div className="col-md-3">
-              <label className="form-label">1 Paper Fee (₹)</label>
-              <input
-                type="number"
-                value={paper1}
-                onChange={(e) => setPaper1(e.target.value)}
-                className="form-control"
-                required
-              />
-            </div>
-            <div className="col-md-3">
-              <label className="form-label">2 Papers Fee (₹)</label>
-              <input
-                type="number"
-                value={paper2}
-                onChange={(e) => setPaper2(e.target.value)}
-                className="form-control"
-                required
-              />
-            </div>
-            <div className="col-md-3">
-              <label className="form-label">3 and above Papers Fee (₹)</label>
-              <input
-                type="number"
-                value={paper3Plus}
-                onChange={(e) => setPaper3Plus(e.target.value)}
-                className="form-control"
-                required
-              />
-            </div>
-            <div className="col-md-3 d-flex align-items-end">
-              <div className="d-flex gap-2">
-                <button type="submit" className="btn btn-primary flex-grow-1">
-                  {editingFeeId ? "Update Fee" : "Add Supplementary Fee"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </form>
+        <form onSubmit={handleSupplementarySubmit} className="mb-4">
+          <div className="row g-3">
+            <div className="col-md-3">
+              <label className="form-label">1 Paper Fee (₹)</label>
+              <input
+                type="number"
+                value={paper1}
+                onChange={(e) => setPaper1(e.target.value)}
+                className="form-control"
+                required
+              />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label">2 Papers Fee (₹)</label>
+              <input
+                type="number"
+                value={paper2}
+                onChange={(e) => setPaper2(e.target.value)}
+                className="form-control"
+                required
+              />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label">3 and above Papers Fee (₹)</label>
+              <input
+                type="number"
+                value={paper3Plus}
+                onChange={(e) => setPaper3Plus(e.target.value)}
+                className="form-control"
+                required
+              />
+            </div>
+            <div className="col-md-3 d-flex align-items-end">
+              <div className="d-flex gap-2">
+                <button type="submit" className="btn btn-primary flex-grow-1">
+                  {editingFeeId ? "Update Fee" : "Add Supplementary Fee"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </form>
 
-        {supplementaryFees.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="table table-bordered align-middle">
-              <thead>
-                <tr>
-                  <th>1 PAPER (₹)</th>
-                  <th>2 PAPERS (₹)</th>
-                  <th>3+ PAPERS (₹)</th>
-                  <th>ACTIONS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {supplementaryFees.map((fee) => (
-                  <tr key={fee.id}>
-                    <td>₹{fee["Paper-1"]}</td>
-                    <td>₹{fee["Paper-2"]}</td>
-                    <td>₹{fee["Paper-3"]}</td>
-                    <td>
-                      <div className="d-flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleEditFee(fee)}
-                          className="btn btn-sm btn-primary"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => deleteSupplementaryFee(fee.id)}
-                          className="btn btn-sm btn-danger"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </AdminShell>
-  );
+        {supplementaryFees.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="table table-bordered align-middle">
+              <thead>
+                <tr>
+                  <th>1 PAPER (₹)</th>
+                  <th>2 PAPERS (₹)</th>
+                  <th>3+ PAPERS (₹)</th>
+                  <th>ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {supplementaryFees.map((fee) => (
+                  <tr key={fee.id}>
+                    <td>₹{fee["Paper-1"]}</td>
+                    <td>₹{fee["Paper-2"]}</td>
+                    <td>₹{fee["Paper-3"]}</td>
+                    <td>
+                      <div className="d-flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleEditFee(fee)}
+                          className="btn btn-sm btn-primary"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => deleteSupplementaryFee(fee.id)}
+                          className="btn btn-sm btn-danger"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </AdminShell>
+  );
 }
