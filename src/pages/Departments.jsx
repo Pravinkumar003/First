@@ -45,8 +45,11 @@ export default function Departments() {
 
   const categoryOptions = useMemo(() => {
     const seen = new Map();
-    groups.forEach((group) => {
-      const category = (group.category || group.Category || "").trim();
+    const sources = [...groups, ...years];
+    sources.forEach((entry) => {
+      const category =
+        (entry.category || entry.Category || entry.category_name || entry.categoryName || "")
+          .trim();
       if (!category) return;
       const key = category.toUpperCase();
       if (!seen.has(key)) {
@@ -62,7 +65,7 @@ export default function Departments() {
         return aValue.localeCompare(bValue);
       })
       .map(([, value]) => value);
-  }, [groups]);
+  }, [groups, years]);
 
   const categoryFilterValue = normalizeCategory(form.category);
 
@@ -196,6 +199,24 @@ export default function Departments() {
     form.group,
     form.courseCode,
   ]);
+
+  useEffect(() => {
+    const updates = {};
+    if (!form.year && (form.group || form.courseCode || form.semester)) {
+      updates.group = "";
+      updates.courseCode = "";
+      updates.semester = "";
+    } else if (!form.group && (form.courseCode || form.semester)) {
+      updates.courseCode = "";
+      updates.semester = "";
+    } else if (!form.courseCode && form.semester) {
+      updates.semester = "";
+    }
+
+    if (Object.keys(updates).length) {
+      setForm((prev) => ({ ...prev, ...updates }));
+    }
+  }, [form.year, form.group, form.courseCode, form.semester]);
 
   // load fee categories from Supabase
   useEffect(() => {
@@ -606,6 +627,12 @@ export default function Departments() {
   const filteredSubjectFees = filterRecords(subjectFees);
   const filteredCategoryFees = filterRecords(categoryFees);
 
+  const canSelectYear = Boolean(form.category);
+  const canSelectGroup = Boolean(form.year);
+  const canSelectCourse = Boolean(form.group);
+  const canSelectSemester = Boolean(form.courseCode);
+  const canOpenCategoryDropdown = Boolean(form.semester);
+
   const selectedCategoryNames = feeCats
     .filter((cat) => selectedCategories.includes(cat.id))
     .map((cat) => cat.name);
@@ -988,6 +1015,7 @@ export default function Departments() {
           <label className="form-label fw-bold">Academic Year</label>
           <select
             className="form-select"
+            disabled={!canSelectYear}
             value={form.year}
             onChange={(e) => setForm({ ...form, year: e.target.value })}
           >
@@ -1008,6 +1036,7 @@ export default function Departments() {
           <label className="form-label fw-bold">Group</label>
           <select
             className="form-select"
+            disabled={!canSelectGroup}
             value={form.group}
             onChange={(e) =>
               setForm({ ...form, group: e.target.value, courseCode: "" })
@@ -1027,6 +1056,7 @@ export default function Departments() {
           <label className="form-label fw-bold">Course</label>
           <select
             className="form-select"
+            disabled={!canSelectCourse}
             value={form.courseCode}
             onChange={(e) =>
               setForm({ ...form, courseCode: e.target.value, semester: "" })
@@ -1041,39 +1071,43 @@ export default function Departments() {
           </select>
           </div>
 
-          {/* Semester */}
-          <div className="col-md-2">
-            <label className="form-label fw-bold">Semester</label>
-            <select
-              className="form-select"
-              value={form.semester}
-              onChange={(e) => setForm({ ...form, semester: e.target.value })}
-            >
-              <option value="">Semester</option>
-              {[1, 2, 3, 4, 5, 6].map((n) => (
-                <option key={n} value={n}>
-                  Sem {n}
-                </option>
-              ))}
-            </select>
-          </div>
+        {/* Semester */}
+        <div className="col-md-2">
+          <label className="form-label fw-bold">Semester</label>
+          <select
+            className="form-select"
+            disabled={!canSelectSemester}
+            value={form.semester}
+            onChange={(e) => setForm({ ...form, semester: e.target.value })}
+          >
+            <option value="">Semester</option>
+            {[1, 2, 3, 4, 5, 6].map((n) => (
+              <option key={n} value={n}>
+                Sem {n}
+              </option>
+            ))}
+          </select>
+        </div>
 
-          {/* Fee Categories Dropdown Selector */}
-          <div className="col-md-3 position-relative" ref={categoryDropdownRef}>
-            <label className="form-label fw-bold">Fee Categories</label>
-            <button
-              type="button"
-              className="btn btn-outline-secondary w-100 text-start d-flex justify-content-between align-items-center"
-              onClick={(e) => {
-                e.stopPropagation();
-                setCategoryDropdownOpen((prev) => !prev);
-              }}
-              aria-haspopup="true"
-              aria-expanded={categoryDropdownOpen}
-            >
-              <span className="me-2">{categoryButtonLabel}</span>
-              <span className="text-muted">▾</span>
-            </button>
+        {/* Fee Categories Dropdown Selector */}
+        <div className="col-md-3 position-relative" ref={categoryDropdownRef}>
+          <label className="form-label fw-bold">Fee Categories</label>
+          <button
+            type="button"
+            className="btn btn-outline-secondary w-100 text-start d-flex justify-content-between align-items-center"
+            disabled={!canOpenCategoryDropdown}
+            aria-disabled={!canOpenCategoryDropdown}
+            onClick={(e) => {
+              if (!canOpenCategoryDropdown) return;
+              e.stopPropagation();
+              setCategoryDropdownOpen((prev) => !prev);
+            }}
+            aria-haspopup="true"
+            aria-expanded={categoryDropdownOpen}
+          >
+            <span className="me-2">{categoryButtonLabel}</span>
+            <span className="text-muted">▾</span>
+          </button>
             {categoryDropdownOpen && (
               <div
                 className="bg-white border rounded mt-2 shadow-sm"
