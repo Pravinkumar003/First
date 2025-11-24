@@ -118,7 +118,7 @@ export default function Payments() {
     });
   }, [courses, form.group_code, form.group]);
 
-  const subjectsForModal = useMemo(() => {
+  const subjectsForCurrentSemester = useMemo(() => {
     if (!modalCourseCode || modalSemester === "") return [];
     const normalizedCourse = normalizeSearchValue(modalCourseCode);
     const semesterValue =
@@ -134,6 +134,25 @@ export default function Payments() {
       return courseMatch && semesterMatch;
     });
   }, [subjects, modalCourseCode, modalSemester]);
+
+  const subjectsForSupplementarySemester = useMemo(() => {
+    if (!modalCourseCode || selectedSupplementarySemester === "") return [];
+    const normalizedCourse = normalizeSearchValue(modalCourseCode);
+    const semesterValue =
+      selectedSupplementarySemester === "" ||
+      selectedSupplementarySemester === undefined ||
+      selectedSupplementarySemester === null
+        ? ""
+        : String(selectedSupplementarySemester);
+    return subjects.filter((subject) => {
+      const courseMatch =
+        normalizeSearchValue(subject.courseCode) === normalizedCourse ||
+        normalizeSearchValue(subject.courseName) === normalizedCourse;
+      const semesterMatch =
+        subject.semester === "" ? semesterValue === "" : String(subject.semester) === semesterValue;
+      return courseMatch && semesterMatch;
+    });
+  }, [subjects, modalCourseCode, selectedSupplementarySemester]);
   const availableSupplementarySemesters = useMemo(() => {
     const numeric = Number(modalSemester);
     if (!Number.isFinite(numeric) || numeric <= 1 || numeric % 2 === 0) {
@@ -147,17 +166,27 @@ export default function Payments() {
   }, [modalSemester]);
 
   useEffect(() => {
-    // default to placeholder prompt
-    setSelectedSupplementarySemester("");
+    setSelectedSupplementarySemester((prev) =>
+      availableSupplementarySemesters.includes(Number(prev))
+        ? prev
+        : ""
+    );
   }, [availableSupplementarySemesters]);
+
+  const displayedSubjectLabel = selectedSupplementarySemester
+    ? `Supplementary Sem ${selectedSupplementarySemester}`
+    : modalSemester
+      ? `Sem ${modalSemester}`
+      : "the selected semester";
 
   const resolveModalSubjectNames = (subject) => {
     const fromList = subject.subjectNames?.filter(Boolean) || [];
     if (fromList.length) return fromList;
     return [subject.subjectName, subject.subjectCode].filter(Boolean);
   };
-  const modalSubjectEntries = useMemo(() => {
-    return subjectsForModal.flatMap((subject) => {
+
+  const buildSubjectEntries = (subjectList) =>
+    subjectList.flatMap((subject) => {
       const names = resolveModalSubjectNames(subject);
       const code =
         subject.subjectCode ||
@@ -170,13 +199,26 @@ export default function Payments() {
         code: code || undefined,
       }));
     });
-  }, [subjectsForModal]);
+
+  const currentSubjectEntries = useMemo(
+    () => buildSubjectEntries(subjectsForCurrentSemester),
+    [subjectsForCurrentSemester]
+  );
+  const supplementarySubjectEntries = useMemo(
+    () => buildSubjectEntries(subjectsForSupplementarySemester),
+    [subjectsForSupplementarySemester]
+  );
+  const combinedSubjectEntries = useMemo(
+    () => [...currentSubjectEntries, ...supplementarySubjectEntries],
+    [currentSubjectEntries, supplementarySubjectEntries]
+  );
+
   const uniqueModalSubjectNames = useMemo(
-    () => Array.from(new Set(modalSubjectEntries.map((entry) => entry.name))),
-    [modalSubjectEntries]
+    () => Array.from(new Set(combinedSubjectEntries.map((entry) => entry.name))),
+    [combinedSubjectEntries]
   );
   useEffect(() => {
-    setSelectedSubjectNames(new Set(uniqueModalSubjectNames));
+    setSelectedSubjectNames(new Set());
   }, [uniqueModalSubjectNames]);
   const selectedSubjectCount = selectedSubjectNames.size;
   const totalModalSubjectCount = uniqueModalSubjectNames.length;
@@ -208,6 +250,36 @@ export default function Payments() {
     const names = Array.from(selectedSubjectNames).join(", ");
     showToast(`Payment requested for ${names}.`, { type: "info" });
   };
+
+  const renderSubjectEntry = (entry) => (
+    <li key={entry.key} className="list-group-item">
+      <div className="form-check mb-0 w-100">
+        <input
+          className="form-check-input"
+          type="checkbox"
+          id={`subject-checkbox-${entry.key}`}
+          checked={selectedSubjectNames.has(entry.name)}
+          onChange={() => toggleSubjectSelection(entry.name)}
+        />
+        <label
+          className="form-check-label d-flex gap-1 w-100 align-items-center"
+          htmlFor={`subject-checkbox-${entry.key}`}
+        >
+          <span
+            className="flex-grow-1 text-truncate"
+            style={{ whiteSpace: "nowrap" }}
+          >
+            {entry.name}
+          </span>
+          {entry.code ? (
+            <span className="text-muted small">{entry.code}</span>
+          ) : (
+            <span className="text-muted small">Code unavailable</span>
+          )}
+        </label>
+      </div>
+    </li>
+  );
 
   const formatCurrency = (value) => {
     const num = Number(value || 0);
@@ -482,6 +554,7 @@ export default function Payments() {
     setModalCourseCode(courseValue);
     setModalOpen(true);
     setModalFeeInfo(null);
+    setSelectedSubjectNames(new Set());
   };
 
   const closeStudentModal = () => {
@@ -892,66 +965,74 @@ export default function Payments() {
                     <div className="mt-4">
                     <div className="d-flex align-items-center justify-content-between mb-3">
                         <h6 className="fw-semibold mb-0">
-                          Subjects for{" "}
-                          {modalSemester ? `Sem ${modalSemester}` : "the selected semester"}
+                          Subjects for {displayedSubjectLabel}
                         </h6>
                         <div className="w-50 d-flex justify-content-end">
-                          <label className="form-label mb-0 me-2 fw-semibold">
-                            Supplementary Module
-                          </label>
-                          <select
-                            className="form-select form-select-sm w-auto"
-                            value={selectedSupplementarySemester}
-                            onChange={(event) =>
-                              setSelectedSupplementarySemester(event.target.value)
-                            }
-                          >
-                            <option value="">
-                              Select previous odd semester
-                            </option>
+                          <div className="d-flex align-items-center gap-2">
+                            <span className="form-label mb-0 me-2 fw-semibold">
+                              Supplementary Module
+                            </span>
                             {availableSupplementarySemesters.length > 0 ? (
-                              availableSupplementarySemesters.map((sem) => (
-                                <option key={sem} value={String(sem)}>
-                                  Sem {sem}
-                                </option>
-                              ))
+                              availableSupplementarySemesters.map((sem) => {
+                                const semValue = String(sem);
+                                const isActive =
+                                  selectedSupplementarySemester === semValue;
+                                return (
+                                  <button
+                                    key={sem}
+                                    type="button"
+                                    className={`btn btn-sm ${
+                                      isActive
+                                        ? "btn-primary"
+                                        : "btn-outline-primary"
+                                    }`}
+                                    onClick={() =>
+                                      setSelectedSupplementarySemester(
+                                        isActive ? "" : semValue
+                                      )
+                                    }
+                                  >
+                                    Sem {sem}
+                                  </button>
+                                );
+                              })
                             ) : (
-                              <option value="" disabled>
+                              <span className="text-muted small">
                                 Supplementary unavailable for this semester
-                              </option>
+                              </span>
                             )}
-                          </select>
+                          </div>
                         </div>
                       </div>
-                      <div className="d-flex align-items-center justify-content-between mb-3">
-                        <div className="small text-muted d-flex align-items-center gap-3">
-                          <span>
+                        <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                          <div className="text-muted small">
                             {selectedSubjectCount} of {totalModalSubjectCount} subjects selected
-                          </span>
-                          {!loadingModalFee && examFeeData?.categories?.length ? (
-                            <span className="border rounded px-2 bg-light text-dark">
-                              {`Regular exam fees: ${formatCurrency(
-                                examFeeData.categories[0].amount
-                              )}`}
-                            </span>
-                          ) : (
-                            <span className="border rounded px-2 bg-light text-dark">
-                              {loadingModalFee
-                                ? "Loading exam fee…"
-                                : "Exam fees not configured"}
-                            </span>
-                          )}
+                          </div>
+                          <div className="d-flex flex-wrap gap-2">
+                            {!loadingModalFee && examFeeData?.categories?.length ? (
+                              <span className="border rounded px-2 bg-light text-dark">
+                                {`Regular exam fees: ${formatCurrency(
+                                  examFeeData.categories[0].amount
+                                )}`}
+                              </span>
+                            ) : (
+                              <span className="border rounded px-2 bg-light text-dark">
+                                {loadingModalFee
+                                  ? "Loading exam fee…"
+                                  : "Exam fees not configured"}
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              className="btn btn-outline-primary btn-sm"
+                              onClick={toggleSelectAllSubjects}
+                              disabled={!totalModalSubjectCount}
+                            >
+                              {allModalSubjectsSelected ? "Clear selection" : "Select all"}
+                            </button>
+                          </div>
                         </div>
-                        <button
-                          type="button"
-                          className="btn btn-outline-primary btn-sm"
-                          onClick={toggleSelectAllSubjects}
-                          disabled={!totalModalSubjectCount}
-                        >
-                          {allModalSubjectsSelected ? "Clear selection" : "Select all"}
-                        </button>
-                      </div>
-                    {modalSubjectEntries.length === 0 ? (
+                    {combinedSubjectEntries.length === 0 ? (
                       <div className="alert alert-warning mb-0">
                         No subjects configured for this course/semester.
                       </div>
@@ -961,42 +1042,28 @@ export default function Payments() {
                           <span className="text-muted small fw-semibold">Subject</span>
                           <span className="text-muted small fw-semibold">Subject code</span>
                         </div>
-                        <ul className="list-group list-group-flush">
-                          {modalSubjectEntries.map((entry) => (
-                            <li
-                              key={entry.key}
-                              className="list-group-item"
-                            >
-                            <div className="form-check mb-0 w-100">
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                id={`subject-checkbox-${entry.key}`}
-                                checked={selectedSubjectNames.has(entry.name)}
-                                onChange={() => toggleSubjectSelection(entry.name)}
-                              />
-                                <label
-                                  className="form-check-label d-flex gap-1 w-100 align-items-center"
-                                  htmlFor={`subject-checkbox-${entry.key}`}
-                                >
-                                  <span
-                                    className="flex-grow-1 text-truncate"
-                                    style={{ whiteSpace: "nowrap" }}
-                                  >
-                                    {entry.name}
-                                  </span>
-                                  {entry.code ? (
-                                    <span className="text-muted small">
-                                      {entry.code}
-                                    </span>
-                                  ) : (
-                                    <span className="text-muted small">&nbsp;</span>
-                                  )}
-                                </label>
+                        {currentSubjectEntries.length > 0 && (
+                          <div className="border rounded mb-3">
+                            <div className="px-3 py-2 bg-light border-bottom">
+                              <span className="fw-semibold">Current semester subjects</span>
                             </div>
-                            </li>
-                          ))}
-                        </ul>
+                            <ul className="list-group list-group-flush">
+                              {currentSubjectEntries.map(renderSubjectEntry)}
+                            </ul>
+                          </div>
+                        )}
+                        {supplementarySubjectEntries.length > 0 && (
+                          <div className="border rounded">
+                            <div className="px-3 py-2 bg-light border-bottom">
+                              <span className="fw-semibold">
+                                Supplementary Sem {selectedSupplementarySemester}
+                              </span>
+                            </div>
+                            <ul className="list-group list-group-flush">
+                              {supplementarySubjectEntries.map(renderSubjectEntry)}
+                            </ul>
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
