@@ -46,6 +46,10 @@ export default function Payments() {
   const [supplementaryFeeRates, setSupplementaryFeeRates] = useState(null);
   const [loadingSupplementaryFeeRates, setLoadingSupplementaryFeeRates] =
     useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentOption, setPaymentOption] = useState("full");
+  const [partialAmount, setPartialAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("");
   const examFeeData = useMemo(() => {
     if (!modalFeeInfo?.categories?.length) return null;
     const categories = modalFeeInfo.categories.filter((cat) =>
@@ -314,6 +318,19 @@ export default function Payments() {
   const hasOtherFees = otherFeeCategories.length > 0;
   const totalFeeBreakdownAmount =
     (examFeeData?.total || 0) + otherFeeTotal + supplementaryFeeAmount;
+  const examOnlyAmount = examFeeData?.total || 0;
+  const paymentIntentAmount = useMemo(() => {
+    if (paymentOption === "exam") return examOnlyAmount;
+    if (paymentOption === "full") return totalFeeBreakdownAmount;
+    if (!partialAmount) {
+      return Math.max(examOnlyAmount, 0);
+    }
+    const parsed = Number(partialAmount);
+    if (Number.isNaN(parsed)) {
+      return Math.max(examOnlyAmount, 0);
+    }
+    return Math.max(parsed, Math.max(examOnlyAmount, 0));
+  }, [paymentOption, partialAmount, examOnlyAmount, totalFeeBreakdownAmount]);
   const selectedSubjectCount =
     currentSelectedCount + supplementarySelectedCount;
   const totalModalSubjectCount = uniqueModalSubjectNames.length;
@@ -397,6 +414,59 @@ export default function Payments() {
       </td>
     </tr>
   );
+
+  const renderStudentProfileCard = (student) => {
+    if (!student) return null;
+    return (
+      <div className="card card-soft p-4 mb-3">
+        <div className="row align-items-center">
+          <div className="col-md-4 d-flex align-items-center gap-3">
+            {(student.photo_url || student.photo) ? (
+              <img
+                src={student.photo_url || student.photo}
+                alt={student.full_name || student.name || "Student"}
+                className="rounded-circle"
+                style={{ width: 96, height: 96, objectFit: "cover" }}
+              />
+            ) : (
+              <div
+                className="bg-secondary text-white rounded-circle d-inline-flex align-items-center justify-content-center"
+                style={{ width: 96, height: 96, fontSize: 20 }}
+              >
+                {(student.full_name || student.name || "S").slice(0, 2).toUpperCase()}
+              </div>
+            )}
+            <div>
+              <h5 className="mb-1">
+                {student.full_name || student.name || "Unnamed Student"}
+              </h5>
+              <div className="text-muted">
+                ID: {student.student_id || "N/A"}
+              </div>
+              <div className="text-muted">Vijayam College Arts & Science</div>
+            </div>
+          </div>
+          <div className="col-md-7 d-flex flex-column justify-content-center align-items-end text-end">
+            <h5 className="fw-bold">About this student</h5>
+            <div className="d-flex flex-column gap-2 mt-3">
+              <div className="fs-5">
+                {formatGroupLabel(student, getMatchedGroup(student))}
+              </div>
+              <div className="fs-5">
+                {getMatchedCourse(student)?.courseName ||
+                  student.course_name ||
+                  student.course_code ||
+                  "Course unknown"}
+              </div>
+              <div className="fs-5">
+                {student.academic_year || student.academicYear || "Academic year not set"}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const formatCurrency = (value) => {
     const num = Number(value || 0);
@@ -742,11 +812,159 @@ export default function Payments() {
     closeStudentModal();
   };
   const handleFeeModalPayNow = () => {
-    showToast("Payment initiated; please complete the transaction externally.", {
-      type: "info",
-      title: "Payment",
-    });
     setShowFeeBreakdownModal(false);
+    setPaymentOption("full");
+    setPartialAmount("");
+    setPaymentMethod("");
+    setShowPaymentModal(true);
+  };
+  const closePaymentModal = ({ notifyCancellation = false } = {}) => {
+    setShowPaymentModal(false);
+    setPaymentOption("full");
+    setPartialAmount("");
+    setPaymentMethod("");
+    if (notifyCancellation) {
+      showToast("Payment canceled.", {
+        type: "info",
+        title: "Payment",
+      });
+    }
+  };
+  const handlePaymentModalConfirm = async () => {
+    if (!paymentMethod) {
+      showToast("Please select a payment method.", { type: "warning" });
+      return;
+    }
+    if (!activePaymentStudent) {
+      showToast("Student information is missing.", { type: "danger" });
+      return;
+    }
+
+    let amount = 0;
+    if (paymentOption === "exam") {
+      amount = examOnlyAmount;
+    } else if (paymentOption === "full") {
+      amount = totalFeeBreakdownAmount;
+    } else {
+      const parsed = Number(partialAmount);
+      if (Number.isNaN(parsed) || parsed < examOnlyAmount) {
+        showToast(
+          `Partial payment must be at least ${formatCurrency(Math.max(examOnlyAmount, 0))}.`,
+          { type: "warning" }
+        );
+        return;
+      }
+      amount = parsed;
+    }
+
+    const semesterNumber =
+      modalSemester === "" || modalSemester === undefined || modalSemester === null
+        ? null
+        : Number(modalSemester);
+
+    const ensureExamRegistration = async () => {
+      const academicYear =
+        activePaymentStudent.academic_year || activePaymentStudent.academicYear || null;
+      const groupLabel = formatGroupLabel(
+        activePaymentStudent,
+        getMatchedGroup(activePaymentStudent)
+      );
+      const courseName =
+        getMatchedCourse(activePaymentStudent)?.courseName ||
+        activePaymentStudent.course_name ||
+        activePaymentStudent.course_code ||
+        null;
+
+      let query = supabase
+        .from("exam_registrations")
+        .select("id")
+        .eq("student_id", activePaymentStudent.id);
+      if (semesterNumber !== null && !Number.isNaN(semesterNumber)) {
+        query = query.eq("semester", semesterNumber);
+      }
+      if (academicYear) {
+        query = query.eq("academic_year", academicYear);
+      }
+      if (groupLabel) {
+        query = query.eq("group_name", groupLabel);
+      }
+      if (courseName) {
+        query = query.eq("course_name", courseName);
+      }
+
+      const { data: existingReg, error: existingRegError } = await query.maybeSingle();
+      if (existingRegError) throw existingRegError;
+      if (existingReg?.id) return existingReg.id;
+
+      const payload = {
+        student_id: activePaymentStudent.id,
+        academic_year: academicYear,
+        group_name: groupLabel,
+        course_name: courseName,
+        semester: semesterNumber,
+        total_exam_fee: examOnlyAmount,
+        other_fee: otherFeeTotal,
+        total_fee: totalFeeBreakdownAmount,
+        status: "pending",
+      };
+
+      const { data: insertedReg, error: insertError } = await supabase
+        .from("exam_registrations")
+        .insert(payload)
+        .select("id")
+        .maybeSingle();
+      if (insertError) throw insertError;
+      if (!insertedReg?.id) throw new Error("Unable to establish exam registration");
+      return insertedReg.id;
+    };
+
+    try {
+      const examRegistrationId = await ensureExamRegistration();
+      if (paymentOption === "full") {
+        const { data: existingFull, error: fullQueryError } = await supabase
+          .from("payments")
+          .select("id")
+          .eq("exam_registration_id", examRegistrationId)
+          .eq("payment_status", "success")
+          .eq("fee_type", "full")
+          .limit(1)
+          .maybeSingle();
+        if (fullQueryError) throw fullQueryError;
+        if (existingFull?.id) {
+          showToast("Full payment already processed for this student.", {
+            type: "warning",
+            title: "Payment",
+          });
+          setPaymentMethod("");
+          return;
+        }
+      }
+      const { error: paymentError } = await supabase.from("payments").insert({
+        exam_registration_id: examRegistrationId,
+        amount_paid: amount,
+        payment_type: paymentMethod,
+        fee_type: paymentOption,
+        payment_status: "success",
+      });
+      if (paymentError) throw paymentError;
+    } catch (error) {
+      console.error("Unable to record payment", error);
+      showToast("Payment unsuccessful. Unable to record payment. Please try again.", {
+        type: "danger",
+        title: "Payment",
+      });
+      return;
+    }
+
+    showToast(
+      `Payment successful for ${formatCurrency(amount)} via ${paymentMethod}.`,
+      {
+        type: "success",
+        title: "Payment",
+      }
+    );
+    closePaymentModal();
+    closeStudentModal();
   };
 
   const matchedStudentCount = hasActiveFilters ? filteredStudents.length : 0;
@@ -1478,6 +1696,7 @@ export default function Payments() {
                   ></button>
                 </div>
               <div className="modal-body">
+                {renderStudentProfileCard(activePaymentStudent)}
                 <div className="card border rounded shadow-sm mb-3">
                   <div className="card-body">
                     <div className="d-flex justify-content-between align-items-baseline">
@@ -1543,6 +1762,136 @@ export default function Payments() {
                     Pay now
                   </button>
                 </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showPaymentModal && (
+        <div
+          className="modal d-block"
+          tabIndex="-1"
+          role="dialog"
+          aria-modal="true"
+          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+        >
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Complete payment</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  aria-label="Close"
+                  onClick={() => closePaymentModal({ notifyCancellation: true })}
+                ></button>
+              </div>
+              <div className="modal-body">
+                {renderStudentProfileCard(activePaymentStudent)}
+                <div className="mb-4">
+                  <div className="fw-semibold mb-2">Payment option</div>
+                  <div className="form-check">
+                    <input
+                      className="form-check-input"
+                      type="radio"
+                      name="paymentOption"
+                      id="paymentOptionExam"
+                      value="exam"
+                      checked={paymentOption === "exam"}
+                      onChange={() => setPaymentOption("exam")}
+                    />
+                    <label className="form-check-label" htmlFor="paymentOptionExam">
+                      Exam fee only ({formatCurrency(examOnlyAmount)})
+                    </label>
+                  </div>
+                  <div className="form-check">
+                    <input
+                      className="form-check-input"
+                      type="radio"
+                      name="paymentOption"
+                      id="paymentOptionFull"
+                      value="full"
+                      checked={paymentOption === "full"}
+                      onChange={() => setPaymentOption("full")}
+                    />
+                    <label className="form-check-label" htmlFor="paymentOptionFull">
+                      Full fees ({formatCurrency(totalFeeBreakdownAmount)})
+                    </label>
+                  </div>
+                  <div className="form-check">
+                    <input
+                      className="form-check-input"
+                      type="radio"
+                      name="paymentOption"
+                      id="paymentOptionPartial"
+                      value="partial"
+                      checked={paymentOption === "partial"}
+                      onChange={() => setPaymentOption("partial")}
+                    />
+                    <label className="form-check-label" htmlFor="paymentOptionPartial">
+                      Partial
+                    </label>
+                  </div>
+                  {paymentOption === "partial" && (
+                    <div className="mt-2">
+                      <label className="form-label mb-1">Amount</label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        min={examOnlyAmount || 0}
+                        value={partialAmount}
+                        onChange={(event) => setPartialAmount(event.target.value)}
+                        placeholder={formatCurrency(Math.max(examOnlyAmount, 0))}
+                      />
+                      <div className="form-text">
+                        Minimum {formatCurrency(Math.max(examOnlyAmount, 0))}.
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="card border rounded shadow-sm mb-3">
+                  <div className="card-body">
+                    <div className="d-flex justify-content-between align-items-baseline">
+                      <div>
+                        <h6 className="mb-0">Amount to be paid</h6>
+                      </div>
+                      <span className="fs-5 fw-semibold">
+                        {formatCurrency(paymentIntentAmount)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <label className="form-label fw-semibold">Payment method</label>
+                  <select
+                    className="form-select"
+                    value={paymentMethod}
+                    onChange={(event) => setPaymentMethod(event.target.value)}
+                  >
+                    <option value="">Select method</option>
+                    {["Cash", "Card", "UPI", "GPay"].map((method) => (
+                      <option key={method} value={method}>
+                        {method}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="modal-footer d-flex justify-content-end gap-2">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary"
+                  onClick={() => closePaymentModal({ notifyCancellation: true })}
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handlePaymentModalConfirm}
+                >
+                  Pay now
+                </button>
+              </div>
             </div>
           </div>
         </div>
