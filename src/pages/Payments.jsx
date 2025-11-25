@@ -50,6 +50,8 @@ export default function Payments() {
   const [paymentOption, setPaymentOption] = useState("full");
   const [partialAmount, setPartialAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
+  const [modalPaymentSummary, setModalPaymentSummary] = useState(null);
+  const [loadingModalPayments, setLoadingModalPayments] = useState(false);
   const examFeeData = useMemo(() => {
     if (!modalFeeInfo?.categories?.length) return null;
     const categories = modalFeeInfo.categories.filter((cat) =>
@@ -169,11 +171,12 @@ export default function Payments() {
   }, [subjects, modalCourseCode, selectedSupplementarySemesters]);
   const availableSupplementarySemesters = useMemo(() => {
     const numeric = Number(modalSemester);
-    if (!Number.isFinite(numeric) || numeric <= 1 || numeric % 2 === 0) {
+    if (!Number.isFinite(numeric) || numeric <= 1) {
       return [];
     }
+    const parity = numeric % 2 === 0 ? 0 : 1;
     const options = [];
-    for (let sem = numeric - 2; sem >= 1; sem -= 2) {
+    for (let sem = numeric - 2; sem >= (parity === 0 ? 2 : 1); sem -= 2) {
       options.push(sem);
     }
     return options;
@@ -352,18 +355,25 @@ export default function Payments() {
   const examSubtotal = examOnlyAmount + supplementaryFeeAmount;
   const totalFeeBreakdownAmount =
     examSubtotal + otherFeeTotal;
+  const alreadyPaidTotal = modalPaymentSummary?.alreadyPaidTotal || 0;
+  const alreadyPaidExam = modalPaymentSummary?.alreadyPaidExam || 0;
+  const outstandingTotal = Math.max(
+    totalFeeBreakdownAmount - alreadyPaidTotal,
+    0
+  );
+  const outstandingExam = Math.max(examSubtotal - alreadyPaidExam, 0);
   const paymentIntentAmount = useMemo(() => {
-    if (paymentOption === "exam") return examSubtotal;
-    if (paymentOption === "full") return totalFeeBreakdownAmount;
-    if (!partialAmount) {
-      return Math.max(examSubtotal, 0);
-    }
+    if (paymentOption === "exam") return outstandingExam;
+    if (paymentOption === "full") return outstandingTotal;
     const parsed = Number(partialAmount);
-    if (Number.isNaN(parsed)) {
-      return Math.max(examSubtotal, 0);
+    if (Number.isNaN(parsed) || parsed <= 0) {
+      return Math.max(outstandingExam, 0);
     }
-    return Math.max(parsed, Math.max(examSubtotal, 0));
-  }, [paymentOption, partialAmount, examSubtotal, totalFeeBreakdownAmount]);
+    return Math.min(
+      Math.max(parsed, Math.max(outstandingExam, 0)),
+      Math.max(outstandingTotal, 0)
+    );
+  }, [paymentOption, partialAmount, outstandingExam, outstandingTotal]);
   const selectedSubjectCount =
     currentSelectedCount + supplementarySelectedCount;
   const totalModalSubjectCount = uniqueModalSubjectKeys.length;
@@ -759,6 +769,119 @@ export default function Payments() {
   }, [modalStudent, modalCourseCode, modalSemester]);
 
   useEffect(() => {
+    let cancelled = false;
+    const loadPaymentHistory = async () => {
+      if (!modalStudent || !modalCourseCode || modalSemester === "") {
+        setModalPaymentSummary(null);
+        return;
+      }
+      const academicYear =
+        modalStudent.academic_year || modalStudent.academicYear || "";
+      const matchedGroup = groups.find(
+        (g) =>
+          g.code === modalStudent.group_code ||
+          g.code === modalStudent.group ||
+          g.code === modalStudent.group_name ||
+          g.name === modalStudent.group ||
+          g.name === modalStudent.group_name
+      );
+      const groupLabel =
+        matchedGroup?.name ||
+        modalStudent.group_name ||
+        modalStudent.group ||
+        "Group unknown";
+      const normalizedCourseCode = modalCourseCode;
+      const matchedCourse = courses.find((c) => {
+        const courseCodeMatch =
+          c.courseCode === modalStudent.course_code ||
+          c.courseCode === modalStudent.course_name ||
+          c.courseCode === modalStudent.courseCode;
+        const courseNameMatch =
+          c.courseName === modalStudent.course_name ||
+          c.courseName === modalStudent.course_code;
+        return courseCodeMatch || courseNameMatch;
+      });
+      const courseName =
+        normalizedCourseCode ||
+        matchedCourse?.courseName ||
+        matchedCourse?.course_name ||
+        modalStudent.course_name ||
+        modalStudent.course_code ||
+        modalStudent.courseCode ||
+        "";
+      const semesterValue =
+        modalSemester === "" ||
+        modalSemester === undefined ||
+        modalSemester === null
+          ? ""
+          : String(modalSemester);
+      const semesterNumber =
+        semesterValue === "" ? null : Number(semesterValue);
+      if (!academicYear || !groupLabel || !courseName || semesterNumber === null) {
+        setModalPaymentSummary(null);
+        return;
+      }
+      setLoadingModalPayments(true);
+      try {
+        const { data: registration, error: registrationError } = await supabase
+          .from("exam_registrations")
+          .select("id")
+          .eq("student_id", modalStudent.id)
+          .eq("academic_year", academicYear)
+          .eq("group_name", groupLabel)
+          .eq("course_name", courseName)
+          .eq("semester", semesterNumber)
+          .maybeSingle();
+        if (registrationError) throw registrationError;
+        if (!registration?.id) {
+          setModalPaymentSummary(null);
+          return;
+        }
+        const { data: payments, error: paymentsError } = await supabase
+          .from("payments")
+          .select("fee_type, amount_paid, payment_status, payment_type")
+          .eq("exam_registration_id", registration.id)
+          .order("created_at", { ascending: false });
+        if (paymentsError) throw paymentsError;
+        const successfulPayments = (payments || []).filter(
+          (payment) => payment?.payment_status === "success"
+        );
+        const alreadyPaidTotal = successfulPayments.reduce(
+          (sum, payment) => sum + Number(payment.amount_paid || 0),
+          0
+        );
+        const alreadyPaidExam = successfulPayments.reduce(
+          (sum, payment) =>
+            sum +
+            (payment.fee_type === "exam"
+              ? Number(payment.amount_paid || 0)
+              : 0),
+          0
+        );
+        setModalPaymentSummary({
+          registrationId: registration.id,
+          successfulPayments,
+          alreadyPaidTotal,
+          alreadyPaidExam,
+        });
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Failed to load payment history:", error);
+          setModalPaymentSummary(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingModalPayments(false);
+        }
+      }
+    };
+    loadPaymentHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [modalStudent, modalCourseCode, modalSemester, groups, courses]);
+
+  useEffect(() => {
     let isMounted = true;
     const loadSupplementaryFees = async () => {
       setLoadingSupplementaryFeeRates(true);
@@ -833,6 +956,8 @@ export default function Payments() {
     setModalStudent(null);
     setModalStep(1);
     setShowFeeBreakdownModal(false);
+    setModalPaymentSummary(null);
+    setLoadingModalPayments(false);
   };
   const closeFeeBreakdownModalOnly = () => {
     setShowFeeBreakdownModal(false);
@@ -908,21 +1033,6 @@ export default function Payments() {
     });
 
     let amount = 0;
-    if (paymentOption === "exam") {
-      amount = examSubtotal;
-    } else if (paymentOption === "full") {
-      amount = totalFeeBreakdownAmount;
-    } else {
-      const parsed = Number(partialAmount);
-      if (Number.isNaN(parsed) || parsed < examSubtotal) {
-        showToast(
-          `Partial payment must be at least ${formatCurrency(Math.max(examSubtotal, 0))}.`,
-          { type: "warning" }
-        );
-        return;
-      }
-      amount = parsed;
-    }
 
     const semesterNumber =
       modalSemester === "" || modalSemester === undefined || modalSemester === null
@@ -987,25 +1097,100 @@ export default function Payments() {
 
     try {
       const examRegistrationId = await ensureExamRegistration();
-      if (paymentOption === "full") {
-        const { data: existingFull, error: fullQueryError } = await supabase
-          .from("payments")
-          .select("id")
-          .eq("exam_registration_id", examRegistrationId)
-          .eq("payment_status", "success")
-          .eq("fee_type", "full")
-          .limit(1)
-          .maybeSingle();
-        if (fullQueryError) throw fullQueryError;
-        if (existingFull?.id) {
-          showToast("Full payment already processed for this student.", {
+      const { data: existingPayments, error: paymentsError } = await supabase
+        .from("payments")
+        .select("fee_type, amount_paid, payment_status, payment_type")
+        .eq("exam_registration_id", examRegistrationId)
+        .eq("payment_status", "success");
+      if (paymentsError) throw paymentsError;
+      const successfulPayments = existingPayments || [];
+      const alreadyPaidTotal = successfulPayments.reduce(
+        (sum, payment) => sum + Number(payment.amount_paid || 0),
+        0
+      );
+      const alreadyPaidExam = successfulPayments.reduce(
+        (sum, payment) =>
+          sum + (payment.fee_type === "exam" ? Number(payment.amount_paid || 0) : 0),
+        0
+      );
+      const outstandingTotal = Math.max(
+        totalFeeBreakdownAmount - alreadyPaidTotal,
+        0
+      );
+      const outstandingExam = Math.max(examSubtotal - alreadyPaidExam, 0);
+
+      if (paymentOption === "exam") {
+        if (outstandingExam <= 0) {
+          showToast("Exam fees already paid for this student.", {
             type: "warning",
             title: "Payment",
           });
           setPaymentMethod("");
           return;
         }
+        amount = outstandingExam;
+      } else if (paymentOption === "full") {
+        if (outstandingTotal <= 0) {
+          showToast("All fees have already been paid for this semester.", {
+            type: "warning",
+            title: "Payment",
+          });
+          setPaymentMethod("");
+          return;
+        }
+        amount = outstandingTotal;
+      } else {
+        const parsed = Number(partialAmount);
+        if (Number.isNaN(parsed) || parsed <= 0) {
+          showToast("Enter a valid amount for the partial payment.", {
+            type: "warning",
+            title: "Payment",
+          });
+          return;
+        }
+        if (parsed < outstandingExam) {
+          showToast(
+            `Partial amount must cover the remaining exam portion of ${formatCurrency(
+              outstandingExam
+            )}.`,
+            { type: "warning", title: "Payment" }
+          );
+          return;
+        }
+        if (parsed > outstandingTotal) {
+          showToast(
+            `Amount exceeds the outstanding balance of ${formatCurrency(
+              outstandingTotal
+            )}.`,
+            { type: "warning", title: "Payment" }
+          );
+          return;
+        }
+        amount = parsed;
       }
+
+      const { data: duplicateEntry, error: duplicateError } = await supabase
+        .from("payments")
+        .select("id")
+        .match({
+          exam_registration_id: examRegistrationId,
+          payment_type: paymentMethod,
+          fee_type: paymentOption,
+          amount_paid: amount,
+          payment_status: "success",
+        })
+        .limit(1)
+        .maybeSingle();
+      if (duplicateError) throw duplicateError;
+      if (duplicateEntry?.id) {
+        showToast("This payment already exists.", {
+          type: "warning",
+          title: "Payment",
+        });
+        setPaymentMethod("");
+        return;
+      }
+
       await persistExamRegistrationSubjects(
         examRegistrationId,
         uniqueSubjectEntries
@@ -1872,6 +2057,12 @@ export default function Payments() {
                     />
                     <label className="form-check-label" htmlFor="paymentOptionExam">
                       Exam fee only (regular + supplementary) ({formatCurrency(examSubtotal)})
+                      {modalPaymentSummary && (
+                        <>
+                          {" "}
+                          • Remaining {formatCurrency(outstandingExam)}
+                        </>
+                      )}
                     </label>
                   </div>
                   <div className="form-check">
@@ -1886,6 +2077,12 @@ export default function Payments() {
                     />
                     <label className="form-check-label" htmlFor="paymentOptionFull">
                       Full fees ({formatCurrency(totalFeeBreakdownAmount)})
+                      {modalPaymentSummary && (
+                        <>
+                          {" "}
+                          • Remaining {formatCurrency(outstandingTotal)}
+                        </>
+                      )}
                     </label>
                   </div>
                   <div className="form-check">
@@ -1908,29 +2105,38 @@ export default function Payments() {
                       <input
                         type="number"
                         className="form-control"
-                        min={examSubtotal || 0}
+                        min={Math.max(outstandingExam, 0)}
                         value={partialAmount}
                         onChange={(event) => setPartialAmount(event.target.value)}
-                        placeholder={formatCurrency(Math.max(examSubtotal, 0))}
+                        placeholder={formatCurrency(Math.max(outstandingExam, 0))}
                       />
                       <div className="form-text">
-                        Minimum {formatCurrency(Math.max(examSubtotal, 0))}.
+                        Minimum {formatCurrency(Math.max(outstandingExam, 0))}.
                       </div>
                     </div>
                   )}
                 </div>
-                <div className="card border rounded shadow-sm mb-3">
-                  <div className="card-body">
-                    <div className="d-flex justify-content-between align-items-baseline">
-                      <div>
-                        <h6 className="mb-0">Amount to be paid</h6>
+                  <div className="card border rounded shadow-sm mb-3">
+                    <div className="card-body">
+                      <div className="d-flex justify-content-between align-items-baseline">
+                        <div>
+                          <h6 className="mb-0">Amount to be paid</h6>
+                        </div>
+                        <span className="fs-5 fw-semibold">
+                          {formatCurrency(paymentIntentAmount)}
+                        </span>
                       </div>
-                      <span className="fs-5 fw-semibold">
-                        {formatCurrency(paymentIntentAmount)}
-                      </span>
+                      {loadingModalPayments ? (
+                        <div className="text-muted small mt-1">
+                          Loading previous payments...
+                        </div>
+                      ) : alreadyPaidTotal > 0 ? (
+                        <div className="text-muted small mt-1">
+                          Already paid {formatCurrency(alreadyPaidTotal)}.
+                        </div>
+                      ) : null}
                     </div>
                   </div>
-                </div>
                 <div className="card border rounded shadow-sm mb-3">
                   <div className="card-body">
                     <div className="d-flex justify-content-between small text-muted">

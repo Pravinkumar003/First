@@ -26,6 +26,15 @@ export default function Students() {
     selectedStatus: 'CONTINUE'
   });
   const [paymentStatuses, setPaymentStatuses] = useState({});
+  const [paymentHistoryModal, setPaymentHistoryModal] = useState({
+    show: false,
+    student: null,
+    payments: [],
+    loading: false,
+    error: null,
+    balance: 0,
+    totalFee: 0,
+  });
   const baseCategoryOptions = ["UG", "PG"];
   const normalizeCategoryValue = (value) =>
     value ? value.toString().trim().toUpperCase() : "";
@@ -86,7 +95,7 @@ export default function Students() {
     return "secondary";
   };
 
-  const formatPaymentStatusInfo = (payment) => {
+  const formatPaymentStatusInfo = (payment, outstandingBalance = 0) => {
     if (!payment) {
       return {
         label: "Not Paid",
@@ -109,17 +118,26 @@ export default function Students() {
     const feeTypeLabel = formatFeeTypeLabel(payment.fee_type);
     const label = feeTypeLabel ? `${baseLabel} (${feeTypeLabel})` : baseLabel;
     const variant = getPaymentVariant(normalizedStatus);
-    const detailParts = [];
-    const amountLabel = formatCurrency(payment.amount_paid);
-    if (amountLabel) detailParts.push(amountLabel);
-    if (payment.payment_type) detailParts.push(payment.payment_type);
-    const dateLabel = formatDateLabel(payment.created_at);
-    if (dateLabel) detailParts.push(dateLabel);
     return {
       label,
       variant,
-      detail: detailParts.join(" • "),
     };
+  };
+
+  const formatPaymentDate = (value) => {
+    if (!value) return "";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "";
+    const shifted = new Date(parsed.getTime() + 5.5 * 60 * 60 * 1000);
+    const datePart = shifted.toLocaleDateString();
+    let hours = shifted.getHours();
+    const minutes = shifted.getMinutes();
+    const period = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12 === 0 ? 12 : hours % 12;
+    const formattedTime = `${String(hours).padStart(2, "0")}.${String(
+      minutes
+    ).padStart(2, "0")}`;
+    return `${datePart}, ${formattedTime} ${period}`;
   };
 
   const loadPaymentStatuses = async (studentRows, semesterFilter) => {
@@ -135,7 +153,7 @@ export default function Students() {
 
     let registrationQuery = supabase
       .from("exam_registrations")
-      .select("id, student_id")
+      .select("id, student_id, total_fee")
       .in("student_id", studentIds);
     const semesterValue =
       semesterFilter === undefined || semesterFilter === null
@@ -156,10 +174,14 @@ export default function Students() {
 
     const registrationMap = new Map();
     const studentsWithRegistration = new Set();
+    const studentRegistrationTotals = {};
     (registrations || []).forEach((registration) => {
       if (registration?.id && registration.student_id) {
         registrationMap.set(registration.id, registration.student_id);
         studentsWithRegistration.add(registration.student_id);
+        const totalFee = Number(registration.total_fee || 0);
+        studentRegistrationTotals[registration.student_id] =
+          (studentRegistrationTotals[registration.student_id] || 0) + totalFee;
       }
     });
 
@@ -175,24 +197,38 @@ export default function Students() {
     const registrationIds = Array.from(registrationMap.keys());
     const { data: paymentsData, error: paymentsError } = await supabase
       .from("payments")
-      .select("exam_registration_id, payment_status, fee_type")
+      .select("exam_registration_id, payment_status, fee_type, amount_paid, payment_type")
       .in("exam_registration_id", registrationIds)
       .order("created_at", { ascending: false });
 
     if (paymentsError) throw paymentsError;
 
     const latestPayments = {};
+    const paymentTotals = {};
     (paymentsData || []).forEach((payment) => {
       const studentId = registrationMap.get(payment.exam_registration_id);
       if (!studentId) return;
-      if (latestPayments[studentId]) return;
-      latestPayments[studentId] = payment;
+      if (!latestPayments[studentId]) {
+        latestPayments[studentId] = payment;
+      }
+      if (payment.payment_status === "success") {
+        paymentTotals[studentId] =
+          (paymentTotals[studentId] || 0) + Number(payment.amount_paid || 0);
+      }
     });
 
     const statuses = {};
     studentIds.forEach((studentId) => {
       if (latestPayments[studentId]) {
-        statuses[studentId] = formatPaymentStatusInfo(latestPayments[studentId]);
+        const outstandingBalance = Math.max(
+          (studentRegistrationTotals[studentId] || 0) -
+            (paymentTotals[studentId] || 0),
+          0
+        );
+        statuses[studentId] = formatPaymentStatusInfo(
+          latestPayments[studentId],
+          outstandingBalance
+        );
       } else if (studentsWithRegistration.has(studentId)) {
         statuses[studentId] = {
           label: "Awaiting Payment",
@@ -209,6 +245,101 @@ export default function Students() {
     });
 
     setPaymentStatuses(statuses);
+  };
+
+  const fetchRegistrationIdsForStudent = async (student, semesterFilter) => {
+    if (!student?.id) return { ids: [], totalFee: 0 };
+    let query = supabase
+      .from("exam_registrations")
+      .select("id, total_fee")
+      .eq("student_id", student.id);
+    const semesterValue =
+      semesterFilter === undefined || semesterFilter === null
+        ? ""
+        : semesterFilter.toString().trim();
+    if (semesterValue) {
+      const numericSemester = Number(semesterValue);
+      if (!Number.isNaN(numericSemester)) {
+        query = query.eq("semester", numericSemester);
+      } else {
+        query = query.eq("semester", semesterValue);
+      }
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data || !data.length) return { ids: [], totalFee: 0 };
+    const ids = data.map((row) => row?.id).filter(Boolean);
+    const totalFee = data.reduce((sum, row) => sum + Number(row?.total_fee || 0), 0);
+    return { ids, totalFee };
+  };
+
+  const openPaymentHistoryModal = async (student) => {
+    if (!paymentSemester) {
+      showToast("Please select the payment semester first.", {
+        type: "warning",
+      });
+      return;
+    }
+    setPaymentHistoryModal({
+      show: true,
+      student,
+      payments: [],
+      loading: true,
+      error: null,
+    });
+    try {
+      const {
+        ids: registrationIds,
+        totalFee: registrationTotalFee,
+      } = await fetchRegistrationIdsForStudent(student, paymentSemester);
+      if (!registrationIds.length) {
+        setPaymentHistoryModal((prev) => ({
+          ...prev,
+          payments: [],
+          loading: false,
+          error: "No registration found for the selected semester.",
+        }));
+        return;
+      }
+      const { data: payments, error } = await supabase
+        .from("payments")
+        .select(
+          "id, fee_type, amount_paid, payment_status, payment_type, created_at"
+        )
+        .in("exam_registration_id", registrationIds)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      const totalPaid = (payments || [])
+        .filter((payment) => payment.payment_status === "success")
+        .reduce((sum, payment) => sum + Number(payment.amount_paid || 0), 0);
+      setPaymentHistoryModal((prev) => ({
+        ...prev,
+        payments: payments || [],
+        loading: false,
+        balance: Math.max(registrationTotalFee - totalPaid, 0),
+        totalFee: registrationTotalFee,
+      }));
+    } catch (error) {
+      console.error("Unable to load payment history:", error);
+      setPaymentHistoryModal((prev) => ({
+        ...prev,
+        payments: [],
+        loading: false,
+        error: error?.message || "Unable to load payment history.",
+        balance: 0,
+        totalFee: 0,
+      }));
+    }
+  };
+
+  const closePaymentHistoryModal = () => {
+    setPaymentHistoryModal({
+      show: false,
+      student: null,
+      payments: [],
+      loading: false,
+      error: null,
+    });
   };
 
   const normalizedCategoryFilter = useMemo(() => {
@@ -332,11 +463,21 @@ export default function Students() {
   }, [groups, studentsForCategory, normalizedCategoryFilter]);
 
   const filteredCourseOptions = useMemo(() => {
-    if (!normalizedCategoryFilter) return courses;
-    if (!studentsForCategory.length) return courses;
+    if (!normalizedCategoryFilter && !filters.group_name) return courses;
+    const relevantStudents = studentsForCategory.filter((student) => {
+      if (filters.group_name) {
+        const groupMatch =
+          student.group_code === filters.group_name ||
+          student.group_name === filters.group_name ||
+          student.group === filters.group_name;
+        return groupMatch;
+      }
+      return true;
+    });
+    if (!relevantStudents.length) return courses;
     const codes = new Set();
     const names = new Set();
-    studentsForCategory.forEach((student) => {
+    relevantStudents.forEach((student) => {
       if (student.course_code) codes.add(student.course_code);
       const courseName =
         student.course?.course_name ||
@@ -351,7 +492,7 @@ export default function Students() {
         (!!course.course_code && codes.has(course.course_code)) ||
         (!!course.course_name && names.has(course.course_name))
     );
-  }, [courses, studentsForCategory, normalizedCategoryFilter]);
+  }, [courses, studentsForCategory, normalizedCategoryFilter, filters.group_name]);
 
   const [editForm, setEditForm] = useState({
     student_id: "",
@@ -884,14 +1025,12 @@ export default function Students() {
                                 paymentStatuses[student.id]?.variant || "secondary"
                               }`}
                               style={{ minWidth: "120px" }}
+                              onClick={() =>
+                                openPaymentHistoryModal(student)
+                              }
                             >
                               {paymentStatuses[student.id]?.label || "Status"}
                             </button>
-                            {paymentStatuses[student.id]?.detail && (
-                              <div className="small text-muted mt-1">
-                                {paymentStatuses[student.id]?.detail}
-                              </div>
-                            )}
                           </>
                         ) : (
                           <span className="text-muted">Loading...</span>
@@ -1382,6 +1521,103 @@ export default function Students() {
                   onClick={updateStudentStatus}
                 >
                   Update Status
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {paymentHistoryModal.show && (
+        <div
+          className="modal d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+        >
+          <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  Payment history for{" "}
+                  {paymentHistoryModal.student?.full_name ||
+                    paymentHistoryModal.student?.student_id ||
+                    "Student"}
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={closePaymentHistoryModal}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <p className="text-muted mb-3">
+                  Semester {paymentSemester || "—"}{" "}
+                  {paymentHistoryModal.student?.hall_ticket_no &&
+                    `• Hall Ticket ${paymentHistoryModal.student?.hall_ticket_no}`}
+                </p>
+                {paymentHistoryModal.loading ? (
+                  <div className="text-center py-4">
+                    <div className="spinner-border text-primary" role="status">
+                      <span className="visually-hidden">Loading...</span>
+                    </div>
+                  </div>
+                ) : paymentHistoryModal.error ? (
+                  <div className="alert alert-warning mb-0">
+                    {paymentHistoryModal.error}
+                  </div>
+                ) : paymentHistoryModal.payments.length ? (
+                  <>
+                    <div className="table-responsive">
+                    <table className="table table-sm mb-0">
+                      <thead className="table-light">
+                        <tr>
+                          <th>Date</th>
+                          <th>Amount</th>
+                          <th>Type</th>
+                          <th>Fee Type</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                            {paymentHistoryModal.payments.map((payment) => (
+                              <tr
+                                key={
+                                  payment.id ||
+                                  `${payment.payment_type}-${payment.created_at}`
+                                }
+                              >
+                                <td>{formatPaymentDate(payment.created_at)}</td>
+                                <td>
+                                  {payment.amount_paid
+                                    ? formatCurrency(payment.amount_paid)
+                                    : "-"}
+                                </td>
+                                <td>{payment.payment_type || "—"}</td>
+                                <td>{payment.fee_type || "—"}</td>
+                                <td className="text-capitalize">
+                                  {payment.payment_status || "—"}
+                                </td>
+                              </tr>
+                            ))}
+                      </tbody>
+                    </table>
+                    </div>
+                    {paymentHistoryModal.balance > 0 && (
+                      <div className="alert alert-info mt-3 mb-0">
+                        Balance {formatCurrency(paymentHistoryModal.balance)}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-muted">No payments have been recorded yet.</div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={closePaymentHistoryModal}
+                >
+                  Close
                 </button>
               </div>
             </div>
