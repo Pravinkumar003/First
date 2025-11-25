@@ -52,6 +52,8 @@ export default function Payments() {
   const [paymentMethod, setPaymentMethod] = useState("");
   const [modalPaymentSummary, setModalPaymentSummary] = useState(null);
   const [loadingModalPayments, setLoadingModalPayments] = useState(false);
+  const [quickPaymentModalOpen, setQuickPaymentModalOpen] = useState(false);
+  const [quickPaymentStudentId, setQuickPaymentStudentId] = useState("");
   const examFeeData = useMemo(() => {
     if (!modalFeeInfo?.categories?.length) return null;
     const categories = modalFeeInfo.categories.filter((cat) =>
@@ -389,13 +391,6 @@ export default function Payments() {
       else next.add(key);
       return next;
     });
-  };
-  const toggleSelectAllSubjects = () => {
-    if (allModalSubjectsSelected) {
-      setSelectedSubjectKeys(new Set());
-      return;
-    }
-    setSelectedSubjectKeys(new Set(uniqueModalSubjectKeys));
   };
   const toggleSupplementarySemesterSelection = (semesterValue) => {
     setSelectedSupplementarySemesters((prev) => {
@@ -988,6 +983,37 @@ export default function Payments() {
       });
     }
   };
+  const openQuickPaymentModal = () => {
+    setQuickPaymentModalOpen(true);
+  };
+  const closeQuickPaymentModal = () => {
+    setQuickPaymentModalOpen(false);
+    setQuickPaymentStudentId("");
+  };
+  const handleQuickPaymentSearch = () => {
+    const trimmedId = (quickPaymentStudentId || "").trim();
+    if (!trimmedId) {
+      showToast("Enter a student ID to search.", { type: "warning" });
+      return;
+    }
+    const normalizedTarget = trimmedId.toLowerCase();
+    const foundStudent = students.find((student) => {
+      const candidateId =
+        student.student_id ??
+        student.studentId ??
+        student.id ??
+        student.student_id_number ??
+        "";
+      if (candidateId === undefined || candidateId === null) return false;
+      return String(candidateId).toLowerCase() === normalizedTarget;
+    });
+    if (!foundStudent) {
+      showToast("No student found with that ID.", { type: "warning" });
+      return;
+    }
+    closeQuickPaymentModal();
+    openStudentModal(foundStudent);
+  };
   const persistExamRegistrationSubjects = async (
     examRegistrationId,
     subjectEntries
@@ -1263,7 +1289,16 @@ export default function Payments() {
 
   return (
     <AdminShell>
-      <h2 className="fw-bold mb-3">Record Payment</h2>
+      <div className="d-flex flex-wrap align-items-center justify-content-between mb-3">
+        <h2 className="fw-bold mb-0">Record Payment</h2>
+        <button
+          type="button"
+          className="btn btn-sm btn-primary"
+          onClick={openQuickPaymentModal}
+        >
+          Quick payments
+        </button>
+      </div>
 
       {/* Filter Section */}
       <div className="card card-soft p-3 mb-4">
@@ -1558,8 +1593,69 @@ export default function Payments() {
               </table>
             </div>
           )}
+       </div>
+     </div>
+      {quickPaymentModalOpen && (
+        <div
+          className="modal d-block"
+          tabIndex="-1"
+          role="dialog"
+          aria-modal="true"
+          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+        >
+          <div className="modal-dialog modal-sm modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Quick payment lookup</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  aria-label="Close"
+                  onClick={closeQuickPaymentModal}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <label className="form-label fw-semibold mb-2">Student ID</label>
+                <div className="input-group">
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Enter student ID"
+                    value={quickPaymentStudentId}
+                    onChange={(event) => setQuickPaymentStudentId(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handleQuickPaymentSearch}
+                  >
+                    Search
+                  </button>
+                </div>
+                <p className="text-muted small mt-2 mb-0">
+                  Click search to open the payment flow for that student.
+                </p>
+              </div>
+              <div className="modal-footer d-flex justify-content-end gap-2">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary"
+                  onClick={closeQuickPaymentModal}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={closeQuickPaymentModal}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
       {modalOpen && modalStudent && (
         <>
           <div className="modal-backdrop show"></div>
@@ -1626,127 +1722,64 @@ export default function Payments() {
                     </div>
                   </div>
                     <div className="mt-4">
-                    <div className="d-flex align-items-center justify-content-between mb-3">
-                        <h6 className="fw-semibold mb-0">
-                          Subjects for {displayedSubjectLabel}
-                        </h6>
-                        <div className="w-50 d-flex justify-content-end">
-                          <div className="d-flex align-items-center gap-2">
-                            <span className="form-label mb-0 me-2 fw-semibold">
-                              Supplementary Module
-                            </span>
-                            {availableSupplementarySemesters.length > 0 ? (
-                              availableSupplementarySemesters.map((sem) => {
-                                const semValue = String(sem);
-                                const isActive =
-                                  selectedSupplementarySemesters.includes(
-                                    semValue
-                                  );
-                                return (
-                                  <button
-                                    key={sem}
-                                    type="button"
-                                    className={`btn btn-sm ${
-                                      isActive
-                                        ? "btn-primary"
-                                        : "btn-outline-primary"
-                                    }`}
-                                    onClick={() =>
-                                      toggleSupplementarySemesterSelection(
-                                        semValue
-                                      )
-                                    }
-                                  >
-                                    Sem {sem}
-                                  </button>
-                                );
-                              })
-                            ) : (
-                              <span className="text-muted small">
-                                Supplementary unavailable for this semester
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                        <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-                          {selectedSubjectCount > 0 && (
-                            <div className="text-muted small">
-                              {selectedSubjectCount} of {totalModalSubjectCount} subjects selected
-                            </div>
-                          )}
-                          {supplementarySelectedCount > 0 && (
-                            <div className="text-muted small">
-                            </div>
-                          )}
-                          <div className="d-flex flex-wrap gap-2">
-                            {!loadingModalFee && examFeeData?.categories?.length ? (
-                              <span className="border rounded px-2 bg-light text-dark">
-                                {`Regular exam fees: ${formatCurrency(
-                                  examFeeData.categories[0].amount
-                                )}`}
-                              </span>
-                            ) : (
-                              <span className="border rounded px-2 bg-light text-dark">
-                                {loadingModalFee
-                                  ? "Loading exam fee…"
-                                  : "Exam fees not configured"}
-                              </span>
-                            )}
+                    {availableSupplementarySemesters.length > 0 && (
+                      <div className="d-flex justify-content-end gap-2 mb-3">
+                        {availableSupplementarySemesters.map((sem) => {
+                          const semValue = String(sem);
+                          const isActive =
+                            selectedSupplementarySemesters.includes(
+                              semValue
+                            );
+                          return (
                             <button
+                              key={sem}
                               type="button"
-                              className="btn btn-outline-primary btn-sm"
-                              onClick={toggleSelectAllSubjects}
-                              disabled={!totalModalSubjectCount}
+                              className={`btn btn-sm ${
+                                isActive ? "btn-primary" : "btn-outline-primary"
+                              }`}
+                              onClick={() =>
+                                toggleSupplementarySemesterSelection(
+                                  semValue
+                                )
+                              }
                             >
-                              {allModalSubjectsSelected ? "Clear selection" : "Select all"}
+                              Sem {sem}
                             </button>
-                          </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                        <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+
+                          {selectedSubjectCount > 0 && (
+
+                            <div className="text-muted small">
+
+                              {selectedSubjectCount} of {totalModalSubjectCount} subjects selected
+
+                            </div>
+
+                          )}
+
+                          {examFeeData?.categories?.length ? (
+
+                            <div className="text-muted small">
+
+                              {`Regular exam fees: ${formatCurrency(
+
+                                examFeeData.categories[0].amount
+
+                              )}`}
+
+                            </div>
+
+                          ) : null}
+
                         </div>
-                      {modalStep === 1 && (
-                        loadingSupplementaryFeeRates ? (
-                          <div className="text-muted small mb-3">
-                            Loading supplementary fees...
-                          </div>
-                        ) : supplementaryFeeRates ? (
-                          <div className="mb-3 border rounded px-3 py-2 bg-white">
-                            <div className="d-flex justify-content-between align-items-center mb-1">
-                              <span className="fw-semibold">Supplementary fee rates</span>
-                              <span className="text-muted small">per paper count</span>
-                            </div>
-                            <div className="d-flex flex-wrap gap-4 small">
-                              <div>
-                                <span className="text-muted small">1 paper:</span>
-                                <div className="fw-semibold">
-                                  {formatCurrency(supplementaryFeeRates.paper1)}
-                                </div>
-                              </div>
-                              <div>
-                                <span className="text-muted small">2 papers:</span>
-                                <div className="fw-semibold">
-                                  {formatCurrency(supplementaryFeeRates.paper2)}
-                                </div>
-                              </div>
-                              <div>
-                                <span className="text-muted small">3+ papers:</span>
-                                <div className="fw-semibold">
-                                  {formatCurrency(supplementaryFeeRates.paper3)}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="text-muted small mb-3">
-                            Supplementary fees not configured yet.
-                          </div>
-                        )
-                      )}
+
+
                     {modalStep === 1 ? (
-                      combinedSubjectEntries.length === 0 ? (
-                        <div className="alert alert-warning mb-0">
-                          No subjects configured for this course/semester.
-                        </div>
-                      ) : (
+                      combinedSubjectEntries.length === 0 ? null : (
                         <>
                           <div className="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
                             <span className="text-muted small fw-semibold">Subject</span>
