@@ -38,7 +38,7 @@ export default function Payments() {
   const [modalSemester, setModalSemester] = useState("");
   const [selectedSupplementarySemesters, setSelectedSupplementarySemesters] =
     useState([]);
-  const [selectedSubjectNames, setSelectedSubjectNames] = useState(() => new Set());
+  const [selectedSubjectKeys, setSelectedSubjectKeys] = useState(() => new Set());
   const [modalFeeInfo, setModalFeeInfo] = useState(null);
   const [loadingModalFee, setLoadingModalFee] = useState(false);
   const [modalStep, setModalStep] = useState(1);
@@ -199,23 +199,53 @@ export default function Payments() {
     return [subject.subjectName, subject.subjectCode].filter(Boolean);
   };
 
-  const buildSubjectEntries = (subjectList) =>
+  const deriveSubjectIdentifier = (subject) => {
+    const candidate =
+      subject.subject_id ??
+      subject.id ??
+      subject.subjectId ??
+      subject.subjectCode ??
+      subject.subject_code;
+    if (candidate !== undefined && candidate !== null && candidate !== "") {
+      return String(candidate);
+    }
+    const fallbackName = subject.subject_name ?? subject.subjectName ?? "subject";
+    const fallbackSemester =
+      subject.semester ??
+      subject.semester_number ??
+      subject.semesterNumber ??
+      "";
+    const fallbackCourse =
+      subject.courseCode ?? subject.course_code ?? subject.courseCode ?? "";
+    return `${fallbackName}-${fallbackCourse}-${fallbackSemester}`;
+  };
+
+  const buildSubjectEntries = (
+    subjectList,
+    { contextKey = "current" } = {}
+  ) =>
     subjectList.flatMap((subject) => {
       const names = resolveModalSubjectNames(subject);
       const code =
         subject.subjectCode ||
         subject.subject_code ||
-        subject.subject_code ||
+        subject.code ||
         "";
+      const subjectIdentifier = deriveSubjectIdentifier(subject);
+      const dedupKey =
+        `${subjectIdentifier}-${contextKey || "current"}`;
       return names.map((name, index) => ({
-        key: `${subject.id}-${name}-${index}`,
+        key: `${subjectIdentifier}-${contextKey}-${name}-${index}`,
         name,
         code: code || undefined,
+        subjectId: subjectIdentifier,
+        dedupKey,
+        contextKey,
       }));
     });
 
   const currentSubjectEntries = useMemo(
-    () => buildSubjectEntries(subjectsForCurrentSemester),
+    () => buildSubjectEntries(subjectsForCurrentSemester, { contextKey: "current" }),
     [subjectsForCurrentSemester]
   );
   const supplementarySubjectsBySemester = useMemo(() => {
@@ -240,7 +270,9 @@ export default function Payments() {
     });
     return selectedSupplementarySemesters.map((semester) => ({
       semester,
-      entries: buildSubjectEntries(semesterMap.get(semester) || []),
+      entries: buildSubjectEntries(semesterMap.get(semester) || [], {
+        contextKey: `supp-${semester}`,
+      }),
     }));
   }, [subjectsForSupplementarySemester, selectedSupplementarySemesters]);
   const supplementarySubjectEntries = useMemo(
@@ -254,16 +286,16 @@ export default function Payments() {
   const currentSelectedEntries = useMemo(
     () =>
       currentSubjectEntries.filter((entry) =>
-        selectedSubjectNames.has(entry.name)
+        selectedSubjectKeys.has(entry.key)
       ),
-    [currentSubjectEntries, selectedSubjectNames]
+    [currentSubjectEntries, selectedSubjectKeys]
   );
   const supplementarySelectedEntries = useMemo(
     () =>
       supplementarySubjectEntries.filter((entry) =>
-        selectedSubjectNames.has(entry.name)
+        selectedSubjectKeys.has(entry.key)
       ),
-    [supplementarySubjectEntries, selectedSubjectNames]
+    [supplementarySubjectEntries, selectedSubjectKeys]
   );
   const supplementarySelectedBySemester = useMemo(
     () =>
@@ -271,21 +303,21 @@ export default function Payments() {
         .map((group) => ({
           semester: group.semester,
           entries: group.entries.filter((entry) =>
-            selectedSubjectNames.has(entry.name)
+            selectedSubjectKeys.has(entry.key)
           ),
         }))
         .filter((group) => group.entries.length > 0),
-    [supplementarySubjectsBySemester, selectedSubjectNames]
+    [supplementarySubjectsBySemester, selectedSubjectKeys]
   );
 
-  const uniqueModalSubjectNames = useMemo(
-    () => Array.from(new Set(combinedSubjectEntries.map((entry) => entry.name))),
+  const uniqueModalSubjectKeys = useMemo(
+    () => Array.from(new Set(combinedSubjectEntries.map((entry) => entry.key))),
     [combinedSubjectEntries]
   );
   useEffect(() => {
-    setSelectedSubjectNames(new Set());
+    setSelectedSubjectKeys(new Set());
     setModalStep(1);
-  }, [uniqueModalSubjectNames]);
+  }, [uniqueModalSubjectKeys]);
   const currentSelectedCount = currentSelectedEntries.length;
   const supplementarySelectedCount = supplementarySelectedEntries.length;
   const supplementaryFeeAmount = useMemo(() => {
@@ -316,43 +348,44 @@ export default function Payments() {
   );
   const hasExamFees = Boolean(examFeeData?.categories?.length);
   const hasOtherFees = otherFeeCategories.length > 0;
-  const totalFeeBreakdownAmount =
-    (examFeeData?.total || 0) + otherFeeTotal + supplementaryFeeAmount;
   const examOnlyAmount = examFeeData?.total || 0;
+  const examSubtotal = examOnlyAmount + supplementaryFeeAmount;
+  const totalFeeBreakdownAmount =
+    examSubtotal + otherFeeTotal;
   const paymentIntentAmount = useMemo(() => {
-    if (paymentOption === "exam") return examOnlyAmount;
+    if (paymentOption === "exam") return examSubtotal;
     if (paymentOption === "full") return totalFeeBreakdownAmount;
     if (!partialAmount) {
-      return Math.max(examOnlyAmount, 0);
+      return Math.max(examSubtotal, 0);
     }
     const parsed = Number(partialAmount);
     if (Number.isNaN(parsed)) {
-      return Math.max(examOnlyAmount, 0);
+      return Math.max(examSubtotal, 0);
     }
-    return Math.max(parsed, Math.max(examOnlyAmount, 0));
-  }, [paymentOption, partialAmount, examOnlyAmount, totalFeeBreakdownAmount]);
+    return Math.max(parsed, Math.max(examSubtotal, 0));
+  }, [paymentOption, partialAmount, examSubtotal, totalFeeBreakdownAmount]);
   const selectedSubjectCount =
     currentSelectedCount + supplementarySelectedCount;
-  const totalModalSubjectCount = uniqueModalSubjectNames.length;
+  const totalModalSubjectCount = uniqueModalSubjectKeys.length;
   const currentTotalCount = currentSubjectEntries.length;
   const supplementaryTotalCount = supplementarySubjectEntries.length;
   const allModalSubjectsSelected =
     totalModalSubjectCount > 0 &&
     selectedSubjectCount === totalModalSubjectCount;
-  const toggleSubjectSelection = (name) => {
-    setSelectedSubjectNames((prev) => {
+  const toggleSubjectSelection = (key) => {
+    setSelectedSubjectKeys((prev) => {
       const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
   const toggleSelectAllSubjects = () => {
     if (allModalSubjectsSelected) {
-      setSelectedSubjectNames(new Set());
+      setSelectedSubjectKeys(new Set());
       return;
     }
-    setSelectedSubjectNames(new Set(uniqueModalSubjectNames));
+    setSelectedSubjectKeys(new Set(uniqueModalSubjectKeys));
   };
   const toggleSupplementarySemesterSelection = (semesterValue) => {
     setSelectedSupplementarySemesters((prev) => {
@@ -363,7 +396,7 @@ export default function Payments() {
     });
   };
   const handleAdvanceToSummary = () => {
-    if (!selectedSubjectNames.size) {
+    if (!selectedSubjectKeys.size) {
       showToast("Select at least one subject before continuing.", {
         type: "warning",
       });
@@ -373,7 +406,7 @@ export default function Payments() {
   };
 
   const handlePaySubjects = () => {
-    if (!selectedSubjectNames.size) {
+    if (!selectedSubjectKeys.size) {
       showToast("Select at least one subject before continuing.", {
         type: "warning",
       });
@@ -401,8 +434,8 @@ export default function Payments() {
           className="form-check-input"
           type="checkbox"
           id={`subject-checkbox-${entry.key}`}
-          checked={selectedSubjectNames.has(entry.name)}
-          onChange={() => toggleSubjectSelection(entry.name)}
+          checked={selectedSubjectKeys.has(entry.key)}
+          onChange={() => toggleSubjectSelection(entry.key)}
           aria-label={`Select ${entry.name}`}
         />
       </td>
@@ -791,7 +824,7 @@ export default function Payments() {
     setModalCourseCode(courseValue);
     setModalOpen(true);
     setModalFeeInfo(null);
-    setSelectedSubjectNames(new Set());
+    setSelectedSubjectKeys(new Set());
     setModalStep(1);
   };
 
@@ -830,6 +863,27 @@ export default function Payments() {
       });
     }
   };
+  const persistExamRegistrationSubjects = async (
+    examRegistrationId,
+    subjectEntries
+  ) => {
+    if (!subjectEntries?.length) return;
+    const payload = subjectEntries.map((entry) => ({
+      exam_registration_id: examRegistrationId,
+      subject_name: entry.name,
+      subject_code: entry.code || null,
+    }));
+    const { error: deleteError } = await supabase
+      .from("exam_registration_subjects")
+      .delete()
+      .eq("exam_registration_id", examRegistrationId);
+    if (deleteError) throw deleteError;
+    const { error: insertError } = await supabase
+      .from("exam_registration_subjects")
+      .insert(payload);
+    if (insertError) throw insertError;
+  };
+
   const handlePaymentModalConfirm = async () => {
     if (!paymentMethod) {
       showToast("Please select a payment method.", { type: "warning" });
@@ -840,16 +894,29 @@ export default function Payments() {
       return;
     }
 
+    const selectedSubjectEntries = combinedSubjectEntries.filter((entry) =>
+      selectedSubjectKeys.has(entry.key)
+    );
+    const uniqueSubjectEntries = [];
+    const trackedSubjectKeys = new Set();
+    selectedSubjectEntries.forEach((entry) => {
+      const identity =
+        entry.dedupKey ?? `${entry.subjectId}:${entry.contextKey ?? "regular"}`;
+      if (trackedSubjectKeys.has(identity)) return;
+      trackedSubjectKeys.add(identity);
+      uniqueSubjectEntries.push(entry);
+    });
+
     let amount = 0;
     if (paymentOption === "exam") {
-      amount = examOnlyAmount;
+      amount = examSubtotal;
     } else if (paymentOption === "full") {
       amount = totalFeeBreakdownAmount;
     } else {
       const parsed = Number(partialAmount);
-      if (Number.isNaN(parsed) || parsed < examOnlyAmount) {
+      if (Number.isNaN(parsed) || parsed < examSubtotal) {
         showToast(
-          `Partial payment must be at least ${formatCurrency(Math.max(examOnlyAmount, 0))}.`,
+          `Partial payment must be at least ${formatCurrency(Math.max(examSubtotal, 0))}.`,
           { type: "warning" }
         );
         return;
@@ -902,7 +969,7 @@ export default function Payments() {
         group_name: groupLabel,
         course_name: courseName,
         semester: semesterNumber,
-        total_exam_fee: examOnlyAmount,
+        total_exam_fee: examSubtotal,
         other_fee: otherFeeTotal,
         total_fee: totalFeeBreakdownAmount,
         status: "pending",
@@ -939,6 +1006,10 @@ export default function Payments() {
           return;
         }
       }
+      await persistExamRegistrationSubjects(
+        examRegistrationId,
+        uniqueSubjectEntries
+      );
       const { error: paymentError } = await supabase.from("payments").insert({
         exam_registration_id: examRegistrationId,
         amount_paid: amount,
@@ -1523,7 +1594,7 @@ export default function Payments() {
                           {supplementarySubjectsBySemester.length > 0 &&
                             supplementarySubjectsBySemester.map((group) => {
                               const selectedInGroup = group.entries.filter((entry) =>
-                                selectedSubjectNames.has(entry.name)
+                                selectedSubjectKeys.has(entry.key)
                               ).length;
                               return (
                                 <div
@@ -1800,7 +1871,7 @@ export default function Payments() {
                       onChange={() => setPaymentOption("exam")}
                     />
                     <label className="form-check-label" htmlFor="paymentOptionExam">
-                      Exam fee only ({formatCurrency(examOnlyAmount)})
+                      Exam fee only (regular + supplementary) ({formatCurrency(examSubtotal)})
                     </label>
                   </div>
                   <div className="form-check">
@@ -1837,13 +1908,13 @@ export default function Payments() {
                       <input
                         type="number"
                         className="form-control"
-                        min={examOnlyAmount || 0}
+                        min={examSubtotal || 0}
                         value={partialAmount}
                         onChange={(event) => setPartialAmount(event.target.value)}
-                        placeholder={formatCurrency(Math.max(examOnlyAmount, 0))}
+                        placeholder={formatCurrency(Math.max(examSubtotal, 0))}
                       />
                       <div className="form-text">
-                        Minimum {formatCurrency(Math.max(examOnlyAmount, 0))}.
+                        Minimum {formatCurrency(Math.max(examSubtotal, 0))}.
                       </div>
                     </div>
                   )}
@@ -1857,6 +1928,27 @@ export default function Payments() {
                       <span className="fs-5 fw-semibold">
                         {formatCurrency(paymentIntentAmount)}
                       </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="card border rounded shadow-sm mb-3">
+                  <div className="card-body">
+                    <div className="d-flex justify-content-between small text-muted">
+                      <span>Regular exam fees</span>
+                      <span>{formatCurrency(examOnlyAmount)}</span>
+                    </div>
+                    {supplementarySelectedCount > 0 && (
+                      <div className="d-flex justify-content-between small text-muted">
+                        <span>Supplementary fees</span>
+                        <span>{formatCurrency(supplementaryFeeAmount)}</span>
+                      </div>
+                    )}
+                    <div className="d-flex justify-content-between fw-semibold mt-2">
+                      <span>Exam subtotal</span>
+                      <span>{formatCurrency(examSubtotal)}</span>
+                    </div>
+                    <div className="text-muted small mt-1">
+                      Covers regular and supplementary subjects selected above.
                     </div>
                   </div>
                 </div>
