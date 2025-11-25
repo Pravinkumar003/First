@@ -16,6 +16,7 @@ import HallTickets from "./pages/HallTickets.jsx";
 import Results from "./pages/Results.jsx";
 import Setup from "./pages/Setup.jsx";
 import Departments from "./pages/Departments.jsx";
+import PaymentsOverview from "./pages/PaymentsOverview.jsx";
 import GuardedRoute from "./components/GuardedRoute.jsx";
 import Preloader from "./components/Preloader.jsx";
 import ToastStack from "./components/ToastStack.jsx";
@@ -78,6 +79,14 @@ export default function App() {
           element={
             <GuardedRoute isAuthed={isAuthed}>
               <Payments />
+            </GuardedRoute>
+          }
+        />
+        <Route
+          path="/admin/payments-overview"
+          element={
+            <GuardedRoute isAuthed={isAuthed}>
+              <PaymentsOverview />
             </GuardedRoute>
           }
         />

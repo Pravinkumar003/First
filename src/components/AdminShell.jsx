@@ -26,6 +26,11 @@ const nav = [
     icon: "bi-mortarboard",
   },
   { to: "/admin/payments", label: "Payments", icon: "bi-credit-card" },
+  {
+    to: "/admin/payments-overview",
+    label: "Payments Overview",
+    icon: "bi-bar-chart",
+  },
   { to: "/admin/courses", label: "View Courses", icon: "bi-book" },
   {
     to: "/admin/hall-tickets",

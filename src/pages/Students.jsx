@@ -13,8 +13,8 @@ export default function Students() {
     group_name: "",
     course_name: "",
     category: "",
-    semester: "",
   });
+  const [paymentSemester, setPaymentSemester] = useState("");
   const [years, setYears] = useState([]);
   const [groups, setGroups] = useState([]);
   const [courses, setCourses] = useState([]);
@@ -25,6 +25,7 @@ export default function Students() {
     student: null,
     selectedStatus: 'CONTINUE'
   });
+  const [paymentStatuses, setPaymentStatuses] = useState({});
   const baseCategoryOptions = ["UG", "PG"];
   const normalizeCategoryValue = (value) =>
     value ? value.toString().trim().toUpperCase() : "";
@@ -49,6 +50,166 @@ export default function Students() {
     });
     return result;
   }, [groups]);
+
+  const formatFeeTypeLabel = (feeType) => {
+    if (!feeType) return "";
+    const normalized = feeType.toString().trim().toLowerCase();
+    if (normalized === "exam") return "Exam";
+    if (normalized === "full") return "Full";
+    if (normalized === "partial") return "Partial";
+    return feeType.toString().trim();
+  };
+
+  const formatCurrency = (value) => {
+    if (value === undefined || value === null || Number.isNaN(Number(value)))
+      return "";
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 2,
+    }).format(Number(value));
+  };
+
+  const formatDateLabel = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleDateString();
+  };
+
+  const getPaymentVariant = (status) => {
+    if (!status) return "secondary";
+    const normalized = status.toString().trim().toLowerCase();
+    if (normalized === "success") return "success";
+    if (normalized === "pending") return "warning";
+    if (normalized === "failed") return "danger";
+    return "secondary";
+  };
+
+  const formatPaymentStatusInfo = (payment) => {
+    if (!payment) {
+      return {
+        label: "Not Paid",
+        variant: "danger",
+        detail: "No payment recorded for selected semester.",
+      };
+    }
+    const normalizedStatus = (payment.payment_status || "")
+      .toString()
+      .trim()
+      .toLowerCase();
+    let baseLabel = "Unknown";
+    if (normalizedStatus === "success") baseLabel = "Paid";
+    else if (normalizedStatus === "pending") baseLabel = "Pending";
+    else if (normalizedStatus === "failed") baseLabel = "Failed";
+    else if (normalizedStatus) {
+      baseLabel =
+        normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1);
+    }
+    const feeTypeLabel = formatFeeTypeLabel(payment.fee_type);
+    const label = feeTypeLabel ? `${baseLabel} (${feeTypeLabel})` : baseLabel;
+    const variant = getPaymentVariant(normalizedStatus);
+    const detailParts = [];
+    const amountLabel = formatCurrency(payment.amount_paid);
+    if (amountLabel) detailParts.push(amountLabel);
+    if (payment.payment_type) detailParts.push(payment.payment_type);
+    const dateLabel = formatDateLabel(payment.created_at);
+    if (dateLabel) detailParts.push(dateLabel);
+    return {
+      label,
+      variant,
+      detail: detailParts.join(" • "),
+    };
+  };
+
+  const loadPaymentStatuses = async (studentRows, semesterFilter) => {
+    const studentsWithId = (studentRows || []).filter(
+      (student) => student && student.id
+    );
+    if (!studentsWithId.length) {
+      setPaymentStatuses({});
+      return;
+    }
+
+    const studentIds = studentsWithId.map((student) => student.id);
+
+    let registrationQuery = supabase
+      .from("exam_registrations")
+      .select("id, student_id")
+      .in("student_id", studentIds);
+    const semesterValue =
+      semesterFilter === undefined || semesterFilter === null
+        ? ""
+        : semesterFilter.toString().trim();
+    if (semesterValue) {
+      const numericSemester = Number(semesterValue);
+      if (!Number.isNaN(numericSemester)) {
+        registrationQuery = registrationQuery.eq("semester", numericSemester);
+      } else {
+        registrationQuery = registrationQuery.eq("semester", semesterValue);
+      }
+    }
+    const { data: registrations, error: registrationsError } =
+      await registrationQuery;
+
+    if (registrationsError) throw registrationsError;
+
+    const registrationMap = new Map();
+    const studentsWithRegistration = new Set();
+    (registrations || []).forEach((registration) => {
+      if (registration?.id && registration.student_id) {
+        registrationMap.set(registration.id, registration.student_id);
+        studentsWithRegistration.add(registration.student_id);
+      }
+    });
+
+    if (!registrationMap.size) {
+      const statuses = {};
+      studentIds.forEach((studentId) => {
+        statuses[studentId] = "Not Paid";
+      });
+      setPaymentStatuses(statuses);
+      return;
+    }
+
+    const registrationIds = Array.from(registrationMap.keys());
+    const { data: paymentsData, error: paymentsError } = await supabase
+      .from("payments")
+      .select("exam_registration_id, payment_status, fee_type")
+      .in("exam_registration_id", registrationIds)
+      .order("created_at", { ascending: false });
+
+    if (paymentsError) throw paymentsError;
+
+    const latestPayments = {};
+    (paymentsData || []).forEach((payment) => {
+      const studentId = registrationMap.get(payment.exam_registration_id);
+      if (!studentId) return;
+      if (latestPayments[studentId]) return;
+      latestPayments[studentId] = payment;
+    });
+
+    const statuses = {};
+    studentIds.forEach((studentId) => {
+      if (latestPayments[studentId]) {
+        statuses[studentId] = formatPaymentStatusInfo(latestPayments[studentId]);
+      } else if (studentsWithRegistration.has(studentId)) {
+        statuses[studentId] = {
+          label: "Awaiting Payment",
+          variant: "warning",
+          detail: "Payment appears pending for this semester.",
+        };
+      } else {
+        statuses[studentId] = {
+          label: "Not Registered",
+          variant: "secondary",
+          detail: "No registration found for this semester.",
+        };
+      }
+    });
+
+    setPaymentStatuses(statuses);
+  };
 
   const normalizedCategoryFilter = useMemo(() => {
     const value = filters.category || "";
@@ -310,26 +471,30 @@ export default function Students() {
         student.year?.year_category
       );
 
-      const rawSemester =
-        student.semester ??
-        student.semester_number ??
-        student.semesterNo ??
-        student.semesterNumber ??
-        "";
-      const studentSemesterValue =
-        rawSemester === "" ? "" : String(rawSemester);
-      const matchesSemester =
-        !filters.semester || studentSemesterValue === filters.semester;
-
       return (
         matchesYear &&
         matchesGroup &&
         matchesCourse &&
-        matchesCategory &&
-        matchesSemester
+        matchesCategory
       );
     });
   }, [students, filters]);
+
+  useEffect(() => {
+    if (!paymentSemester) {
+      setPaymentStatuses({});
+      return;
+    }
+    const updateStatuses = async () => {
+      try {
+        await loadPaymentStatuses(filteredStudents, paymentSemester);
+      } catch (error) {
+        console.error("Error loading payment statuses:", error);
+        setPaymentStatuses({});
+      }
+    };
+    updateStatuses();
+  }, [filteredStudents, paymentSemester]);
  
   const handleFilterChange = (field, value) => {
     setFilters((prev) => ({ ...prev, [field]: value }));
@@ -638,13 +803,13 @@ export default function Students() {
             </select>
           </div>
           <div className="col-6 col-sm-4 col-md-3 col-lg-2">
-            <label className="form-label">Semester</label>
+            <label className="form-label">Payment Semester</label>
             <select
               className="form-select"
-              value={filters.semester}
-              onChange={(e) => handleFilterChange("semester", e.target.value)}
+              value={paymentSemester}
+              onChange={(e) => setPaymentSemester(e.target.value)}
             >
-              <option value="">All Semesters</option>
+              <option value="">Select Semester</option>
               {semesterOptions.map((semester) => (
                 <option key={semester} value={semester}>
                   Semester {semester}
@@ -668,13 +833,14 @@ export default function Students() {
                 <th>Course</th>
                 <th>Academic Year</th>
                 <th>Academic Status</th>
+                <th>Payment Status</th>
                 <th>Edit Details</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="6" className="text-center py-4">
+                  <td colSpan="9" className="text-center py-4">
                     <div className="spinner-border text-primary" role="status">
                       <span className="visually-hidden">Loading...</span>
                     </div>
@@ -709,6 +875,32 @@ export default function Students() {
                       </button>
                     </td>
                     <td>
+                      {paymentSemester ? (
+                        paymentStatuses[student.id] ? (
+                          <>
+                            <button
+                              type="button"
+                              className={`btn btn-sm btn-${
+                                paymentStatuses[student.id]?.variant || "secondary"
+                              }`}
+                              style={{ minWidth: "120px" }}
+                            >
+                              {paymentStatuses[student.id]?.label || "Status"}
+                            </button>
+                            {paymentStatuses[student.id]?.detail && (
+                              <div className="small text-muted mt-1">
+                                {paymentStatuses[student.id]?.detail}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-muted">Loading...</span>
+                        )
+                      ) : (
+                        <span className="text-muted">Select payment semester</span>
+                      )}
+                    </td>
+                    <td>
                       <button
                         className="btn btn-sm btn-outline-primary me-2"
                         onClick={() => handleEdit(student)}
@@ -726,7 +918,7 @@ export default function Students() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" className="text-center py-4">
+                  <td colSpan="9" className="text-center py-4">
                     No students found matching the selected filters.
                   </td>
                 </tr>
