@@ -1843,17 +1843,10 @@ export default function Payments() {
                                 {selectedSubjectCount} subjects selected
                               </p>
                             </div>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-secondary"
-                              onClick={() => setModalStep(1)}
-                            >
-                              Back
-                            </button>
                           </div>
                           {currentSelectedEntries.length > 0 && (
                             <div className="mb-3">
-                              <div className="text-muted small mb-1">
+                              <div className="text-muted small mb-1 fw-semibold">
                                 Current semester
                               </div>
                               {currentSelectedEntries.map(renderSelectionLine)}
@@ -1863,7 +1856,7 @@ export default function Payments() {
                           <div>
                             {supplementarySelectedBySemester.map((group) => (
                               <div className="mb-3" key={`review-suppl-${group.semester}`}>
-                                <div className="text-muted small mb-1">
+                                <div className="text-muted small mb-1 fw-semibold">
                                   Supplementary Semester {group.semester} — {group.entries.length} selected
                                 </div>
                                 {group.entries.map(renderSelectionLine)}
@@ -2068,7 +2061,7 @@ export default function Payments() {
                       onChange={() => setPaymentOption("exam")}
                     />
                     <label className="form-check-label" htmlFor="paymentOptionExam">
-                      Exam fee only (regular + supplementary) ({formatCurrency(examSubtotal)})
+                      Exam fee only
                       {modalPaymentSummary && (
                         <>
                           {" "}
@@ -2088,7 +2081,7 @@ export default function Payments() {
                       onChange={() => setPaymentOption("full")}
                     />
                     <label className="form-check-label" htmlFor="paymentOptionFull">
-                      Full fees ({formatCurrency(totalFeeBreakdownAmount)})
+                      Full fees
                       {modalPaymentSummary && (
                         <>
                           {" "}
