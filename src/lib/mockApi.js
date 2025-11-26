@@ -154,10 +154,10 @@ const ensureNoDuplicate = async (table, row = {}, opts = {}) => {
             return false;
           return String(r[col]) === String(val);
         });
-        if (found) {
-          const pretty = col.replace(/_/g, " ");
-          throw new Error(`${pretty} already exists`);
-        }
+          if (found) {
+            const pretty = col.replace(/_/g, " ");
+            throw new Error(`${pretty} already exists`);
+          }
       } catch (fallbackErr) {
         console.error("Duplicate check failed (fallback)", fallbackErr);
         throw fallbackErr;
@@ -206,9 +206,9 @@ const toGroupRow = ({ code, name, years, semesters, category }) => {
     duration_years: years ?? null,
     number_semesters: semesters ?? null,
   };
-  // include `category` only when provided to avoid sending an unknown
+  // include category only when provided to avoid sending an unknown
   // column to Supabase (some schemas may not have this column).
-  // Some DB schemas use a capitalized column name `Category` (legacy).
+  // Some DB schemas use a capitalized column name Category (legacy).
   // Write to that column name when present so UG/PG values persist.
   if (category !== undefined) row.Category = category ?? null;
   return row;
@@ -867,23 +867,20 @@ export const api = {
         excludeId: !isNaN(excludeId) ? excludeId : undefined,
       });
     }
-    // prepare payloads for upsert — remove `subject_id` so DB can generate
+    // prepare payloads for upsert — remove subject_id so DB can generate
     // identity values. Use composite conflict columns for batch uniqueness.
     const payload = subjects.map((s) => {
       const r = toSubjectRow(s);
       if (r.subject_id !== undefined) delete r.subject_id;
       return r;
     });
-    const onConflictCols = [
-      "academic_year",
-      "course_name",
-      "semester_number",
-      "category_id",
-    ].join(",");
+    // Use subject_code as the conflict target so Supabase performs an
+    // upsert on the same unique key that Postgres enforces, avoiding
+    // 409 duplicate key errors for existing subject codes.
     const rows = await runQuery(
       supabase
         .from(TABLES.subjects)
-        .upsert(payload, { onConflict: onConflictCols })
+        .upsert(payload, { onConflict: "subject_code" })
         .select(
           "subject_id, academic_year, course_name, semester_number, category_id, subject_code, subject_name, fees_categories, amount"
         ),

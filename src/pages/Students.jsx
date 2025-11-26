@@ -21,6 +21,7 @@ export default function Students() {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
+  const [viewingStudent, setViewingStudent] = useState(null);
   const [statusModal, setStatusModal] = useState({
     show: false,
     student: null,
@@ -150,6 +151,21 @@ export default function Students() {
       minutes
     ).padStart(2, "0")}`;
     return `${datePart}, ${formattedTime} ${period}`;
+  };
+
+  const getStudentInitials = (value) => {
+    if (!value) return "ST";
+    const parts = value
+      .toString()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (!parts.length) return "ST";
+    if (parts.length === 1) {
+      return parts[0].slice(0, 2).toUpperCase();
+    }
+    const firstInitial = parts[0][0] || "";
+    const lastInitial = parts[parts.length - 1][0] || "";
+    return (firstInitial + lastInitial).toUpperCase();
   };
 
   const loadPaymentStatuses = async (studentRows, semesterFilter) => {
@@ -910,7 +926,27 @@ export default function Students() {
       toast.error("Failed to update student status");
     }
   };
- 
+
+  const openStudentDetails = (student) => {
+    setViewingStudent(student);
+  };
+
+  const closeStudentDetails = () => {
+    setViewingStudent(null);
+  };
+
+  const viewingPaymentStatus = viewingStudent
+    ? paymentStatuses[viewingStudent.id]
+    : null;
+  const viewingMedia = viewingStudent
+    ? {
+        photoUrl: viewingStudent.photo_url?.toString().trim() || null,
+        initials: getStudentInitials(
+          viewingStudent.full_name || viewingStudent.student_id || "Student"
+        ),
+      }
+    : { photoUrl: null, initials: "ST" };
+
   return (
     <AdminShell>
       <div className="d-flex justify-content-between align-items-center mb-4">
@@ -1041,30 +1077,38 @@ export default function Students() {
                 </tr>
               ) : filteredStudents.length > 0 ? (
                 filteredStudents.map((student) => (
-                  <tr key={student.id}>
+                  <tr
+                    key={student.id}
+                    role="button"
+                    onClick={() => openStudentDetails(student)}
+                    style={{ cursor: "pointer" }}
+                  >
                     <td>{student.student_id}</td>
                     <td>{student.full_name}</td>
-                    <td>{student.hall_ticket_no || '-'}</td>
+                    <td>{student.hall_ticket_no || "-"}</td>
                     <td>{student.group?.group_name || student.group_name}</td>
                     <td>{student.course?.course_name || student.course_name}</td>
                     <td>{student.academic_year}</td>
                     <td>
                       <button
                         className={`btn btn-sm ${
-                          student.status === 'DISCONTINUE'
-                            ? 'btn-danger'
-                            : student.status === 'HOLD'
-                              ? 'btn-warning'
-                              : 'btn-success'
+                          student.status === "DISCONTINUE"
+                            ? "btn-danger"
+                            : student.status === "HOLD"
+                            ? "btn-warning"
+                            : "btn-success"
                         }`}
-                        onClick={() => openStatusModal(student)}
-                        style={{ minWidth: '100px' }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openStatusModal(student);
+                        }}
+                        style={{ minWidth: "100px" }}
                       >
-                        {student.status === 'DISCONTINUE'
-                          ? 'Discontinued'
-                          : student.status === 'HOLD'
-                            ? 'On Hold'
-                            : 'Active'}
+                        {student.status === "DISCONTINUE"
+                          ? "Discontinued"
+                          : student.status === "HOLD"
+                          ? "On Hold"
+                          : "Active"}
                       </button>
                     </td>
                     <td>
@@ -1077,10 +1121,15 @@ export default function Students() {
                                   key={`payment-detail-${student.id}-${index}`}
                                   type="button"
                                   className={`btn btn-sm ${
-                                    line.paid ? "btn-status-paid" : "btn-status-unpaid"
+                                    line.paid
+                                      ? "btn-status-paid"
+                                      : "btn-status-unpaid"
                                   }`}
                                   style={{ minWidth: "160px" }}
-                                  onClick={() => openPaymentHistoryModal(student)}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    openPaymentHistoryModal(student);
+                                  }}
                                 >
                                   {line.paid
                                     ? `${line.label} paid`
@@ -1093,19 +1142,27 @@ export default function Students() {
                           <span className="text-muted">Loading...</span>
                         )
                       ) : (
-                        <span className="text-muted">Select payment semester</span>
+                        <span className="text-muted">
+                          Select payment semester
+                        </span>
                       )}
                     </td>
                     <td>
                       <button
                         className="btn btn-sm btn-outline-primary me-2"
-                        onClick={() => handleEdit(student)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleEdit(student);
+                        }}
                       >
                         Edit
                       </button>
                       <button
                         className="btn btn-sm btn-outline-danger"
-                        onClick={() => handleDelete(student.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleDelete(student.id);
+                        }}
                       >
                         Delete
                       </button>
@@ -1124,6 +1181,274 @@ export default function Students() {
         </div>
       </div>
  
+      {viewingStudent && (
+        <div
+          className="modal d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: "rgba(0,0,0,0.45)" }}
+        >
+          <div className="modal-dialog modal-dialog-centered modal-xl">
+            <div className="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+              <div
+                className="modal-header border-0 pb-0"
+                style={{
+                  background:
+                    "linear-gradient(135deg, #1d4d9f 0%, #2d9cdb 55%, #38b6ff 100%)",
+                  color: "#fff",
+                  boxShadow: "0 10px 25px rgba(29, 77, 159, 0.35)",
+                }}
+              >
+                <div>
+                  <p
+                    className="text-uppercase small mb-1"
+                    style={{ letterSpacing: "0.2em" }}
+                  >
+                    Student Overview
+                  </p>
+                  <h5 className="modal-title fw-semibold mb-1">
+                    {viewingStudent.full_name || "Student Details"}
+                  </h5>
+                  <div className="d-flex flex-wrap gap-2 align-items-center text-white-50 small">
+                    <span>{viewingStudent.student_id || "-"}</span>
+                    {(viewingStudent.course?.course_name ||
+                      viewingStudent.course_name ||
+                      viewingStudent.group?.group_name ||
+                      viewingStudent.group_name) && <span>•</span>}
+                    <span>
+                      {viewingStudent.course?.course_name ||
+                        viewingStudent.course_name ||
+                        viewingStudent.group?.group_name ||
+                        viewingStudent.group_name ||
+                        ""}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-light btn-sm"
+                  aria-label="Close"
+                  onClick={closeStudentDetails}
+                >
+                  Close
+                </button>
+              </div>
+              <div className="modal-body bg-light p-4">
+                <div className="d-flex flex-column flex-lg-row gap-4">
+                  <div className="text-center flex-shrink-0">
+                    <div
+                      className="rounded-4 bg-white border border-2 border-white overflow-hidden shadow"
+                      style={{ width: 150, height: 150 }}
+                    >
+                      {viewingMedia.photoUrl ? (
+                        <img
+                          src={viewingMedia.photoUrl}
+                          alt={viewingStudent.full_name || "Student photo"}
+                          className="w-100 h-100"
+                          style={{ objectFit: "cover" }}
+                        />
+                      ) : (
+                        <div className="w-100 h-100 d-flex align-items-center justify-content-center fs-2 text-primary">
+                          {viewingMedia.initials}
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-3">
+                      <p className="text-uppercase small text-muted mb-0">
+                        {viewingStudent.status === "DISCONTINUE"
+                          ? "Discontinued"
+                          : viewingStudent.status === "HOLD"
+                          ? "On Hold"
+                          : "Active Student"}
+                      </p>
+                      <h6 className="text-truncate mb-0">
+                        {viewingStudent.full_name || "-"}
+                      </h6>
+                    </div>
+                  </div>
+                  <div className="flex-grow-1">
+                    <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
+                      <span
+                        className={`badge rounded-pill px-3 py-2 fs-7 text-uppercase ${
+                          viewingPaymentStatus
+                            ? `bg-${viewingPaymentStatus.variant || "secondary"}`
+                            : "bg-secondary"
+                        }`}
+                      >
+                        {viewingPaymentStatus?.label ||
+                          "Payment info pending"}
+                      </span>
+                      <span
+                        className={`badge rounded-pill px-3 py-2 fs-7 text-uppercase ${
+                          viewingStudent.status === "DISCONTINUE"
+                            ? "bg-danger"
+                            : viewingStudent.status === "HOLD"
+                            ? "bg-warning text-dark"
+                            : "bg-success"
+                        }`}
+                      >
+                        {viewingStudent.status === "DISCONTINUE"
+                          ? "Discontinued"
+                          : viewingStudent.status === "HOLD"
+                          ? "On Hold"
+                          : "Active"}
+                      </span>
+                    </div>
+                    <div className="row g-3">
+                      {[
+                        {
+                          label: "Category",
+                          value:
+                            viewingStudent.Category ||
+                            viewingStudent.category,
+                        },
+                        {
+                          label: "Academic Year",
+                          value: viewingStudent.academic_year,
+                        },
+                        {
+                          label: "Course",
+                          value:
+                            viewingStudent.course?.course_name ||
+                            viewingStudent.course_name,
+                        },
+                        {
+                          label: "Group",
+                          value:
+                            viewingStudent.group?.group_name ||
+                            viewingStudent.group_name,
+                        },
+                        {
+                          label: "Hall Ticket",
+                          value: viewingStudent.hall_ticket_no,
+                        },
+                        { label: "Gender", value: viewingStudent.gender },
+                        {
+                          label: "Date of Birth",
+                          value: formatDateLabel(viewingStudent.date_of_birth),
+                        },
+                        {
+                          label: "Nationality",
+                          value: viewingStudent.nationality,
+                        },
+                      ].map((field) => (
+                        <div key={field.label} className="col-6 col-md-4">
+                          <small className="text-uppercase text-muted">
+                            {field.label}
+                          </small>
+                          <div className="fw-semibold">{field.value || "-"}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="row g-3 mt-4">
+                  <div className="col-lg-6">
+                    <div className="bg-white rounded-4 shadow-sm p-4 h-100">
+                      <div className="d-flex align-items-center justify-content-between mb-2">
+                        <p className="text-uppercase small text-muted mb-0">
+                          Contact
+                        </p>
+                        <span className="text-muted small">Primary</span>
+                      </div>
+                      <div className="fw-semibold">{viewingStudent.phone_number || "-"}</div>
+                      <div className="text-muted small">
+                        {viewingStudent.email || "-"}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="col-lg-6">
+                    <div className="bg-white rounded-4 shadow-sm p-4 h-100">
+                      <div className="d-flex align-items-center justify-content-between mb-2">
+                        <p className="text-uppercase small text-muted mb-0">
+                          Residence
+                        </p>
+                        <span className="text-muted small">
+                          {viewingStudent.pincode ? `PIN ${viewingStudent.pincode}` : ""}
+                        </span>
+                      </div>
+                      <div className="fw-semibold text-capitalize">
+                        {viewingStudent.address || "-"}
+                      </div>
+                      <div className="text-muted small mt-2">
+                        {viewingStudent.state || "-"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="row g-3 mt-3">
+                  <div className="col-lg-6">
+                    <div className="bg-white rounded-4 shadow-sm p-4 h-100">
+                      <div className="d-flex align-items-center justify-content-between mb-2">
+                        <p className="text-uppercase small text-muted mb-0">
+                          Parents
+                        </p>
+                        <span className="text-muted small">
+                          Family Info
+                        </span>
+                      </div>
+                      <div className="fw-semibold">
+                        {viewingStudent.father_name || "-"}
+                      </div>
+                      <div className="text-muted small">
+                        Father
+                      </div>
+                      <div className="fw-semibold mt-3">
+                        {viewingStudent.mother_name || "-"}
+                      </div>
+                      <div className="text-muted small">
+                        Mother
+                      </div>
+                    </div>
+                  </div>
+                  <div className="col-lg-6">
+                    <div className="bg-white rounded-4 shadow-sm p-4 h-100">
+                      <div className="d-flex align-items-center justify-content-between mb-2">
+                        <p className="text-uppercase small text-muted mb-0">
+                          Identity
+                        </p>
+                        <span className="text-muted small">
+                          Core details
+                        </span>
+                      </div>
+                      <div className="fw-semibold">
+                        {viewingStudent.aadhar_number || "-"}
+                      </div>
+                      <div className="text-muted small">
+                        Aadhar
+                      </div>
+                      <div className="fw-semibold mt-3">
+                        {viewingStudent.religion || "-"}
+                      </div>
+                      <div className="text-muted small">
+                        Religion
+                      </div>
+                      <div className="fw-semibold mt-3 text-capitalize">
+                        {viewingStudent.caste || "-"}
+                        {viewingStudent.sub_caste
+                          ? ` • ${viewingStudent.sub_caste}`
+                          : ""}
+                      </div>
+                      <div className="text-muted small">
+                        Caste / Sub Caste
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer border-0 pt-0">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary rounded-pill px-4"
+                  onClick={closeStudentDetails}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Edit Student Modal */}
       {editingStudent && (
         <div
