@@ -1722,7 +1722,7 @@ export default function Payments() {
                     </div>
                   </div>
                     <div className="mt-4">
-                    {availableSupplementarySemesters.length > 0 && (
+                    {modalStep === 1 && availableSupplementarySemesters.length > 0 && (
                       <div className="d-flex align-items-center justify-content-end gap-2 mb-3">
                         <span className="fw-semibold">Select Supplementary:</span>
                         {availableSupplementarySemesters.map((sem) => {
@@ -1764,10 +1764,6 @@ export default function Payments() {
                     {modalStep === 1 ? (
                       combinedSubjectEntries.length === 0 ? null : (
                         <>
-                          <div className="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
-                            <span className="text-muted small fw-semibold">Subject</span>
-                            <span className="text-muted small fw-semibold">Subject code</span>
-                          </div>
                           {currentSubjectEntries.length > 0 && (
                             <div className="border rounded mb-3">
                               <div className="px-3 py-2 bg-light border-bottom d-flex justify-content-between align-items-center">
@@ -2153,27 +2149,6 @@ export default function Payments() {
                       ) : null}
                     </div>
                   </div>
-                <div className="card border rounded shadow-sm mb-3">
-                  <div className="card-body">
-                    <div className="d-flex justify-content-between small text-muted">
-                      <span>Regular exam fees</span>
-                      <span>{formatCurrency(examOnlyAmount)}</span>
-                    </div>
-                    {supplementarySelectedCount > 0 && (
-                      <div className="d-flex justify-content-between small text-muted">
-                        <span>Supplementary fees</span>
-                        <span>{formatCurrency(supplementaryFeeAmount)}</span>
-                      </div>
-                    )}
-                    <div className="d-flex justify-content-between fw-semibold mt-2">
-                      <span>Exam subtotal</span>
-                      <span>{formatCurrency(examSubtotal)}</span>
-                    </div>
-                    <div className="text-muted small mt-1">
-                      Covers regular and supplementary subjects selected above.
-                    </div>
-                  </div>
-                </div>
                 <div className="mb-3">
                   <label className="form-label fw-semibold">Payment method</label>
                   <select
