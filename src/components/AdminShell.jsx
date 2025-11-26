@@ -128,8 +128,10 @@ export default function AdminShell({ children, onSignOut }) {
         </nav>
 
         <div className="sidebar-footer text-center small text-muted mt-auto">
-          <div>Exam Management Studio</div>
-          <div>Crafted for Vijayam College</div>
+          <div style={{ color: "#4c75f2", letterSpacing: "0.15em" }}>
+            Exam Management Studio
+          </div>
+          <div style={{ color: "#a569bd" }}>Crafted for Vijayam College</div>
         </div>
       </aside>
 

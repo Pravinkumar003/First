@@ -14,6 +14,7 @@ export default function Students() {
     course_name: "",
     category: "",
   });
+  const [studentIdSearch, setStudentIdSearch] = useState("");
   const [paymentSemester, setPaymentSemester] = useState("");
   const [years, setYears] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -95,12 +96,19 @@ export default function Students() {
     return "secondary";
   };
 
-  const formatPaymentStatusInfo = (payment, outstandingBalance = 0) => {
+  const formatPaymentStatusInfo = (
+    payment,
+    outstandingBalance = 0,
+    coverage = { examPaid: false, otherPaid: false }
+  ) => {
     if (!payment) {
       return {
         label: "Not Paid",
         variant: "danger",
-        detail: "No payment recorded for selected semester.",
+        detailLines: [
+          { label: "Exam fees", paid: false },
+          { label: "Other fees", paid: false },
+        ],
       };
     }
     const normalizedStatus = (payment.payment_status || "")
@@ -121,6 +129,10 @@ export default function Students() {
     return {
       label,
       variant,
+      detailLines: [
+        { label: "Exam fees", paid: coverage.examPaid },
+        { label: "Other fees", paid: coverage.otherPaid },
+      ],
     };
   };
 
@@ -188,7 +200,7 @@ export default function Students() {
     if (!registrationMap.size) {
       const statuses = {};
       studentIds.forEach((studentId) => {
-        statuses[studentId] = "Not Paid";
+        statuses[studentId] = formatPaymentStatusInfo(null);
       });
       setPaymentStatuses(statuses);
       return;
@@ -205,6 +217,7 @@ export default function Students() {
 
     const latestPayments = {};
     const paymentTotals = {};
+    const paymentCoverage = {};
     (paymentsData || []).forEach((payment) => {
       const studentId = registrationMap.get(payment.exam_registration_id);
       if (!studentId) return;
@@ -214,11 +227,25 @@ export default function Students() {
       if (payment.payment_status === "success") {
         paymentTotals[studentId] =
           (paymentTotals[studentId] || 0) + Number(payment.amount_paid || 0);
+        if (!paymentCoverage[studentId]) {
+          paymentCoverage[studentId] = { examPaid: false, otherPaid: false };
+        }
+        const feeTypeNormalized = (payment.fee_type || "").toString().trim().toLowerCase();
+        if (feeTypeNormalized === "exam" || feeTypeNormalized === "partial" || feeTypeNormalized === "full") {
+          paymentCoverage[studentId].examPaid = true;
+        }
+        if (feeTypeNormalized === "full") {
+          paymentCoverage[studentId].otherPaid = true;
+        }
       }
     });
 
     const statuses = {};
     studentIds.forEach((studentId) => {
+      const coverage = paymentCoverage[studentId] || {
+        examPaid: false,
+        otherPaid: false,
+      };
       if (latestPayments[studentId]) {
         const outstandingBalance = Math.max(
           (studentRegistrationTotals[studentId] || 0) -
@@ -227,19 +254,26 @@ export default function Students() {
         );
         statuses[studentId] = formatPaymentStatusInfo(
           latestPayments[studentId],
-          outstandingBalance
+          outstandingBalance,
+          coverage
         );
       } else if (studentsWithRegistration.has(studentId)) {
         statuses[studentId] = {
           label: "Awaiting Payment",
           variant: "warning",
-          detail: "Payment appears pending for this semester.",
+          detailLines: [
+            { label: "Exam fees", paid: coverage.examPaid },
+            { label: "Other fees", paid: coverage.otherPaid },
+          ],
         };
       } else {
         statuses[studentId] = {
           label: "Not Registered",
           variant: "secondary",
-          detail: "No registration found for this semester.",
+          detailLines: [
+            { label: "Exam fees", paid: coverage.examPaid },
+            { label: "Other fees", paid: coverage.otherPaid },
+          ],
         };
       }
     });
@@ -595,6 +629,7 @@ export default function Students() {
 
   // Filter students based on selected filters
   const filteredStudents = useMemo(() => {
+    const searchTerm = (studentIdSearch || "").toString().trim().toLowerCase();
     return students.filter((student) => {
       const matchesYear =
         !filters.academic_year ||
@@ -611,15 +646,22 @@ export default function Students() {
         student.year?.category,
         student.year?.year_category
       );
+      const matchesStudentId =
+        !searchTerm ||
+        (student.student_id || "")
+          .toString()
+          .toLowerCase()
+          .includes(searchTerm);
 
       return (
         matchesYear &&
         matchesGroup &&
         matchesCourse &&
         matchesCategory
+        && matchesStudentId
       );
     });
-  }, [students, filters]);
+  }, [students, filters, normalizedCategoryFilter, studentIdSearch]);
 
   useEffect(() => {
     if (!paymentSemester) {
@@ -880,6 +922,16 @@ export default function Students() {
         <h5 className="mb-3">Filter Students</h5>
         <div className="row g-3">
           <div className="col-6 col-sm-4 col-md-3 col-lg-2">
+            <label className="form-label">Student ID</label>
+            <input
+              type="text"
+              className="form-control"
+              value={studentIdSearch}
+              onChange={(e) => setStudentIdSearch(e.target.value)}
+              placeholder="Enter Student ID"
+            />
+          </div>
+          <div className="col-6 col-sm-4 col-md-3 col-lg-2">
             <label className="form-label">Category</label>
             <select
               className="form-select"
@@ -1018,20 +1070,25 @@ export default function Students() {
                     <td>
                       {paymentSemester ? (
                         paymentStatuses[student.id] ? (
-                          <>
-                            <button
-                              type="button"
-                              className={`btn btn-sm btn-${
-                                paymentStatuses[student.id]?.variant || "secondary"
-                              }`}
-                              style={{ minWidth: "120px" }}
-                              onClick={() =>
-                                openPaymentHistoryModal(student)
-                              }
-                            >
-                              {paymentStatuses[student.id]?.label || "Status"}
-                            </button>
-                          </>
+                          <div className="d-flex flex-wrap gap-1">
+                            {paymentStatuses[student.id]?.detailLines?.map(
+                              (line, index) => (
+                                <button
+                                  key={`payment-detail-${student.id}-${index}`}
+                                  type="button"
+                                  className={`btn btn-sm ${
+                                    line.paid ? "btn-status-paid" : "btn-status-unpaid"
+                                  }`}
+                                  style={{ minWidth: "160px" }}
+                                  onClick={() => openPaymentHistoryModal(student)}
+                                >
+                                  {line.paid
+                                    ? `${line.label} paid`
+                                    : `${line.label} unpaid`}
+                                </button>
+                              )
+                            )}
+                          </div>
                         ) : (
                           <span className="text-muted">Loading...</span>
                         )

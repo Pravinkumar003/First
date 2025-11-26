@@ -270,6 +270,28 @@ h6,
   background-color: rgba(15, 23, 42, 0.05);
 }
 
+.btn-status-paid {
+  background: linear-gradient(135deg, #4c75f2, #6b9cff);
+  color: #fff;
+  border: none;
+  box-shadow: 0 10px 20px rgba(76, 117, 242, 0.3);
+}
+.btn-status-paid:hover,
+.btn-status-paid:focus {
+  background: linear-gradient(135deg, #6b9cff, #4c75f2);
+}
+
+.btn-status-unpaid {
+  background: linear-gradient(135deg, #a569bd, #c07ecc);
+  color: #fff;
+  border: none;
+  box-shadow: 0 10px 20px rgba(192, 126, 204, 0.35);
+}
+.btn-status-unpaid:hover,
+.btn-status-unpaid:focus {
+  background: linear-gradient(135deg, #c07ecc, #a569bd);
+}
+
 .btn-brand,
 .btn-accent,
 .btn-outline-brand {
