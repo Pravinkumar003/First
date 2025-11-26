@@ -42,7 +42,6 @@ export default function Payments() {
   const [modalFeeInfo, setModalFeeInfo] = useState(null);
   const [loadingModalFee, setLoadingModalFee] = useState(false);
   const [modalStep, setModalStep] = useState(1);
-  const [showFeeBreakdownModal, setShowFeeBreakdownModal] = useState(false);
   const [supplementaryFeeRates, setSupplementaryFeeRates] = useState(null);
   const [loadingSupplementaryFeeRates, setLoadingSupplementaryFeeRates] =
     useState(false);
@@ -54,6 +53,7 @@ export default function Payments() {
   const [loadingModalPayments, setLoadingModalPayments] = useState(false);
   const [quickPaymentModalOpen, setQuickPaymentModalOpen] = useState(false);
   const [quickPaymentStudentId, setQuickPaymentStudentId] = useState("");
+  const [appliedRegistrations, setAppliedRegistrations] = useState(() => new Set());
   const examFeeData = useMemo(() => {
     if (!modalFeeInfo?.categories?.length) return null;
     const categories = modalFeeInfo.categories.filter((cat) =>
@@ -320,7 +320,11 @@ export default function Payments() {
     [combinedSubjectEntries]
   );
   useEffect(() => {
-    setSelectedSubjectKeys(new Set());
+    setSelectedSubjectKeys((prev) => {
+      const available = new Set(uniqueModalSubjectKeys);
+      const next = new Set([...prev].filter((key) => available.has(key)));
+      return next;
+    });
     setModalStep(1);
   }, [uniqueModalSubjectKeys]);
   const currentSelectedCount = currentSelectedEntries.length;
@@ -417,7 +421,7 @@ export default function Payments() {
       });
       return;
     }
-    setShowFeeBreakdownModal(true);
+    setShowPaymentModal(true);
   };
 
   const renderSelectionLine = (entry) => (
@@ -433,7 +437,11 @@ export default function Payments() {
   );
 
   const renderSubjectRow = (entry) => (
-    <tr key={entry.key}>
+    <tr
+      key={entry.key}
+      className="cursor-pointer"
+      onClick={() => toggleSubjectSelection(entry.key)}
+    >
       <td className="align-middle text-center" style={{ width: "1px" }}>
         <input
           className="form-check-input"
@@ -442,6 +450,7 @@ export default function Payments() {
           checked={selectedSubjectKeys.has(entry.key)}
           onChange={() => toggleSubjectSelection(entry.key)}
           aria-label={`Select ${entry.name}`}
+          onClick={(event) => event.stopPropagation()}
         />
       </td>
       <td className="align-middle text-truncate" style={{ maxWidth: 400 }}>
@@ -509,6 +518,34 @@ export default function Payments() {
   const formatCurrency = (value) => {
     const num = Number(value || 0);
     return `₹${num.toLocaleString("en-IN")}`;
+  };
+
+  const getAppliedRegistrationKey = (student, semesterValue) => {
+    const semester =
+      semesterValue ||
+      form.semester ||
+      student?.semester ||
+      student?.semester_number ||
+      "";
+    const studentId =
+      student?.student_id ??
+      student?.studentId ??
+      student?.id ??
+      student?.student_id_number ??
+      "";
+    if (!studentId || !semester) return null;
+    return `${studentId}-${semester}`;
+  };
+
+  const recordAppliedRegistration = () => {
+    if (!modalStudent) return;
+    const key = getAppliedRegistrationKey(modalStudent, modalSemester);
+    if (!key) return;
+    setAppliedRegistrations((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
   };
 
   const regularExamFeeAmount = examFeeData?.total || 0;
@@ -954,23 +991,6 @@ export default function Payments() {
     setModalPaymentSummary(null);
     setLoadingModalPayments(false);
   };
-  const closeFeeBreakdownModalOnly = () => {
-    setShowFeeBreakdownModal(false);
-  };
-  const handleFeeModalBack = () => {
-    closeFeeBreakdownModalOnly();
-  };
-  const handleFeeModalClose = () => {
-    closeFeeBreakdownModalOnly();
-    closeStudentModal();
-  };
-  const handleFeeModalPayNow = () => {
-    setShowFeeBreakdownModal(false);
-    setPaymentOption("full");
-    setPartialAmount("");
-    setPaymentMethod("");
-    setShowPaymentModal(true);
-  };
   const closePaymentModal = ({ notifyCancellation = false } = {}) => {
     setShowPaymentModal(false);
     setPaymentOption("full");
@@ -1245,6 +1265,7 @@ export default function Payments() {
         title: "Payment",
       }
     );
+    recordAppliedRegistration();
     closePaymentModal();
     closeStudentModal();
   };
@@ -1573,18 +1594,31 @@ export default function Payments() {
                           <td>{studentName}</td>
                           <td>{groupLabel}</td>
                           <td>{courseLabel}</td>
-                          <td className="text-end">
-                    <button
-                      className={`btn btn-sm ${
-                        isActive
-                          ? "btn-outline-secondary"
-                          : "btn-outline-primary"
-                      }`}
-                      onClick={() => openStudentModal(s)}
-                    >
-                      Apply for Exam
-                    </button>
-                  </td>
+                      <td className="text-end">
+                        {(() => {
+                          const key = getAppliedRegistrationKey(s);
+                          const isApplied = key && appliedRegistrations.has(key);
+                          if (isApplied) {
+                            return (
+                              <span className="badge bg-success text-white">
+                                Applied
+                              </span>
+                            );
+                          }
+                          return (
+                            <button
+                              className={`btn btn-sm ${
+                                isActive
+                                  ? "btn-outline-secondary"
+                                  : "btn-outline-primary"
+                              }`}
+                              onClick={() => openStudentModal(s)}
+                            >
+                              Apply for Exam
+                            </button>
+                          );
+                        })()}
+                      </td>
                 </tr>
                       </Fragment>
                     );
@@ -1746,21 +1780,6 @@ export default function Payments() {
                         })}
                       </div>
                     )}
-                        <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-
-                          {selectedSubjectCount > 0 && (
-
-                            <div className="text-muted small">
-
-                              {selectedSubjectCount} of {totalModalSubjectCount} subjects selected
-
-                            </div>
-
-                          )}
-
-                        </div>
-
-
                     {modalStep === 1 ? (
                       combinedSubjectEntries.length === 0 ? null : (
                         <>
@@ -1937,96 +1956,6 @@ export default function Payments() {
           </div>
         </>
       )}
-      {showFeeBreakdownModal && (
-        <div
-          className="modal d-block"
-          tabIndex="-1"
-          role="dialog"
-          aria-modal="true"
-          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
-        >
-          <div className="modal-dialog modal-lg modal-dialog-centered">
-            <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Fee breakdown</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    aria-label="Close"
-                    onClick={handleFeeModalClose}
-                  ></button>
-                </div>
-              <div className="modal-body">
-                {renderStudentProfileCard(activePaymentStudent)}
-                <div className="card border rounded shadow-sm mb-3">
-                  <div className="card-body">
-                    <div className="d-flex justify-content-between align-items-baseline">
-                      <div>
-                        <h6 className="mb-0">Exam & supplementary fees</h6>
-                      </div>
-                      <span className="fs-5 fw-semibold">
-                        {formatCurrency((examFeeData?.total || 0) + supplementaryFeeAmount)}
-                      </span>
-                    </div>
-                    {hasExamFees ? (
-                      <div className="text-muted small mt-2">
-                        {supplementarySelectedCount} supplementary subject
-                        {supplementarySelectedCount === 1 ? "" : "s"} selected.
-                      </div>
-                    ) : (
-                      <div className="alert alert-warning mb-0 mt-3">
-                        Exam fees are not configured for this semester.
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="card border rounded shadow-sm">
-                  <div className="card-body">
-                    <div className="d-flex justify-content-between align-items-baseline">
-                      <div>
-                        <h6 className="mb-0">Other Fees</h6>
-                      </div>
-                      <span className="fs-5 fw-semibold">
-                        {formatCurrency(otherFeeTotal)}
-                      </span>
-                    </div>
-                  
-                  </div>
-                </div>
-                <div className="d-flex justify-content-between align-items-center mt-4 border-top pt-3">
-                  <span className="fs-6 fw-semibold">Grand total</span>
-                  <span className="fs-5 fw-bold">
-                    {formatCurrency(totalFeeBreakdownAmount)}
-                  </span>
-                </div>
-              </div>
-                <div className="modal-footer d-flex justify-content-end gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-outline-secondary"
-                    onClick={handleFeeModalBack}
-                  >
-                    Back
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={handleFeeModalClose}
-                  >
-                    Close
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={handleFeeModalPayNow}
-                  >
-                    Pay now
-                  </button>
-                </div>
-            </div>
-          </div>
-        </div>
-      )}
       {showPaymentModal && (
         <div
           className="modal d-block"
@@ -2060,14 +1989,20 @@ export default function Payments() {
                       checked={paymentOption === "exam"}
                       onChange={() => setPaymentOption("exam")}
                     />
-                    <label className="form-check-label" htmlFor="paymentOptionExam">
-                      Exam fee only
-                      {modalPaymentSummary && (
-                        <>
-                          {" "}
-                          • Remaining {formatCurrency(outstandingExam)}
-                        </>
-                      )}
+                    <label
+                      className="form-check-label d-flex justify-content-between align-items-center"
+                      htmlFor="paymentOptionExam"
+                    >
+                      <span>Exam fee only</span>
+                      <span className="text-muted small">
+                        {formatCurrency(examSubtotal)}
+                        {modalPaymentSummary && (
+                          <>
+                            {" "}
+                            • Remaining {formatCurrency(outstandingExam)}
+                          </>
+                        )}
+                      </span>
                     </label>
                   </div>
                   <div className="form-check">
@@ -2080,14 +2015,20 @@ export default function Payments() {
                       checked={paymentOption === "full"}
                       onChange={() => setPaymentOption("full")}
                     />
-                    <label className="form-check-label" htmlFor="paymentOptionFull">
-                      Full fees
-                      {modalPaymentSummary && (
-                        <>
-                          {" "}
-                          • Remaining {formatCurrency(outstandingTotal)}
-                        </>
-                      )}
+                    <label
+                      className="form-check-label d-flex justify-content-between align-items-center"
+                      htmlFor="paymentOptionFull"
+                    >
+                      <span>Full fees</span>
+                      <span className="text-muted small">
+                        {formatCurrency(totalFeeBreakdownAmount)}
+                        {modalPaymentSummary && (
+                          <>
+                            {" "}
+                            • Remaining {formatCurrency(outstandingTotal)}
+                          </>
+                        )}
+                      </span>
                     </label>
                   </div>
                   <div className="form-check">
