@@ -1723,13 +1723,12 @@ export default function Payments() {
                   </div>
                     <div className="mt-4">
                     {availableSupplementarySemesters.length > 0 && (
-                      <div className="d-flex justify-content-end gap-2 mb-3">
+                      <div className="d-flex align-items-center justify-content-end gap-2 mb-3">
+                        <span className="fw-semibold">Select Supplementary:</span>
                         {availableSupplementarySemesters.map((sem) => {
                           const semValue = String(sem);
                           const isActive =
-                            selectedSupplementarySemesters.includes(
-                              semValue
-                            );
+                            selectedSupplementarySemesters.includes(semValue);
                           return (
                             <button
                               key={sem}
@@ -1738,9 +1737,7 @@ export default function Payments() {
                                 isActive ? "btn-primary" : "btn-outline-primary"
                               }`}
                               onClick={() =>
-                                toggleSupplementarySemesterSelection(
-                                  semValue
-                                )
+                                toggleSupplementarySemesterSelection(semValue)
                               }
                             >
                               Sem {sem}
@@ -1760,20 +1757,6 @@ export default function Payments() {
                             </div>
 
                           )}
-
-                          {examFeeData?.categories?.length ? (
-
-                            <div className="text-muted small">
-
-                              {`Regular exam fees: ${formatCurrency(
-
-                                examFeeData.categories[0].amount
-
-                              )}`}
-
-                            </div>
-
-                          ) : null}
 
                         </div>
 
