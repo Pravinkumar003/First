@@ -1,7 +1,0 @@
-{
-  "routes": [],
-  "navigationFallback": {
-    "rewrite": "/index.html",
-    "exclude": ["/static/*", "/*.{css,js,png,jpg,svg,gif,webp}"]
-  }
-}
